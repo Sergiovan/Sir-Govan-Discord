@@ -3,3 +3,4 @@
 data/nocontext.txt
 node_modules/
 secrets.js
+package.json
