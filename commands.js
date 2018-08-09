@@ -64,7 +64,7 @@ module.exports = {
                 if(err) {
                     console.log(`Error detected: ${err}`);
                 } else {
-                    let lines = data.split('\n');
+                    let lines = data.trim().split('\n');
                     index = lines.indexOf(rolename);
                     total = lines.length;
                 }

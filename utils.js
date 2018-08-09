@@ -90,7 +90,7 @@ module.exports = {
                 console.log(`Error detected: ${err}`);
                 cb(def);
             } else {
-                let lines = data.split('\n');
+                let lines = data.trim().split('\n');
                 cb(lines[Math.floor(Math.random() * lines.length)]);
             }
         });
