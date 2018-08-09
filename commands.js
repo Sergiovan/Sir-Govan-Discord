@@ -60,15 +60,16 @@ module.exports = {
             let rolename = msg.channel.guild.roles.get(server.no_context_role).name;
             fs.readFile(path.join('data', 'nocontext.txt'), "utf8", function(err, data) {
                 let index = -1;
+                let total = 0;
                 if(err) {
                     console.log(`Error detected: ${err}`);
                 } else {
                     let lines = data.split('\n');
-                    console.log(lines);
                     index = lines.indexOf(rolename);
+                    total = lines.length;
                 }
                 rolename += index === -1 ? "\nNote: This role does not exist anymore. It's a shiny!" : "";
-                index = index === -1 ? 'NaN' : index; 
+                index = index === -1 ? 'NaN' : `${index+1}/${total}`;
                 self.createMessage(msg.channel.id, `${index}: ${rolename}`);
             });
         } else {
