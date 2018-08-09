@@ -1,5 +1,8 @@
 "use strict";
 
+let fs = require('fs');
+let path = require('path');
+
 let c = require('./defines.js');
 let f = require('./utils.js');
 
@@ -44,6 +47,32 @@ module.exports = {
         }else{
             this.createMessage(msg.channel.id, "Incredibly, something went wrong. I will now tell my master about it");
             console.log('Something went very wrong when changing colors :<'.red);
+        }
+    },
+
+    role(msg){
+        let self = this;
+        let server = c.botparams.servers.getServer(msg);
+        if(!server) {
+            return;
+        }
+        if(server.no_context_role){
+            let rolename = msg.channel.guild.roles.get(server.no_context_role).name;
+            fs.readFile(path.join('data', 'nocontext.txt'), "utf8", function(err, data) {
+                let index = -1;
+                if(err) {
+                    console.log(`Error detected: ${err}`);
+                } else {
+                    let lines = data.split('\n');
+                    console.log(lines);
+                    index = lines.indexOf(rolename);
+                }
+                rolename += index === -1 ? "\nNote: This role does not exist anymore. It's a shiny!" : "";
+                index = index === -1 ? 'NaN' : index; 
+                self.createMessage(msg.channel.id, `${index}: ${rolename}`);
+            });
+        } else {
+            this.createMessage(msg.channel.id, "This server does not have roles to collect. Sorry!");
         }
     },
 

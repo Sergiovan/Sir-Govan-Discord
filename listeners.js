@@ -29,6 +29,7 @@ module.exports = {
         process.on('SIGINT', function() {
             console.log("Buh bai");
             self.die();
+            process.exit(1);
         });
 
         console.log("Ready!");
@@ -46,11 +47,11 @@ module.exports = {
             return;
         }
         console.log(`${msg.author.username.cyan} @ ${msg.channel.name.cyan}: ${msg.cleanContent}`);
-        if(msg.author.id === this.user.id || msg.author.bot){
+        if(msg.author.id === this.user.id){
             return;
         }
         
-        if(server.allowedListen(msg)){
+        if(server.allowedListen(msg) && !msg.author.bot){
             if((Math.random() * 100) < 1.0 && server.no_context_channel) {
                 let channel = server.no_context_channel;
                 if(msg.cleanContent.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
