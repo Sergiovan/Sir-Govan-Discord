@@ -61,7 +61,8 @@ module.exports = {
             '140942235670675456': new Server('140942235670675456', { // The club
                 beta: false,
                 allowed_channels: [
-                    '271748090090749952'   // #config-chat
+                    '271748090090749952',   // #config-chat
+                    '222466032290234368'    // #bot-chat
                 ],  
                 allowed_channels_listen: [
                     '140942235670675456',  // #main-chat 
