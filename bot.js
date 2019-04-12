@@ -79,6 +79,19 @@ bot.pin = function(msg, forced = false){
                 icon_url: icon
             }
         };
+        let guild_id = server.id;
+        let channel_id = msg.channel.id;
+        let message_id = msg.id;
+        let url = `https://canary.discordapp.com/channels/${guild_id}/${channel_id}/${message_id}`;
+        let desc = `[Click to teleport](${url})`;
+        if(!embed.description) {
+            embed.description = desc;
+        } else {
+            embed.fields = [{
+                "name": "\u200b",
+                "value": desc
+            }];
+        }
         if(msg.attachments && msg.attachments.length){
             let attachment = msg.attachments[0];
             let embedtype = /\.(webm|mp4)$/g.test(attachment.filename) ? 'video' : 'image';
@@ -108,7 +121,7 @@ for(let command_name in cmds){
 
 if(bot.beta){
     bot.addCommand('!debug', function(msg){
-        console.log(msg.content);
+        console.log(util.inspect(msg, true, 5, true));
     });
     bot.addCommand('!__die', cmds['die']);
 }

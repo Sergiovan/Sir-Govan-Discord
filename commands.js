@@ -111,31 +111,103 @@ module.exports = {
         }
     },
 
-    pinall(msg){
-        if(msg.author.id !== c.botparams.owner){
-            return;
-        }
-        let [err, channel] = parseArgs(msg, arg(c.argTypes.channel));
-        if(!err){
-            if(channel) {
-                channel.getPins()
-                    .then((msgs) => {
-                        msgs.reverse();
-                        for(let msg of msgs) {
-                            let emoji = c.emojis.pushpin.fullName;
-                            if(msg.reactions[emoji] && msg.reactions[emoji].me) {
-                                continue;
-                            }
-                            msg.addReaction(emoji);
-                            this.pin(msg);
-                        }
-                    })
-                    .catch((err) => console.log(`Something went wrong: ${err}`));
-            } else {
-                this.createMessage(msg.channel.id, "I need a proper channel name");
-            }
-        }else{
-            this.createMessage(msg.channel.id, "Something went terribly wrong")
-        }
-    }
+    // pinall(msg){
+    //     if(msg.author.id !== c.botparams.owner){
+    //         return;
+    //     }
+    //     let [err, channel] = parseArgs(msg, arg(c.argTypes.channel));
+    //     if(!err){
+    //         if(channel) {
+    //             channel.getPins()
+    //                 .then((msgs) => {
+    //                     msgs.reverse();
+    //                     for(let msg of msgs) {
+    //                         let emoji = c.emojis.pushpin.fullName;
+    //                         if(msg.reactions[emoji] && msg.reactions[emoji].me) {
+    //                             continue;
+    //                         }
+    //                         msg.addReaction(emoji);
+    //                         this.pin(msg);
+    //                     }
+    //                 })
+    //                 .catch((err) => console.log(`Something went wrong: ${err}`));
+    //         } else {
+    //             this.createMessage(msg.channel.id, "I need a proper channel name");
+    //         }
+    //     }else{
+    //         this.createMessage(msg.channel.id, "Something went terribly wrong");
+    //     }
+    // },
+
+    // fixpin(msg){
+    //     let util = require('util');
+    //     if(msg.author.id !== c.botparams.owner){
+    //         return;
+    //     }
+    //     let [err, messageID] = parseArgs(msg, arg(c.argTypes.string));
+    //     if (err) {
+    //         this.createMessage(msg.channel.id, "Something went terribly wrong");
+    //         return;
+    //     }
+    //     let pc = c.botparams.servers.getServer(msg).pin_channel;
+    //     let ch = msg.channel.guild.channels.find(x => x.id === pc);
+    //     let self = this;
+    //     let bot_id = self.user.id;
+
+    //     ch.getMessage(messageID).then(function(msg) {
+    //         if (!msg.author || msg.author.id !== bot_id || 
+    //             !msg.embeds || msg.embeds.length !== 1 || msg.embeds[0].type !== 'rich' || !msg.embeds[0].footer) {
+    //                 console.log(`Invalid message: ${util.inspect(err, true, 4, true)}`);
+    //                 return;
+    //             }
+    //         // console.log(msg.embeds[0].footer);
+    //         let parts = msg.embeds[0].footer.text.match(/([0-9]+)(?: - ([0-9]+))?/);
+    //         console.log(util.inspect(parts));
+    //         let guild_id = msg.channel.guild.id;
+    //         let channel_id = parts[2] || guild_id;
+    //         let message_id = parts[1];
+    //         let url = `https://canary.discordapp.com/channels/${guild_id}/${channel_id}/${message_id}`;
+    //         let desc = `[Click to teleport](${url})`;
+    //         if (!msg.embeds[0].description || !msg.embeds[0].description.length || msg.embeds[0].description === desc) {
+    //             msg.embeds[0].description = desc;
+    //         } else {
+    //             msg.embeds[0].fields = [{
+    //                 "name": "\u200b",
+    //                 "value": `[Click to teleport](${url})`
+    //             }];
+    //         }
+    //         ch.editMessage(msg.id, {embed: msg.embeds[0]});
+    //     }).catch(function(err) {
+    //         console.log(`Message not in ${ch.name}: ${err}`);
+    //     });
+    // },
+
+    // __fixpin(msg) {
+    //     let util = require('util');
+    //     if(msg.author.id !== c.botparams.owner){
+    //         return;
+    //     }
+    //     let pinid = '422800566713057282';
+    //     let msgid = '251343460454498304';
+
+    //     let pinchid  = '422796631235362841';
+    //     let msgchid  = '140942235670675456'; 
+
+    //     let guild = this.guilds.find(x => x.id === '140942235670675456');
+
+    //     let pinchannel = guild.channels.find(x => x.id === pinchid);
+    //     let messagechannel = guild.channels.find(x => x.id === msgchid);
+
+    //     pinchannel.getMessage(pinid).then(function(msg){
+    //         messagechannel.getMessage(msgid).then(function(rmsg){
+    //             msg.embeds[0].image = {
+    //                 url: rmsg.attachments[0].url,
+    //                 height: rmsg.attachments[0].height,
+    //                 width: rmsg.attachments[0].width
+    //             };
+
+    //             pinchannel.editMessage(msg.id, {embed: msg.embeds[0]});
+    //         });
+    //     });
+    // }
 };
