@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const {botparams, emojis, argTypes, ...rest} = require('./defines.js');
 
@@ -94,5 +95,20 @@ module.exports = {
                 cb(lines[Math.floor(Math.random() * lines.length)]);
             }
         });
+    },
+
+    randomBigInt(max = 20n, min = 0n) {
+        let r;
+        const range = 1n + max - min;
+        const bytes = BigInt(Math.ceil(range.toString(2).length / 8));
+        const bits = bytes * 8n;
+        const buckets = (2n ** bits) / range;
+        const limit = buckets * range;
+
+        do {
+            r = BigInt('0x' + crypto.randomBytes(Number(bytes)).toString('hex'));
+        } while (r >= limit);
+
+        return min + (r / buckets);
     }
 };

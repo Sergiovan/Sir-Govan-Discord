@@ -17,9 +17,14 @@ module.exports = {
     },
 
     roll(msg){
-        let [err, num] = parseArgs(msg, arg(1, 20));
-        if(!err){
-            this.createMessage(msg.channel.id, Math.floor(Math.random()*num) + 1);
+        let [err, num] = parseArgs(msg, arg(0, '20'));
+        if(!err) {
+            try {
+                num = BigInt(num);
+            } catch (e) {
+                num = 20n;
+            }
+            this.createMessage(msg.channel.id, f.randomBigInt(num, 1n));
         }
     },
 
