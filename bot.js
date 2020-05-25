@@ -119,6 +119,8 @@ for(let command_name in cmds){
     bot.addCommand(`!${command_name}`, cmds[command_name]);
 }
 
+bot.addCommand('!colour', cmds.color)
+
 if(bot.beta){
     bot.addCommand('!debug', function(msg){
         console.log(util.inspect(msg, true, 5, true));
