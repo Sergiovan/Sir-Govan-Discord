@@ -6,7 +6,7 @@ And more Discord than ever. This is just an administrative/silly fun bot for my 
 One in 100 messages that are less than 261 characters are put in the #no-context channel. You'll also get a randomized role!
 
 ### Hall of fame
-If any one message gets 3 📌 reactions from poeople who are not the author, it enters the hall of fame for posterity. 
+If any one message gets 3 📌 reactions from people who are not the author, it enters the hall of fame for posterity. 
 
 ## Commands
 ### !pin {message}
