@@ -79,6 +79,26 @@ export class Bot {
             let message_id = msg.id;
             let url = `https://canary.discordapp.com/channels/${guild_id}/${channel_id}/${message_id}`;
             let desc = `[Click to teleport](${url})`;
+            if(msg.attachments && msg.attachments.length){
+                let attachment = msg.attachments[0];
+                let embedtype: 'video' | 'image' = /\.(webm|mp4)$/g.test(attachment.filename) ? 'video' : 'image';
+                console.log(embedtype, attachment.filename);
+                embed[embedtype] = {
+                    url: attachment.url
+                };
+                
+                if (embedtype === 'video') {
+                    desc = `[Click to go to video](${url})`;
+                }
+            } else if (msg.embeds && msg.embeds.length) {
+                let nembed = msg.embeds[0];
+                if (nembed.video) { 
+                    embed.video = nembed.video; 
+                    desc = `[Click to go to video](${url})`;
+                }
+                if (nembed.thumbnail) { embed.thumbnail = nembed.thumbnail; }
+                if (nembed.image) { embed.image = nembed.image; }
+            }
             if(!embed.description) {
                 embed.description = desc;
             } else {
@@ -86,21 +106,6 @@ export class Bot {
                     "name": "\u200b",
                     "value": desc
                 }];
-            }
-            if(msg.attachments && msg.attachments.length){
-                let attachment = msg.attachments[0];
-                let embedtype: 'video' | 'image' = /\.(webm|mp4)$/g.test(attachment.filename) ? 'video' : 'image';
-                console.log(embedtype, attachment.filename);
-                embed[embedtype] = {
-                    url: attachment.url,
-                    // height: attachment.height,
-                    // width: attachment.width
-                };
-            } else if (msg.embeds && msg.embeds.length) {
-                let nembed = msg.embeds[0];
-                if (nembed.video) { embed.video = nembed.video; }
-                if (nembed.thumbnail) { embed.thumbnail = nembed.thumbnail; }
-                if (nembed.image) { embed.image = nembed.image; }
             }
             this.client.createMessage(pinchannel, { embed: embed });
             return true;

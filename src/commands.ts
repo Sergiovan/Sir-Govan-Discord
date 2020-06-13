@@ -53,7 +53,7 @@ export const cmds: { [key: string]: CommandFunc } = {
                 this.client.createMessage(msg.channel.id, "I'm unsure your monitor can even render that. Your hex is too high. " +
                     "Give me a valid hex, like #00AE8F, or #F2F0A1");
             }
-        }else{
+        } else {
             this.client.createMessage(msg.channel.id, "Incredibly, something went wrong. I will now tell my master about it");
             console.log('Something went very wrong when changing colors :<'.red);
         }
@@ -116,10 +116,10 @@ export const cmds: { [key: string]: CommandFunc } = {
                         }
                     }
                 }
-            }else{
+            } else {
                 this.client.createMessage(msg.channel.id, "You're gonna have to give me a message ID, pal");
             }
-        }else{
+        } else {
             this.client.createMessage(msg.channel.id, "Hm. Something went wrong there");
         }
     },
