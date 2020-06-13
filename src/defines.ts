@@ -12,7 +12,7 @@ type ServerObjParam = {
     nickname?: string;
 };
 
-class Server {
+export class Server {
     id: string;
     beta: boolean;
     allowed_channels: Array<string>;
@@ -48,7 +48,7 @@ class Server {
     }
 }
 
-class Emoji {
+export class Emoji {
     name: string;
     id: string | null;
     animated: boolean;
@@ -80,7 +80,7 @@ type BotParams = {
     owner: string
 };
 
-const botparams: BotParams = {
+export const botparams: BotParams = {
     servers: {
         ids: {
             '120581475912384513': new Server('120581475912384513', { // The comfort zone
@@ -112,7 +112,7 @@ const botparams: BotParams = {
             }),
         },
         getServer(msg: Eris.Message): Server | undefined {
-            if(!msg?.channel?.guild) {
+            if(!(msg?.channel as Eris.TextChannel)?.guild) {
                 return undefined;
             }
             return this.ids[(msg.channel as Eris.TextChannel).guild.id];
@@ -121,7 +121,7 @@ const botparams: BotParams = {
     owner: '120881455663415296' // Sergiovan#0831
 };
 
-const emojis = {
+export const emojis = {
     pushpin: new Emoji('📌'),
     reddit_gold: new Emoji('redditgold', '263774481233870848'),
     ok_hand: new Emoji('👌'),
@@ -129,7 +129,7 @@ const emojis = {
     exlamations: new Emoji('‼️')
 };
 
-enum argType {
+export enum argType {
     string = 0,
     number = 1,
     user = 2,
@@ -137,5 +137,3 @@ enum argType {
     role = 4,
     rest = 100
 };
-
-export { botparams, emojis, argType };

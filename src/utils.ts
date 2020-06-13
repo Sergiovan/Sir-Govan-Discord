@@ -47,7 +47,7 @@ export function arg (type: argType.channel, value?: string | null): ChannelArg;
 export function arg (type: argType.role, value?: string | null): RoleArg;
 export function arg (type: argType.rest, value?: string | null): RestArg;
 
-export function arg(type: any, value: any = null): Arg {
+export function arg(type: argType, value: any = null): Arg {
     return {
         type: type,
         value: value
@@ -55,7 +55,7 @@ export function arg(type: any, value: any = null): Arg {
 }
 
 export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
-    let ret: Array<boolean | number | string | null> = [false];
+    let ret: Array<boolean | number | string | Eris.Member | Eris.Channel | Eris.Role | null | undefined> = [false];
     let word = 1;
     let words = msg.content.replace(/ +/g, ' ').split(' ');
     let specialHolder;
@@ -80,8 +80,8 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
             case argType.user:
                 specialHolder = /<@!?([0-9]+?)>/.exec(inspected);
                 if (specialHolder && specialHolder[1]) {
-                    if (msg.channel.guild.members.get(specialHolder[1])) {
-                        ret.push(msg.channel.guild.members.get(specialHolder[1]));
+                    if ((msg.channel as Eris.TextChannel).guild.members.get(specialHolder[1])) {
+                        ret.push((msg.channel as Eris.TextChannel).guild.members.get(specialHolder[1]));
                         break;
                     }
                 }
@@ -89,8 +89,8 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
             case argType.channel:
                 specialHolder = /<#([0-9]+?)>/.exec(inspected);
                 if (specialHolder && specialHolder[1]) {
-                    if (msg.channel.guild.channels.get(specialHolder[1])) {
-                        ret.push(msg.channel.guild.channels.get(specialHolder[1]));
+                    if ((msg.channel as Eris.TextChannel).guild.channels.get(specialHolder[1])) {
+                        ret.push((msg.channel as Eris.TextChannel).guild.channels.get(specialHolder[1]));
                         break;
                     }
                 }
@@ -98,8 +98,8 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
             case argType.role:
                 specialHolder = /<@\&([0-9]+?)>/.exec(inspected);
                 if (specialHolder && specialHolder[1]) {
-                    if (msg.channel.guild.roles.get(specialHolder[1])) {
-                        ret.push(msg.channel.guild.roles.get(specialHolder[1]));
+                    if ((msg.channel as Eris.TextChannel).guild.roles.get(specialHolder[1])) {
+                        ret.push((msg.channel as Eris.TextChannel).guild.roles.get(specialHolder[1]));
                         break;
                     }
                 }

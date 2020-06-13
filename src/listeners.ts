@@ -1,26 +1,30 @@
 "use strict";
 
-let c = require('./defines.js');
-let f = require('./utils.js');
-let cmds = require('./commands.js');
+import Eris from 'eris';
 
-module.exports = {
-    ready(){
+import { botparams, Emoji, emojis } from './defines';
+import { Bot } from './bot'
+import * as f from './utils';
+import 'colors';
+
+export const listeners: { [key: string]: CallableFunction } = {
+    ready(this: Bot) {
         let self = this;
 
-        if(this.beta){
-            for(let [guild_id, guild] of this.guilds){
-                if(c.botparams.servers[guild_id].beta){
-                    if(c.botparams.servers[guild_id].nickname){
-                        guild.editNickname(c.botparams.servers[guild_id].nickname + ' (β)');
-                    }else{
-                        guild.editNickname(this.user.username + ' (β)');
+        if (this.beta) {
+            for (let [guild_id, guild] of this.client.guilds) {
+                let server = botparams.servers.ids[guild_id];
+                if (server.beta) {
+                    if (server.nickname) {
+                        guild.editNickname(server.nickname + ' (β)');
+                    } else {
+                        guild.editNickname(this.client.user.username + ' (β)');
                     }
                 }
             }
         }
 
-        process.on('uncaughtException', function(err){
+        process.on('uncaughtException', function(err) {
             console.log(err);
             console.log("RIP me :(");
             self.die();
@@ -35,93 +39,88 @@ module.exports = {
         console.log("Ready!");
     },
 
-    messageCreate(msg){
-        let server = c.botparams.servers.getServer(msg);
-        if(!server) {
+    messageCreate(this: Bot, msg: Eris.Message) {
+        let server = botparams.servers.getServer(msg);
+        if (!server) {
             return;
         }
-        if(server.beta !== this.beta) {
+        if (server.beta !== this.beta) {
             return;
         }
-        if(!server.allowed(msg) && !server.allowedListen(msg)) {
+        if (!server.allowed(msg) && !server.allowedListen(msg)) {
             return;
         }
-        console.log(`${msg.author.username.cyan} @ ${msg.channel.name.cyan}: ${msg.cleanContent}`);
-        if(msg.author.id === this.user.id){
+        console.log(`${msg.author.username.cyan} @ ${(msg.channel as Eris.TextChannel).name.cyan}: ${msg.cleanContent}`);
+        if (msg.author.id === this.client.user.id) {
             return;
         }
         
-        if(server.allowedListen(msg) && !msg.author.bot){
-            if((Math.random() * 100) < 1.0 && server.no_context_channel) {
+        if (server.allowedListen(msg) && !msg.author.bot) {
+            if ((Math.random() * 100) < 1.0 && server.no_context_channel) {
                 let channel = server.no_context_channel;
-                if(msg.cleanContent.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
-                    this.createMessage(channel, msg.cleanContent);
-                    if(server.no_context_role){
-                        for(let [_, member] of msg.channel.guild.members) {
-                            if(member.id === msg.author.id) {
+                if (msg.cleanContent?.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
+                    this.client.createMessage(channel, msg.cleanContent);
+                    if (server.no_context_role){
+                        for (let [_, member] of (msg.channel as Eris.TextChannel).guild.members) {
+                            if (member.id === msg.author.id) {
                                 member.addRole(server.no_context_role);
-                            } else if(member.roles.includes(server.no_context_role)) {
+                            } else if (member.roles.includes(server.no_context_role)) {
                                 member.removeRole(server.no_context_role);
                             }
                         }
                         f.randFromFile('nocontext.txt', 'No context', function(name) {
-                            msg.channel.guild.roles.get(server.no_context_role).edit({name: name});
+                            (msg.channel as Eris.TextChannel).guild.roles.get(server!.no_context_role)?.edit({name: name});
                         });
                     }
                 }
             }   
         }
-        if(server.allowed(msg)){
-            if(this.parse(msg)){
+        if (server.allowed(msg)) {
+            if (this.parse(msg)) {
                 return;
             }
         }
     },
 
-    messageReactionAdd(msg, emoji, user){
-        let server = c.botparams.servers.getServer(msg)
-        if(!server) {
+    messageReactionAdd(this: Bot, msg: Eris.Message, emoji: Emoji, user: string) {
+        let server = botparams.servers.getServer(msg)
+        if (!server) {
             return;
         }
-        if(server.beta !== this.beta) {
+        if (server.beta !== this.beta) {
             return;
         }
-        if(!server.allowed(msg) && !server.allowedListen(msg)){
+        if (!server.allowed(msg) && !server.allowedListen(msg)) {
             return;
         }
 
         let self = this;
-        if(server.allowedListen(msg)){
+        if (server.allowedListen(msg)) {
             // Pinning
-            if(emoji.name === c.emojis.pushpin.fullName){
+            if (emoji.name === emojis.pushpin.fullName) {
                 msg.channel.getMessage(msg.id)
                     .then((rmsg) => pin(rmsg, emoji))
                     .catch((err) => {throw err;});
             }
         }
 
-        /**
-         *
-         * @param msg {Message}
-         * @returns {Promise.<void>}
-         */
-        function pin(msg, emoji){
+        function pin(msg: Eris.Message, emoji: Emoji){
             let findname = emoji.id ? `${emoji.name}:${emoji.id}` : emoji.name;
-	    if(msg.author.bot){
-		return;
-	    }
-            if(msg.reactions[c.emojis.pushpin.fullName] && msg.reactions[c.emojis.pushpin.fullName].me) {
+            if (msg.author.bot) {
+                return;
+            }
+            if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
                 return;
             }
             msg.getReaction(findname, 4)
                 .then(function(reactionaries){
                     if(reactionaries.filter((user) => user.id !== msg.author.id).length >= 3){
                         //We pin that shit!
-                        msg.addReaction(c.emojis.pushpin.fullName);
+                        msg.addReaction(emojis.pushpin.fullName);
                         self.pin(msg);
                     }
                 })
-                .catch((err) => {throw err;});
+                .catch((err) => { throw err; });
         }
     }
 };
