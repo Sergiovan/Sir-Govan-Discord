@@ -82,7 +82,7 @@ export const listeners: { [key: string]: CallableFunction } = {
         }
     },
 
-    messageReactionAdd(this: Bot, msg: Eris.Message, emoji: Emoji, user: string) {
+    async messageReactionAdd(this: Bot, msg: Eris.Message, emoji: Emoji, user: string) {
         let server = botparams.servers.getServer(msg)
         if (!server) {
             return;
@@ -98,13 +98,12 @@ export const listeners: { [key: string]: CallableFunction } = {
         if (server.allowedListen(msg)) {
             // Pinning
             if (emoji.name === emojis.pushpin.fullName) {
-                msg.channel.getMessage(msg.id)
-                    .then((rmsg) => pin(rmsg, emoji))
-                    .catch((err) => {throw err;});
+                let m = await msg.channel.getMessage(msg.id);
+                pin(m, emoji);
             }
         }
 
-        function pin(msg: Eris.Message, emoji: Emoji){
+        async function pin(msg: Eris.Message, emoji: Emoji){
             let findname = emoji.id ? `${emoji.name}:${emoji.id}` : emoji.name;
             if (msg.author.bot) {
                 return;
@@ -112,15 +111,12 @@ export const listeners: { [key: string]: CallableFunction } = {
             if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
                 return;
             }
-            msg.getReaction(findname, 4)
-                .then(function(reactionaries){
-                    if(reactionaries.filter((user) => user.id !== msg.author.id).length >= 3){
-                        //We pin that shit!
-                        msg.addReaction(emojis.pushpin.fullName);
-                        self.pin(msg);
-                    }
-                })
-                .catch((err) => { throw err; });
+            let reactionaries = await msg.getReaction(findname, 4);
+            if(reactionaries.filter((user) => user.id !== msg.author.id).length >= 3){
+                //We pin that shit!
+                msg.addReaction(emojis.pushpin.fullName);
+                self.pin(msg);
+            }
         }
     }
 };

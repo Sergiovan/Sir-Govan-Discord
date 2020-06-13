@@ -8,9 +8,6 @@
     "eris": "github:abalabahaha/eris",
     "request": "^2.87.0"
   },
-  "devDependencies": {
-    "@types/node": "^14.0.13"
-  },
   "scripts": {
     "compile": "tsc",
     "test": "node dist/main.js --beta"
@@ -30,5 +27,8 @@
   "bugs": {
     "url": "https://github.com/Sergiovan/Sir-Govan-Discord/issues"
   },
-  "homepage": "https://github.com/Sergiovan/Sir-Govan-Discord#readme"
+  "homepage": "https://github.com/Sergiovan/Sir-Govan-Discord#readme",
+  "devDependencies": {
+    "@types/node": "^14.0.13"
+  }
 }

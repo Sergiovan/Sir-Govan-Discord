@@ -90,7 +90,7 @@ export const cmds: { [key: string]: CommandFunc } = {
         }
     },
 
-    pin(this: Bot, msg: Eris.Message) { 
+    async pin(this: Bot, msg: Eris.Message) { 
         let self = this;
         let thischannel = msg.channel;
         let [err, messageID] = parseArgs(msg, arg(argType.string));
@@ -101,18 +101,17 @@ export const cmds: { [key: string]: CommandFunc } = {
                     for (let elem of (msg.channel as Eris.TextChannel).guild.channels) {
                         let [_, channel] = elem;
                         if (server.allowed_channels_listen.includes(channel.id)) {
-                            (channel as Eris.TextChannel).getMessage(messageID as string)
-                                .then(function(msg) {
-                                    if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
-                                        self.client.createMessage(thischannel.id, "I already pinned that message >:(");
-                                        return;
-                                    }
-                                    msg.addReaction(emojis.pushpin.fullName);
-                                    self.pin(msg, true);
-                                })
-                                .catch(function(err){
-                                    console.log(`Message not in ${channel.name}: ${err}`);
-                                });
+                            try {
+                                let msg = await (channel as Eris.TextChannel).getMessage(messageID as string);
+                                if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
+                                    self.client.createMessage(thischannel.id, "I already pinned that message >:(");
+                                    return;
+                                }
+                                msg.addReaction(emojis.pushpin.fullName);
+                                self.pin(msg, true);
+                            } catch (err) {
+                                console.log(`Message not in ${channel.name}: ${err}`);
+                            }
                         }
                     }
                 }

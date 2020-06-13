@@ -1,7 +1,6 @@
 "use strict"; // Oh boy
 
 import Eris from 'eris';
-import * as util from 'util';
 
 import { botparams } from './defines';
 import { CommandFunc, cmds } from './commands';
@@ -58,7 +57,8 @@ export class Bot {
             let r = Math.floor(Math.random() * 0x10) * 0x10;
             let g = Math.floor(Math.random() * 0x10) * 0x10;
             let b = Math.floor(Math.random() * 0x10) * 0x10;
-            let embed: Eris.EmbedBase = {
+            let embed: Eris.Embed = {
+                type: 'rich',
                 color: r << 16 | g << 8 | b,
                 author: {
                     name: `${msg.author.username}`,
