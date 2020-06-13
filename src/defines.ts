@@ -129,7 +129,7 @@ const emojis = {
     exlamations: new Emoji('‼️')
 };
 
-enum argTypes {
+enum argType {
     string = 0,
     number = 1,
     user = 2,
@@ -138,4 +138,4 @@ enum argTypes {
     rest = 100
 };
 
-export { botparams, emojis, argTypes };
+export { botparams, emojis, argType };
