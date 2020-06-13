@@ -2,7 +2,7 @@
   "name": "sir-govan-discord",
   "version": "1.0.0",
   "description": "Sir Govan, but on Discord",
-  "main": "bot.js",
+  "main": "src/bot.ts",
   "dependencies": {
     "colors": "^1.3.1",
     "eris": "github:abalabahaha/eris",
@@ -10,7 +10,8 @@
   },
   "devDependencies": {},
   "scripts": {
-    "test": "--beta"
+    "compile": "tsc",
+    "test": "node dist/bot.ts --beta"
   },
   "repository": {
     "type": "git",

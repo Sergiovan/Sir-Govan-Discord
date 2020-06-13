@@ -2,4 +2,5 @@
 .vscode/
 data/nocontext.txt
 node_modules/
-secrets.js
+dist/
+secrets.ts
