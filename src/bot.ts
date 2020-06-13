@@ -1,18 +1,14 @@
 "use strict"; // Oh boy
 
-let fs = require('fs');
-let path = require('path');
-let request = require('request');
-let colors = require('colors');
-let Eris = require('eris');
-let util = require('util');
+import Eris from 'eris';
+import * as util from 'util';
 
 let c = require('./defines.js');
 let s = require('./secrets.js');
 let cmds = require('./commands.js');
 let l = require('./listeners.js');
 
-let bot = new Eris(s.discord.token);
+let bot = new Eris.CommandClient(s.discord.token);
 
 if(!bot.commands){
     bot.commands = [];

@@ -1,7 +1,8 @@
 "use strict";
 
-let fs = require('fs');
-let path = require('path');
+import Eris from 'eris';
+import * as fs from 'fs';
+import * as path from 'path';
 
 let c = require('./defines.js');
 let f = require('./utils.js');
@@ -10,15 +11,15 @@ const parseArgs = f.parseArgs;
 const arg = f.arg;
 
 module.exports = {
-    die(msg){
-        if(msg.author.id === c.botparams.owner){
+    die(msg: Eris.Message) {
+        if (msg.author.id === c.botparams.owner) {
             this.die();
         }
     },
 
-    roll(msg){
+    roll(msg: Eris.Message){
         let [err, num] = parseArgs(msg, arg(0, '20'));
-        if(!err) {
+        if (!err) {
             try {
                 num = BigInt(num);
             } catch (e) {
@@ -28,7 +29,7 @@ module.exports = {
         }
     },
 
-    color(msg){
+    color(msg: Eris.Message){
         let [err, color] = parseArgs(msg, arg(c.argTypes.string, Math.floor(Math.random() * 0x1000000)));
         if(!err){
             let number = Number.parseInt('0x' + (''+color).replace(/^(#|0x)/, ''));
@@ -55,7 +56,7 @@ module.exports = {
         }
     },
 
-    role(msg){
+    role(msg: Eris.Message){
         let self = this;
         let server = c.botparams.servers.getServer(msg);
         if(!server) {

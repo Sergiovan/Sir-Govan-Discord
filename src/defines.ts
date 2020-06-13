@@ -1,7 +1,28 @@
 "use strict";
 
+import Eris from 'eris';
+
+type ServerObjParam = {
+    beta?: boolean;
+    allowed_channels?: Array<string>;
+    allowed_channels_listen?: Array<string>;
+    pin_channel?: string;
+    no_context_channel?: string;
+    no_context_role?: string;
+    nickname?: string;
+};
+
 class Server {
-    constructor(id, obj) {
+    id: string;
+    beta: boolean;
+    allowed_channels: Array<string>;
+    allowed_channels_listen: Array<string>;
+    pin_channel: string;
+    no_context_channel: string;
+    no_context_role: string;
+    nickname: string;
+
+    constructor(id: string, obj: ServerObjParam) {
         this.id = id;
         this.beta = obj.beta || false;
         this.allowed_channels = obj.allowed_channels || [];
@@ -12,15 +33,15 @@ class Server {
         this.nickname = obj.nickname || '';
     }
 
-    allowed(msg) {
-        if(!msg || !msg.channel) {
+    allowed(msg: Eris.Message): boolean {
+        if (!msg || !msg.channel) {
             return false;
         }
         return this.allowed_channels.includes(msg.channel.id);
     }
 
-    allowedListen(msg) {
-        if(!msg || !msg.channel) {
+    allowedListen(msg: Eris.Message): boolean {
+        if (!msg || !msg.channel) {
             return false;
         }
         return this.allowed_channels_listen.includes(msg.channel.id);
@@ -28,14 +49,18 @@ class Server {
 }
 
 class Emoji {
-    constructor(name, id = null, animated = false) {
+    name: string;
+    id: string | null;
+    animated: boolean;
+
+    constructor(name: string, id: string | null = null, animated: boolean = false) {
         this.name     = name;
         this.id       = id;
         this.animated = animated;
     }
 
-    get fullName() {
-        if(this.id) {
+    get fullName(): string {
+        if (this.id) {
             return `${this.name}:${this.id}`;
         } else {
             return this.name;
@@ -43,10 +68,22 @@ class Emoji {
     }
 }
 
-module.exports = {
-    botparams: {
-        servers: {
-            '120581475912384513' : new Server('120581475912384513', { // The comfort zone
+// getServer: (msg: Eris.Message) => Server | undefined
+
+type BotParams = {
+    servers: {
+        ids: {
+            [key: string]: Server
+        },
+        getServer: (msg: Eris.Message) => Server | undefined
+    },
+    owner: string
+};
+
+const botparams: BotParams = {
+    servers: {
+        ids: {
+            '120581475912384513': new Server('120581475912384513', { // The comfort zone
                 beta: true,
                 allowed_channels: [
                     '216992217988857857',  // #807_73571n6
@@ -73,31 +110,32 @@ module.exports = {
                 no_context_role: '424949624348868608',
                 nickname: 'Admin bot'
             }),
-
-            getServer(msg) {
-                if(!msg || !msg.channel || !msg.channel.guild) {
-                    return undefined;
-                }
-                return this[msg.channel.guild.id];
-            }
         },
-        owner: '120881455663415296' // Sergiovan#0831
+        getServer(msg: Eris.Message): Server | undefined {
+            if(!msg?.channel?.guild) {
+                return undefined;
+            }
+            return this.ids[(msg.channel as Eris.TextChannel).guild.id];
+        }
     },
-
-    emojis: {
-        pushpin: new Emoji('📌'),
-        reddit_gold: new Emoji('redditgold', '263774481233870848'),
-        ok_hand: new Emoji('👌'),
-        fist: new Emoji('✊'),
-        exlamations: new Emoji('‼️')
-    },
-
-    argTypes: {
-        string: 0,
-        number: 1,
-        user: 2,
-        channel: 3,
-        role: 4,
-        rest: 100
-    }
+    owner: '120881455663415296' // Sergiovan#0831
 };
+
+const emojis = {
+    pushpin: new Emoji('📌'),
+    reddit_gold: new Emoji('redditgold', '263774481233870848'),
+    ok_hand: new Emoji('👌'),
+    fist: new Emoji('✊'),
+    exlamations: new Emoji('‼️')
+};
+
+enum argTypes {
+    string = 0,
+    number = 1,
+    user = 2,
+    channel = 3,
+    role = 4,
+    rest = 100
+};
+
+export { botparams, emojis, argTypes };
