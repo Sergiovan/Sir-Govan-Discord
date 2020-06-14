@@ -5,8 +5,7 @@ import Eris from 'eris';
 import { botparams, emojis } from './defines';
 import { randomCode, randomEnum } from './utils';
 import { CommandFunc, cmds } from './commands';
-import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets'; 
-import { setFlagsFromString } from 'v8';
+import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets';
 
 type Command = [string, (msg: Eris.Message) => void];
 

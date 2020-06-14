@@ -158,8 +158,6 @@ export const listeners: { [key: string]: CallableFunction } = {
         }
 
         async function steal(msg: Eris.Message, user: Eris.User) {
-            console.log(msg.reactions);
-
             if (!msg.reactions[emojis.devil.fullName].me) {
                 return;
             }
