@@ -141,3 +141,41 @@ export function randomBigInt(max: bigint = 20n, min: bigint = 0n): bigint {
 
     return min + (r / buckets);
 }
+
+/** Gotten from https://stackoverflow.com/a/55699349 */
+export function randomEnum<T>(anEnum: T): T[keyof T] {
+    const enumValues = Object.keys(anEnum)
+        .map(n => Number.parseInt(n))
+        .filter(n => !Number.isNaN(n)) as unknown as T[keyof T][];
+    const randomIndex = Math.floor(Math.random() * enumValues.length);
+    const randomEnumValue = enumValues[randomIndex];
+    return randomEnumValue;
+  }
+
+/** Gotten from https://stackoverflow.com/a/2450976 */
+export function shuffleArray<T>(arr: Array<T>) {
+    let curr: number = arr.length;
+    let tempVal: T;
+    let randIndex: number;
+
+    while (curr !== 0) {
+        randIndex = Math.floor(Math.random() * curr);
+        curr--;
+
+        tempVal = arr[curr];
+        arr[curr] = arr[randIndex];
+        arr[randIndex] = tempVal;
+    }
+}
+
+export function randomCode(): string {
+    const len = 25;
+    const mask = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?'.split('');
+    let res: string = '';
+
+    for (let i = 0; i < len; ++i) {
+        res += mask[Math.floor(Math.random() * mask.length)];
+    }
+
+    return res;
+}

@@ -122,6 +122,10 @@ export const cmds: { [key: string]: CommandFunc } = {
             this.client.createMessage(msg.channel.id, "Hm. Something went wrong there");
         }
     },
+
+    puzzle(this: Bot, msg: Eris.Message) {
+        msg.channel.createMessage(this.puzzleHelp());
+    }
 };
 
 export const aliases: { [key: string]: CommandFunc } = {

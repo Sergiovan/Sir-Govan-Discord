@@ -2,11 +2,10 @@
 
 import Eris from 'eris';
 
-import { botparams } from './defines';
+import { botparams, emojis } from './defines';
+import { randomCode, randomEnum } from './utils';
 import { CommandFunc, cmds } from './commands';
-
-let s = require('./secrets.js');
-let l = require('./listeners.js');
+import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets';
 
 type Command = [string, (msg: Eris.Message) => void];
 
@@ -16,10 +15,19 @@ export class Bot {
     commands: Command[] = [];
     beta: boolean;
 
+    clue: string = '';
+    clue_type: ClueType = ClueType.LetterPosition;
+    clue_gen?: ClueGenerator;
+    last_clue: Date = new Date(0);
+
+    owner?: Eris.User;
+
     constructor(token: string, beta: boolean) {
         this.client = new Eris.Client(token);
 
         this.beta = beta;
+
+        this.startClues();
     }
 
     parse(msg: Eris.Message) {
@@ -44,6 +52,79 @@ export class Bot {
 
     addEventHandler(name: string, handler: CallableFunction) {
         this.client.on(name, handler.bind(this));
+    }
+
+    startClues() {
+        this.clue = randomCode();
+        this.clue_type = randomEnum(ClueType);
+        this.startGenerator();
+
+        console.log(`New clue game started: Clue is ${this.clue}`);
+    }
+
+    startGenerator() {
+        this.clue_gen = mysteryGenerator(this.clue, this.clue_type);
+    }
+
+    canGetClue() {
+        console.log(new Date().getTime() - (1000 * 60 * 60),  this.last_clue.getTime(), this.clue_gen);
+        return (new Date().getTime() - (1000 * 60 * 60) > this.last_clue.getTime()) && this.clue_gen;
+    }
+
+    getClue() {
+        if (!this.canGetClue()) {
+            return null;
+        }
+
+        let res = this.clue_gen!.next();
+        if (res.done) {
+            this.startGenerator();
+            let ret = this.clue_gen!.next().value || null;
+            if (ret) {
+                this.last_clue = new Date();
+            }
+            return ret;
+        }
+        this.last_clue = new Date();
+        return res.value;
+    }
+
+    async postClue(channel: string) {
+        console.log('Posting clue');
+        if (!this.canGetClue()) {
+            return null;
+        }
+        let msg = await this.client.createMessage(channel, 'Generating clue...');
+        await msg.addReaction(emojis.devil.fullName);
+        let clue = this.getClue();
+        await msg.edit(`\`${clue}\``);
+    }
+
+    async checkAnswer(answer: string, user: Eris.User) {
+        if (!this.clue?.length || !this.owner) {
+            return;
+        }
+        
+
+        if (answer === this.clue) {
+            this.clue = '';
+            this.clue_gen = undefined;
+
+            let dm = await user.getDMChannel();
+            dm.createMessage('You got it!');
+
+            (await this.owner.getDMChannel()).createMessage(`${user.username} (${user.id}) got it!`);
+
+            setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
+        }
+    }
+
+    puzzleHelp(): string {
+        if (!this.clue) {
+            return 'Nothing going on at the moment';
+        } else {
+            return 'Complete the passphrase and tell it to me for prizes. The clue is: ' + clueHelp(this.clue_type);
+        }
     }
 
     pin(msg: Eris.Message, forced: boolean = false) {
@@ -112,7 +193,7 @@ export class Bot {
         }
     }
 
-    connect() {
+    async connect() {
         this.client.connect();
     }
 

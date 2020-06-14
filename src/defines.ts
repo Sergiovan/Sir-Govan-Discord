@@ -90,6 +90,7 @@ export const botparams: BotParams = {
                 ],  
                 allowed_channels_listen: [
                     '120581475912384513',  // #meme-hell
+                    '216992217988857857' // #807_73571n6
                 ],
                 pin_channel: '216992217988857857', // #807_73571n6
                 no_context_channel: '422797217456324609', // #no-context
@@ -126,7 +127,8 @@ export const emojis = {
     reddit_gold: new Emoji('redditgold', '263774481233870848'),
     ok_hand: new Emoji('👌'),
     fist: new Emoji('✊'),
-    exlamations: new Emoji('‼️')
+    exlamations: new Emoji('‼️'),
+    devil: new Emoji('😈')
 };
 
 export enum argType {
