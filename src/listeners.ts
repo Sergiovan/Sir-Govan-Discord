@@ -11,6 +11,8 @@ export const listeners: { [key: string]: CallableFunction } = {
     ready(this: Bot) {
         let self = this;
 
+        this.owner = this.client.users.get(botparams.owner);
+
         if (this.beta) {
             for (let [guild_id, guild] of this.client.guilds) {
                 let server = botparams.servers.ids[guild_id];
@@ -40,44 +42,64 @@ export const listeners: { [key: string]: CallableFunction } = {
     },
 
     messageCreate(this: Bot, msg: Eris.Message) {
-        let server = botparams.servers.getServer(msg);
-        if (!server) {
-            return;
-        }
-        if (server.beta !== this.beta) {
-            return;
-        }
-        if (!server.allowed(msg) && !server.allowedListen(msg)) {
-            return;
-        }
-        console.log(`${msg.author.username.cyan} @ ${(msg.channel as Eris.TextChannel).name.cyan}: ${msg.cleanContent}`);
-        if (msg.author.id === this.client.user.id) {
-            return;
-        }
-        
-        if (server.allowedListen(msg) && !msg.author.bot) {
-            if ((Math.random() * 100) < 1.0 && server.no_context_channel) {
-                let channel = server.no_context_channel;
-                if (msg.cleanContent?.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
-                    this.client.createMessage(channel, msg.cleanContent);
-                    if (server.no_context_role){
-                        for (let [_, member] of (msg.channel as Eris.TextChannel).guild.members) {
-                            if (member.id === msg.author.id) {
-                                member.addRole(server.no_context_role);
-                            } else if (member.roles.includes(server.no_context_role)) {
-                                member.removeRole(server.no_context_role);
+        if (!msg.guildID) {
+            // DMs, tread carefully
+            console.log(`${msg.author.username.cyan} @ ${'me'.cyan}: ${msg.cleanContent}`);
+            if (msg.author.id === this.client.user.id) {
+                return;
+            }
+
+            let sanitized = msg.cleanContent?.replace(/"'/g, '');
+            
+            if (sanitized) {
+                this.checkAnswer(sanitized, msg.author);
+            }
+
+        } else {
+            // Not DMs, tread as you wish
+            let server = botparams.servers.getServer(msg);
+            if (!server) {
+                return;
+            }
+            if (server.beta !== this.beta) {
+                return;
+            }
+            if (!server.allowed(msg) && !server.allowedListen(msg)) {
+                return;
+            }
+            console.log(`${msg.author.username.cyan} @ ${(msg.channel as Eris.TextChannel).name.cyan}: ${msg.cleanContent}`);
+            if (msg.author.id === this.client.user.id) {
+                return;
+            }
+            
+            if (server.allowedListen(msg) && !msg.author.bot) {
+                if ((Math.random() * 1) < 1.0 && server.no_context_channel) {
+                    let channel = server.no_context_channel;
+                    if (msg.cleanContent?.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
+                        this.client.createMessage(channel, msg.cleanContent);
+                        if (server.no_context_role) {
+                            for (let [_, member] of (msg.channel as Eris.TextChannel).guild.members) {
+                                if (member.id === msg.author.id) {
+                                    member.addRole(server.no_context_role);
+                                } else if (member.roles.includes(server.no_context_role)) {
+                                    member.removeRole(server.no_context_role);
+                                }
+                            }
+                            f.randFromFile('nocontext.txt', 'No context', function(name) {
+                                (msg.channel as Eris.TextChannel).guild.roles.get(server!.no_context_role)?.edit({name: name});
+                            });
+
+                            if (Math.random() * 1 < 1.0) {
+                                this.postClue(server.allowed(msg) ? msg.channel.id : server.allowed_channels[0]);
                             }
                         }
-                        f.randFromFile('nocontext.txt', 'No context', function(name) {
-                            (msg.channel as Eris.TextChannel).guild.roles.get(server!.no_context_role)?.edit({name: name});
-                        });
                     }
+                }   
+            }
+            if (server.allowed(msg)) {
+                if (this.parse(msg)) {
+                    return;
                 }
-            }   
-        }
-        if (server.allowed(msg)) {
-            if (this.parse(msg)) {
-                return;
             }
         }
     },
@@ -93,6 +115,9 @@ export const listeners: { [key: string]: CallableFunction } = {
         if (!server.allowed(msg) && !server.allowedListen(msg)) {
             return;
         }
+        if (user === this.client.user.id) {
+            return;
+        }
 
         let self = this;
         if (server.allowedListen(msg)) {
@@ -102,8 +127,18 @@ export const listeners: { [key: string]: CallableFunction } = {
                 pin(m, emoji);
             }
         }
+        if (server.allowed(msg)) {
+            if (emoji.name === emojis.devil.fullName) {
+                let m = await msg.channel.getMessage(msg.id);
+                let u = (msg.channel as Eris.TextChannel).guild.members.get(user)
+                if (!u || !m) {
+                    return;
+                }
+                steal(m, u.user);
+            }
+        }
 
-        async function pin(msg: Eris.Message, emoji: Emoji){
+        async function pin(msg: Eris.Message, emoji: Emoji) {
             let findname = emoji.id ? `${emoji.name}:${emoji.id}` : emoji.name;
             if (msg.author.bot) {
                 return;
@@ -118,5 +153,21 @@ export const listeners: { [key: string]: CallableFunction } = {
                 self.pin(msg);
             }
         }
+
+        async function steal(msg: Eris.Message, user: Eris.User) {
+            console.log(msg.reactions);
+
+            if (!msg.reactions[emojis.devil.fullName].me) {
+                return;
+            }
+
+            let content = msg.content!;
+            await msg.removeReaction(emojis.devil.fullName);
+            await msg.edit(`Stolen by ${user.username}`);
+
+            (await user.getDMChannel()).createMessage(content);
+            setTimeout(() => msg.delete(), 1000 * 5 * 60);
+        }
+
     }
 };
