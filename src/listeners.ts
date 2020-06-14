@@ -49,10 +49,13 @@ export const listeners: { [key: string]: CallableFunction } = {
                 return;
             }
 
-            let sanitized = msg.cleanContent?.replace(/"'/g, '');
+            let sanitized = msg.cleanContent?.replace(/["'`]/g, '');
             
             if (sanitized) {
-                this.checkAnswer(sanitized, msg.author);
+                let words = sanitized.split(' ');
+                for (let word of words) {
+                    this.checkAnswer(word, msg.author);
+                }
             }
 
         } else {
@@ -73,7 +76,7 @@ export const listeners: { [key: string]: CallableFunction } = {
             }
             
             if (server.allowedListen(msg) && !msg.author.bot) {
-                if ((Math.random() * 1) < 1.0 && server.no_context_channel) {
+                if ((Math.random() * 100) < 1.0 && server.no_context_channel) {
                     let channel = server.no_context_channel;
                     if (msg.cleanContent?.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
                         this.client.createMessage(channel, msg.cleanContent);
@@ -89,7 +92,7 @@ export const listeners: { [key: string]: CallableFunction } = {
                                 (msg.channel as Eris.TextChannel).guild.roles.get(server!.no_context_role)?.edit({name: name});
                             });
 
-                            if (Math.random() * 1 < 1.0) {
+                            if (Math.random() * 4 < 1.0) {
                                 this.postClue(server.allowed(msg) ? msg.channel.id : server.allowed_channels[0]);
                             }
                         }

@@ -5,7 +5,7 @@ import Eris from 'eris';
 import { botparams, emojis } from './defines';
 import { randomCode, randomEnum } from './utils';
 import { CommandFunc, cmds } from './commands';
-import { ClueType, ClueGenerator, mysteryGenerator } from './secrets'; 
+import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets'; 
 import { setFlagsFromString } from 'v8';
 
 type Command = [string, (msg: Eris.Message) => void];
@@ -102,8 +102,6 @@ export class Bot {
     }
 
     async checkAnswer(answer: string, user: Eris.User) {
-        console.log('We goin', this.clue, answer);
-
         if (!this.clue?.length || !this.owner) {
             return;
         }
@@ -119,6 +117,14 @@ export class Bot {
             (await this.owner.getDMChannel()).createMessage(`${user.username} (${user.id}) got it!`);
 
             setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
+        }
+    }
+
+    puzzleHelp(): string {
+        if (!this.clue) {
+            return 'Nothing going on at the moment';
+        } else {
+            return 'Complete the passphrase and tell it to me for prizes. The clue is: ' + clueHelp(this.clue_type);
         }
     }
 
