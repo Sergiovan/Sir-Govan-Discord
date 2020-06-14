@@ -21,6 +21,9 @@ Gives out the number and the name of the current randomized role. Collect them a
 ### !roll [sides]
 Rolls a D[sides] or a D20 if no sides are given. Warning: Highly addictive
 
+### !puzzle
+Hmmmm...
+
 ## FAQ
 
 ### Why did you make this?
