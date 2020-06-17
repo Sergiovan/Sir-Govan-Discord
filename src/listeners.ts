@@ -26,6 +26,9 @@ export const listeners: { [key: string]: CallableFunction } = {
             }
         }
 
+        process.removeAllListeners('uncaughtException');
+        process.removeAllListeners('SIGINT');
+
         process.on('uncaughtException', function(err) {
             console.log(err);
             console.log("RIP me :(");
@@ -170,5 +173,12 @@ export const listeners: { [key: string]: CallableFunction } = {
             setTimeout(() => msg.delete(), 1000 * 5 * 60);
         }
 
+    },
+
+    error(this: Bot, err: Error, id: number) {
+        console.error(err, id);
+
+        this.client.disconnect({reconnect: true});
+        this.client.connect();
     }
 };
