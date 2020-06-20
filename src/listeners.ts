@@ -1,6 +1,6 @@
 "use strict";
 
-import Eris from 'eris';
+import Eris, { PrivateChannel } from 'eris';
 
 import { botparams, Emoji, emojis } from './defines';
 import { Bot } from './bot'
@@ -47,7 +47,13 @@ export const listeners: { [key: string]: CallableFunction } = {
     messageCreate(this: Bot, msg: Eris.Message) {
         if (!msg.guildID) {
             // DMs, tread carefully
-            console.log(`${msg.author.username.cyan} @ ${'me'.cyan}: ${msg.cleanContent}`);
+            let channel_user = (msg.channel as PrivateChannel).recipient;
+            let channel_name = `${channel_user.username}#${channel_user.discriminator}`;
+            if (channel_user.id === this.client.user.id) {
+                channel_name = 'me';
+            }
+
+            console.log(`${`${msg.author.username}#${msg.author.discriminator}`.cyan} @ ${channel_name.cyan}: ${msg.cleanContent}`);
             if (msg.author.id === this.client.user.id) {
                 return;
             }
@@ -73,7 +79,7 @@ export const listeners: { [key: string]: CallableFunction } = {
             if (!server.allowed(msg) && !server.allowedListen(msg)) {
                 return;
             }
-            console.log(`${msg.author.username.cyan} @ ${(msg.channel as Eris.TextChannel).name.cyan}: ${msg.cleanContent}`);
+            console.log(`${`${msg.author.username}#${msg.author.discriminator}`.cyan} @ ${(msg.channel as Eris.TextChannel).name.cyan}: ${msg.cleanContent}`);
             if (msg.author.id === this.client.user.id) {
                 return;
             }

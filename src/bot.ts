@@ -6,6 +6,7 @@ import { botparams, emojis } from './defines';
 import { randomCode, randomEnum } from './utils';
 import { CommandFunc, cmds } from './commands';
 import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets';
+import { createHash } from 'crypto';
 
 type Command = [string, (msg: Eris.Message) => void];
 
@@ -19,6 +20,7 @@ export class Bot {
     clue_type: ClueType = ClueType.LetterPosition;
     clue_gen?: ClueGenerator;
     last_clue: Date = new Date(0);
+    puzzle_id: string = '';
 
     owner?: Eris.User;
 
@@ -27,7 +29,15 @@ export class Bot {
 
         this.beta = beta;
 
-        this.startClues();
+        let self = this;
+
+        setTimeout(function check_connect() {
+            if (self.owner) {
+                self.startClues();
+            } else {
+                setTimeout(check_connect, 1000);
+            }
+        }, 1000);
     }
 
     parse(msg: Eris.Message) {
@@ -59,7 +69,12 @@ export class Bot {
         this.clue_type = randomEnum(ClueType);
         this.startGenerator();
 
-        console.log(`New clue game started: Clue is ${this.clue}`);
+        let hasher = createHash('md5');
+        hasher.update(this.clue);
+        this.puzzle_id = hasher.digest('hex').substr(0, 8);
+
+        this.owner!.getDMChannel().then((ch) => ch.createMessage(`Puzzle started: ${this.clue}. ID: \`${this.puzzle_id}\``));
+        console.log(`New clue game started: Clue is ${this.clue}. ID is ${this.puzzle_id}`);
     }
 
     startGenerator() {
@@ -123,7 +138,7 @@ export class Bot {
         if (!this.clue) {
             return 'Nothing going on at the moment';
         } else {
-            return 'Complete the passphrase and tell it to me for prizes. The clue is: ' + clueHelp(this.clue_type);
+            return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.clue_type)}||\nPuzzle ID is \`${this.puzzle_id}\``;
         }
     }
 

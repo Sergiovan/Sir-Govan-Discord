@@ -169,7 +169,7 @@ export function shuffleArray<T>(arr: Array<T>) {
 }
 
 export function randomCode(): string {
-    const len = 25;
+    const len = 15;
     const mask = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?'.split('');
     let res: string = '';
 
