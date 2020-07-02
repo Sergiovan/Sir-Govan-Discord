@@ -49,12 +49,14 @@ export const listeners: { [key: string]: CallableFunction } = {
             // DMs, tread carefully
             let channel_user = (msg.channel as PrivateChannel).recipient;
             let channel_name = `${channel_user.username}#${channel_user.discriminator}`;
-            if (channel_user.id === this.client.user.id) {
+            let message_mine = msg.author.id === this.client.user.id;
+            if (!message_mine) {
                 channel_name = 'me';
             }
 
-            console.log(`${`${msg.author.username}#${msg.author.discriminator}`.cyan} @ ${channel_name.cyan}: ${msg.cleanContent}`);
-            if (msg.author.id === this.client.user.id) {
+            let author: string = message_mine ? 'me' : `${msg.author.username}#${msg.author.discriminator}`;
+            console.log(`${author.cyan} @ ${channel_name.cyan}: ${msg.cleanContent}`);
+            if (message_mine) {
                 return;
             }
 
@@ -79,7 +81,8 @@ export const listeners: { [key: string]: CallableFunction } = {
             if (!server.allowed(msg) && !server.allowedListen(msg)) {
                 return;
             }
-            console.log(`${`${msg.author.username}#${msg.author.discriminator}`.cyan} @ ${(msg.channel as Eris.TextChannel).name.cyan}: ${msg.cleanContent}`);
+            let author: string = msg.author.id === this.client.user.id ? 'me' : `${msg.author.username}#${msg.author.discriminator}`;
+            console.log(`${author.cyan} @ ${(msg.channel as Eris.TextChannel).name.cyan}: ${msg.cleanContent}`);
             if (msg.author.id === this.client.user.id) {
                 return;
             }
