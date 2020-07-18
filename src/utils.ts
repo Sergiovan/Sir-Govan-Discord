@@ -168,14 +168,15 @@ export function shuffleArray<T>(arr: Array<T>) {
     }
 }
 
-export function randomCode(): string {
-    const len = 15;
+export function randomLetter(): string {
     const mask = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?'.split('');
-    let res: string = '';
+    return mask[Math.floor(Math.random() * mask.length)];
+}
 
-    for (let i = 0; i < len; ++i) {
-        res += mask[Math.floor(Math.random() * mask.length)];
-    }
+export function randomCode(): string {
+    const len = 16; // 16, huh?
+    let mask = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?'.split('');
+    shuffleArray(mask);
 
-    return res;
+    return mask.slice(0, len).join('');
 }

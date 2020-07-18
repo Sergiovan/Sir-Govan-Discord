@@ -19,13 +19,25 @@ export class Bot {
     clue: string = '';
     clue_type: ClueType = ClueType.LetterPosition;
     clue_gen?: ClueGenerator;
+    clue_count: number = 0;
     last_clue: Date = new Date(0);
     puzzle_id: string = '';
 
     owner?: Eris.User;
 
     constructor(token: string, beta: boolean) {
-        this.client = new Eris.Client(token);
+        this.client = new Eris.Client(token, {
+            intents: [
+                "guilds",
+                "guildMembers",
+                "guildVoiceStates",
+                "guildPresences",
+                "guildMessages",
+                "guildMessageReactions",
+                "directMessages",
+                "directMessageReactions"
+            ]
+        });
 
         this.beta = beta;
 
@@ -67,14 +79,15 @@ export class Bot {
     startClues() {
         this.clue = randomCode();
         this.clue_type = randomEnum(ClueType);
+        this.clue_count = 0;
         this.startGenerator();
 
         let hasher = createHash('md5');
         hasher.update(this.clue);
         this.puzzle_id = hasher.digest('hex').substr(0, 8);
 
-        this.owner!.getDMChannel().then((ch) => ch.createMessage(`Puzzle started: ${this.clue}. ID: \`${this.puzzle_id}\``));
-        console.log(`New clue game started: Clue is ${this.clue}. ID is ${this.puzzle_id}`);
+        this.owner!.getDMChannel().then((ch) => ch.createMessage(`${this.beta ? 'Beta message! ' : ''}Puzzle started: \`${this.clue}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.clue_type]}\``));
+        console.log(`New clue game started: Clue is ${this.clue}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.clue_type]}`);
     }
 
     startGenerator() {
@@ -83,11 +96,12 @@ export class Bot {
 
     canGetClue() {
         console.log(new Date().getTime() - (1000 * 60 * 60),  this.last_clue.getTime(), this.clue_gen);
-        return (new Date().getTime() - (1000 * 60 * 60) > this.last_clue.getTime()) && this.clue_gen;
+        return (this.beta || (new Date().getTime() - (1000 * 60 * 60) > this.last_clue.getTime())) && this.clue_gen;
     }
 
     getClue() {
         if (!this.canGetClue()) {
+            console.log("No clue");
             return null;
         }
 
@@ -112,7 +126,7 @@ export class Bot {
         let msg = await this.client.createMessage(channel, 'Generating clue...');
         await msg.addReaction(emojis.devil.fullName);
         let clue = this.getClue();
-        await msg.edit(`\`${clue}\``);
+        await msg.edit(`#${++this.clue_count}: \`${clue?.value}\``);
     }
 
     async checkAnswer(answer: string, user: Eris.User) {
@@ -138,7 +152,7 @@ export class Bot {
         if (!this.clue) {
             return 'Nothing going on at the moment';
         } else {
-            return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.clue_type)}||\nPuzzle ID is \`${this.puzzle_id}\``;
+            return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.clue_type)}||\n${this.clue_count} have appeared so far\nPuzzle ID is \`${this.puzzle_id}\``;
         }
     }
 

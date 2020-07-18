@@ -1,5 +1,5 @@
 import {randomCode} from '../src/utils';
-import {ClueType, ClueGenerator, clueHelp, mysteryGenerator} from '../src/secrets';
+import {Clue, ClueType, ClueGenerator, clueHelp, mysteryGenerator} from '../src/secrets';
 
 function testClues() {
     let code = randomCode();
@@ -17,10 +17,16 @@ function testClues() {
         let generator = mysteryGenerator(code, enum_val);
         let {value, done} = generator.next();
         while (!done) {
-            console.log(value);
+            let cycle_end = (value as Clue).cycle_end;
+            console.log((value as Clue).value);
             let n = generator.next();
-            value = n.value;
+            value = n.value as Clue;
             done = n.done;
+            if (cycle_end) {
+                console.log('Cycle end');
+                generator.return();
+                break;
+            }
         }
     }
 }
