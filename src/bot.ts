@@ -152,7 +152,7 @@ export class Bot {
         if (!this.clue) {
             return 'Nothing going on at the moment';
         } else {
-            return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.clue_type)}||\n${this.clue_count} have appeared so far\nPuzzle ID is \`${this.puzzle_id}\``;
+            return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.clue_type)}||\n${this.clue_count} clues have appeared so far\nPuzzle ID is \`${this.puzzle_id}\``;
         }
     }
 
