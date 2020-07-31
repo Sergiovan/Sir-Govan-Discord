@@ -3,7 +3,7 @@
 import Eris, { PrivateChannel } from 'eris';
 
 import { botparams, Emoji, emojis } from './defines';
-import { Bot } from './bot'
+import { Bot } from './bot';
 import * as f from './utils';
 import 'colors';
 
