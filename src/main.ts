@@ -2,7 +2,7 @@
 
 import { Bot } from './bot';
 import { discord } from './secrets';
-import { cmds, aliases, beta_cmds } from './commands'
+import { cmds, aliases, beta_cmds } from './commands';
 import { listeners } from './listeners';
 
 let bot = new Bot(discord.token, process.argv.includes('--beta'));
