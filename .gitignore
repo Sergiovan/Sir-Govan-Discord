@@ -5,3 +5,4 @@ node_modules/
 dist/
 secrets.ts
 text.ts
+push_text.sh
