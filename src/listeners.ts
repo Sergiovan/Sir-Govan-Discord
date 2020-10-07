@@ -31,14 +31,14 @@ export const listeners: { [key: string]: CallableFunction } = {
 
         process.on('uncaughtException', function(err) {
             console.log(err);
-            console.log("RIP me :(");
+            console.log("Bruh");
             self.die();
         });
 
         process.on('SIGINT', function() {
             console.log("Buh bai");
             self.die();
-            process.exit(1);
+            process.exit(0);
         });
 
         console.log("Ready!");
@@ -59,7 +59,11 @@ export const listeners: { [key: string]: CallableFunction } = {
             if (message_mine) {
                 return;
             }
-
+            
+            if (this.parse(msg)) {
+                return;
+            }
+            
             let sanitized = msg.cleanContent?.replace(/["'`]/g, '');
             
             if (sanitized) {
@@ -68,6 +72,7 @@ export const listeners: { [key: string]: CallableFunction } = {
                     this.checkAnswer(word, msg.author);
                 }
             }
+
 
         } else {
             // Not DMs, tread as you wish

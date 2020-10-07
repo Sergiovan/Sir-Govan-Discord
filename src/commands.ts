@@ -33,6 +33,10 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     color(this: Bot, msg: Eris.Message){
+        let server = botparams.servers.getServer(msg);
+        if (!server) {
+            return;
+        }
         let [err, color] = parseArgs(msg, arg(argType.string, `${Math.floor(Math.random() * 0x1000000)}`));
         if (!err) {
             let number = Number.parseInt('0x' + (''+color).replace(/^(#|0x)/, ''));
@@ -60,11 +64,11 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     role(this: Bot, msg: Eris.Message) {
-        let self = this;
         let server = botparams.servers.getServer(msg);
         if (!server) {
             return;
         }
+        let self = this;
         if (server.no_context_role) {
             let rolename = (msg.channel as Eris.TextChannel).guild.roles.get(server.no_context_role)?.name;
             if (!rolename) {
@@ -91,27 +95,28 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     async pin(this: Bot, msg: Eris.Message) { 
+        let server = botparams.servers.getServer(msg);
+        if (!server) {
+            return;
+        }
         let self = this;
         let thischannel = msg.channel;
         let [err, messageID] = parseArgs(msg, arg(argType.string));
         if (!err) {
             if (messageID) {
-                let server = botparams.servers.getServer(msg);
-                if (server) {
-                    for (let elem of (msg.channel as Eris.TextChannel).guild.channels) {
-                        let [_, channel] = elem;
-                        if (server.allowed_channels_listen.includes(channel.id)) {
-                            try {
-                                let msg = await (channel as Eris.TextChannel).getMessage(messageID as string);
-                                if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
-                                    self.client.createMessage(thischannel.id, "I already pinned that message >:(");
-                                    return;
-                                }
-                                msg.addReaction(emojis.pushpin.fullName);
-                                self.pin(msg, true);
-                            } catch (err) {
-                                console.log(`Message not in ${channel.name}: ${err}`);
+                for (let elem of (msg.channel as Eris.TextChannel).guild.channels) {
+                    let [_, channel] = elem;
+                    if (server.allowed_channels_listen.includes(channel.id)) {
+                        try {
+                            let msg = await (channel as Eris.TextChannel).getMessage(messageID as string);
+                            if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
+                                self.client.createMessage(thischannel.id, "I already pinned that message >:(");
+                                return;
                             }
+                            msg.addReaction(emojis.pushpin.fullName);
+                            self.pin(msg, true);
+                        } catch (err) {
+                            console.log(`Message not in ${channel.name}: ${err}`);
                         }
                     }
                 }
@@ -125,6 +130,31 @@ export const cmds: { [key: string]: CommandFunc } = {
 
     puzzle(this: Bot, msg: Eris.Message) {
         msg.channel.createMessage(this.puzzleHelp());
+    },
+
+    puzzle_pause(this: Bot, msg: Eris.Message) {
+        if (msg.author.id === botparams.owner) {
+            this.puzzle_stopped = !this.puzzle_stopped;
+            if (this.puzzle_stopped) {
+                msg.channel.createMessage(`Puzzle has been stopped`);
+            } else {
+                msg.channel.createMessage(`Puzzle has been resumed`);
+            }
+        }
+    },
+
+    check(this: Bot, msg: Eris.Message) {
+        let [err, answer] = parseArgs(msg, arg(argType.string));
+        if (!err) {
+            if (answer === this.answer) {
+                this.client.createMessage(msg.channel.id, "That's the one!");
+            } else {
+                this.client.createMessage(msg.channel.id, "This ain't it chief");
+            }
+        } else {
+            this.client.createMessage(msg.channel.id, "Please give me something to check :(");
+        }
+
     }
 };
 

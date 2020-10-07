@@ -16,12 +16,13 @@ export class Bot {
     commands: Command[] = [];
     beta: boolean;
 
-    clue: string = '';
-    clue_type: ClueType = ClueType.LetterPosition;
+    answer: string = '';
+    puzzle_type: ClueType = ClueType.LetterPosition;
     clue_gen?: ClueGenerator;
     clue_count: number = 0;
     last_clue: Date = new Date(0);
     puzzle_id: string = '';
+    puzzle_stopped: boolean = false;
 
     owner?: Eris.User;
 
@@ -77,26 +78,25 @@ export class Bot {
     }
 
     startClues() {
-        this.clue = randomCode();
-        this.clue_type = randomEnum(ClueType);
+        this.answer = randomCode();
+        this.puzzle_type = randomEnum(ClueType);
         this.clue_count = 0;
         this.startGenerator();
 
         let hasher = createHash('md5');
-        hasher.update(this.clue);
+        hasher.update(this.answer);
         this.puzzle_id = hasher.digest('hex').substr(0, 8);
 
-        this.owner!.getDMChannel().then((ch) => ch.createMessage(`${this.beta ? 'Beta message! ' : ''}Puzzle started: \`${this.clue}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.clue_type]}\``));
-        console.log(`New clue game started: Clue is ${this.clue}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.clue_type]}`);
+        this.owner!.getDMChannel().then((ch) => ch.createMessage(`${this.beta ? 'Beta message! ' : ''}Puzzle started: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``));
+        console.log(`New clue game started: Clue is ${this.answer}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.puzzle_type]}`);
     }
 
     startGenerator() {
-        this.clue_gen = mysteryGenerator(this.clue, this.clue_type);
+        this.clue_gen = mysteryGenerator(this.answer, this.puzzle_type);
     }
 
     canGetClue() {
-        console.log(new Date().getTime() - (1000 * 60 * 60),  this.last_clue.getTime(), this.clue_gen);
-        return (this.beta || (new Date().getTime() - (1000 * 60 * 60) > this.last_clue.getTime())) && this.clue_gen;
+        return !this.puzzle_stopped && (this.beta || (new Date().getTime() - (1000 * 60 * 60) > this.last_clue.getTime())) && this.clue_gen;
     }
 
     getClue() {
@@ -126,17 +126,17 @@ export class Bot {
         let msg = await this.client.createMessage(channel, 'Generating clue...');
         await msg.addReaction(emojis.devil.fullName);
         let clue = this.getClue();
-        await msg.edit(`#${++this.clue_count}: \`${clue?.value}\``);
+        await msg.edit(`#${++this.clue_count}: \`${clue?.value}\`. Puzzle ID is \`${this.puzzle_id}\``);
     }
 
     async checkAnswer(answer: string, user: Eris.User) {
-        if (!this.clue?.length || !this.owner) {
+        if (!this.answer?.length || !this.owner) {
             return;
         }
         
 
-        if (answer === this.clue) {
-            this.clue = '';
+        if (answer === this.answer) {
+            this.answer = '';
             this.clue_gen = undefined;
 
             let dm = await user.getDMChannel();
@@ -149,10 +149,14 @@ export class Bot {
     }
 
     puzzleHelp(): string {
-        if (!this.clue) {
+        if (!this.answer) {
             return 'Nothing going on at the moment';
         } else {
-            return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.clue_type)}||\n${this.clue_count} clues have appeared so far\nPuzzle ID is \`${this.puzzle_id}\``;
+            if (this.puzzle_stopped) {
+                return 'Puzzling has been cancelled (for now) in favor of religion';
+            } else {
+                return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.puzzle_type)}||\n${this.clue_count} clues have appeared so far\nPuzzle ID is \`${this.puzzle_id}\``;
+            }
         }
     }
 
