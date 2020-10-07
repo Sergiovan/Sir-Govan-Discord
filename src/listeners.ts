@@ -13,17 +13,13 @@ export const listeners: { [key: string]: CallableFunction } = {
 
         this.owner = this.client.users.get(botparams.owner);
 
-        if (this.beta) {
-            for (let [guild_id, guild] of this.client.guilds) {
-                let server = botparams.servers.ids[guild_id];
-                if (server.beta) {
-                    if (server.nickname) {
-                        guild.editNickname(server.nickname + ' (β)');
-                    } else {
-                        guild.editNickname(this.client.user.username + ' (β)');
-                    }
-                }
+        for (let [guild_id, guild] of this.client.guilds) {
+            let server = botparams.servers.ids[guild_id];
+            if (!server || this.beta !== server.beta) {
+                continue;
             }
+            guild.editNickname(f.rb_(this.text.nickname, server.nickname ?? '') + (this.beta ? ' (β)' : ''));
+            
         }
 
         process.removeAllListeners('uncaughtException');

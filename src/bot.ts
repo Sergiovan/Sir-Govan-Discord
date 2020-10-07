@@ -295,8 +295,12 @@ export class Bot {
             if (!server || this.beta !== server.beta) {
                 continue;
             }
-            guild.editNickname(rb_(this.text.nickname, server.nickname ?? ''));
-            
+
+            if (server.nickname) {
+                guild.editNickname(server.nickname);
+            } else {
+                guild.editNickname(this.client.user.username);
+            }
         }
         this.client.disconnect({reconnect: false});
     }
