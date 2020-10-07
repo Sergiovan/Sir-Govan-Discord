@@ -4,3 +4,4 @@ data/nocontext.txt
 node_modules/
 dist/
 secrets.ts
+text.ts

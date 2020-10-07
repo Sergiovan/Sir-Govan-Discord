@@ -2,9 +2,9 @@
 
 import Eris from 'eris';
 
-import { botparams, emojis } from './defines';
-import { randomCode, randomEnum } from './utils';
-import { CommandFunc, cmds } from './commands';
+import { botparams, emojis, Server } from './defines';
+import { randomCode, randomEnum, randFromFile, RarityBag, rb_ } from './utils';
+import { CommandFunc } from './commands';
 import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets';
 import { createHash } from 'crypto';
 
@@ -23,6 +23,8 @@ export class Bot {
     last_clue: Date = new Date(0);
     puzzle_id: string = '';
     puzzle_stopped: boolean = false;
+
+    text: { [key: string]: RarityBag } = {};
 
     owner?: Eris.User;
 
@@ -77,7 +79,23 @@ export class Bot {
         this.client.on(name, handler.bind(this));
     }
 
+    async loadText(): Promise<[boolean, any]> {
+        try {
+            delete require.cache[require.resolve(`./text.js`)];
+            let widget = await import('./text');
+            this.text = widget.text;
+
+            return [true, null];
+        } catch (e) {
+            console.error(e);
+            console.log('Could not reload text');
+            return [false, e];
+        };
+    }
+
     startClues() {
+        // if (this.beta) return;
+
         this.answer = randomCode();
         this.puzzle_type = randomEnum(ClueType);
         this.clue_count = 0;
@@ -87,7 +105,7 @@ export class Bot {
         hasher.update(this.answer);
         this.puzzle_id = hasher.digest('hex').substr(0, 8);
 
-        this.owner!.getDMChannel().then((ch) => ch.createMessage(`${this.beta ? 'Beta message! ' : ''}Puzzle started: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``));
+        this.tellTheBoss(`${this.beta ? 'Beta message! ' : ''}Puzzle started: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``);
         console.log(`New clue game started: Clue is ${this.answer}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.puzzle_type]}`);
     }
 
@@ -123,10 +141,14 @@ export class Bot {
         if (!this.canGetClue()) {
             return null;
         }
-        let msg = await this.client.createMessage(channel, 'Generating clue...');
-        await msg.addReaction(emojis.devil.fullName);
+        let msg = await this.client.createMessage(channel, rb_(this.text.puzzleGenerating, 'Generating clue...'));
         let clue = this.getClue();
-        await msg.edit(`#${++this.clue_count}: \`${clue?.value}\`. Puzzle ID is \`${this.puzzle_id}\``);
+        let self = this;
+
+        setTimeout(async function() {
+            await msg.edit(`#${++self.clue_count}: \`${clue?.value}\`. Puzzle ID is \`${self.puzzle_id}\``);
+            await msg.addReaction(emojis.devil.fullName);
+        }, 2500);
     }
 
     async checkAnswer(answer: string, user: Eris.User) {
@@ -140,9 +162,9 @@ export class Bot {
             this.clue_gen = undefined;
 
             let dm = await user.getDMChannel();
-            dm.createMessage('You got it!');
+            dm.createMessage(rb_(this.text.answerCorrect, 'You got it!'));
 
-            (await this.owner.getDMChannel()).createMessage(`${user.username} (${user.id}) got it!`);
+            await this.tellTheBoss(`${user.username} (${user.id}) got it!`);
 
             setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
         }
@@ -150,14 +172,27 @@ export class Bot {
 
     puzzleHelp(): string {
         if (!this.answer) {
-            return 'Nothing going on at the moment';
+            return rb_(this.text.puzzleNothing, 'Nothing going on at the moment');
         } else {
             if (this.puzzle_stopped) {
-                return 'Puzzling has been cancelled (for now) in favor of religion';
+                return rb_(this.text.puzzleStopped, 'Puzzling has been temporarily stopped');
             } else {
                 return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.puzzle_type)}||\n${this.clue_count} clues have appeared so far\nPuzzle ID is \`${this.puzzle_id}\``;
             }
         }
+    }
+
+    reply(msg: Eris.Message, def: string, rb?: RarityBag) {
+        return this.client.createMessage(msg.channel.id, rb_(rb, def));    
+    }
+
+    replyDM(msg: Eris.Message, def: string, rb?: RarityBag) {
+        return msg.author.getDMChannel().then(channel => this.client.createMessage(channel.id, rb_(rb, def)));
+    }
+
+    tellTheBoss(what: string) {
+        console.log(`[BOSS] ${what}`);
+        return this.owner!.getDMChannel().then((ch) => ch.createMessage(what));
     }
 
     pin(msg: Eris.Message, forced: boolean = false) {
@@ -226,7 +261,31 @@ export class Bot {
         }
     }
 
+    async tryRemoveContext(msg: Eris.Message, server: Server) {
+        let channel = server.no_context_channel;
+        if (msg.cleanContent?.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
+            this.client.createMessage(channel, msg.cleanContent);
+            if (server.no_context_role) {
+                for (let [_, member] of (msg.channel as Eris.TextChannel).guild.members) {
+                    if (member.id === msg.author.id) {
+                        member.addRole(server.no_context_role);
+                    } else if (member.roles.includes(server.no_context_role)) {
+                        member.removeRole(server.no_context_role);
+                    }
+                }
+                randFromFile('nocontext.txt', 'No context', function(name) {
+                    (msg.channel as Eris.TextChannel).guild.roles.get(server!.no_context_role)?.edit({name: name});
+                });
+
+                if (Math.random() * 4 < 1.0) {
+                    this.postClue(server.allowed(msg) ? msg.channel.id : server.allowed_channels[0]);
+                }
+            }
+        }
+    }
+
     async connect() {
+        this.loadText();
         this.client.connect();
     }
 
@@ -236,11 +295,8 @@ export class Bot {
             if (!server || this.beta !== server.beta) {
                 continue;
             }
-            if (server.nickname) {
-                guild.editNickname(server.nickname);
-            } else {
-                guild.editNickname('');
-            }
+            guild.editNickname(rb_(this.text.nickname, server.nickname ?? ''));
+            
         }
         this.client.disconnect({reconnect: false});
     }

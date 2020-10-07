@@ -168,9 +168,13 @@ export function shuffleArray<T>(arr: Array<T>) {
     }
 }
 
+export function randomElement<T>(arr: Array<T>): T {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
 export function randomLetter(): string {
     const mask = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?'.split('');
-    return mask[Math.floor(Math.random() * mask.length)];
+    return randomElement(mask);
 }
 
 export function randomCode(): string {
@@ -180,3 +184,113 @@ export function randomCode(): string {
 
     return mask.slice(0, len).join('');
 }
+
+export enum Rarity {
+    Common = 0, // 75%
+    Uncommon = 1, // 20%
+    Rare = 2, // 4%
+    Mythical = 3, // 0.99%
+    WhatTheActualFuck = 4 // 0.01%
+}
+
+export type RBElementValue = string | (() => string);
+
+export class RBElement {
+    value: RBElementValue;
+    rarity: Rarity;
+
+    constructor(value: RBElementValue, rarity: Rarity) {
+        this.value = value;
+        this.rarity = rarity;
+    }
+} 
+
+interface RarityBagConstructor {
+    common?: Array<RBElementValue>;
+    uncommon?: Array<RBElementValue>;
+    rare?: Array<RBElementValue>;
+    mythical?: Array<RBElementValue>;
+    wtf?: Array<RBElementValue>;
+}
+
+export class RarityBag {   
+    elements: Map<Rarity, RBElementValue[]> = new Map([
+        [Rarity.Common, []],
+        [Rarity.Uncommon, []],
+        [Rarity.Rare, []],
+        [Rarity.Mythical, []],
+        [Rarity.WhatTheActualFuck, []]
+    ]);
+
+    constructor({
+        common = [],
+        uncommon = [],
+        rare = [],
+        mythical = [],
+        wtf = []
+    }: RarityBagConstructor) {
+        this.elements.get(Rarity.Common)!.push(...common);
+        this.elements.get(Rarity.Uncommon)!.push(...uncommon);
+        this.elements.get(Rarity.Rare)!.push(...rare);
+        this.elements.get(Rarity.Mythical)!.push(...mythical);
+        this.elements.get(Rarity.WhatTheActualFuck)!.push(...wtf);
+    }
+
+    static unpack(val: RBElementValue): string {
+        if (typeof val === 'string') {
+            return val;
+        } else {
+            return val();
+        }
+    }
+
+    static pickOrDefault(bag: RarityBag | undefined | null, def: RBElementValue): string {
+        let chosen: RBElementValue;
+        if (bag) {
+            chosen = bag.get(def);
+        } else {
+            chosen = def;
+        }
+
+        return RarityBag.unpack(chosen);
+    }
+
+    add(val: RBElement): void;
+    add(val: RBElementValue, rarity: Rarity): void;
+    add(val: RBElementValue[], rarity: Rarity): void;
+
+    add(val: RBElement | RBElementValue | RBElementValue[], rarity?: Rarity) {
+        if (val instanceof RBElement) {
+            this.elements.get(val.rarity)?.push(val.value);
+        } else if (Array.isArray(val)) {
+            this.elements.get(rarity!)?.push(...val);
+        } else {
+            this.elements.get(rarity!)?.push(val);
+        }
+    }
+
+    get(def: RBElementValue, rarity?: Rarity): RBElementValue {
+        if (!rarity) {
+            rarity = this.randomRarity();
+        } 
+        let elems = this.elements.get(rarity!);
+        return elems?.length ? randomElement(elems) : def;
+    } 
+
+    randomRarity(): Rarity {
+        let rand = randomBigInt(9999n); // [0-9999], 10000 values
+        if (rand === 0n && this.elements.get(Rarity.WhatTheActualFuck)?.length) { // 1/10000
+            return Rarity.WhatTheActualFuck;
+        } else if (rand < 100n && this.elements.get(Rarity.Mythical)?.length) { // 99/10000 
+            return Rarity.Mythical;
+        } else if (rand < 500n && this.elements.get(Rarity.Rare)?.length) { // 400/10000
+            return Rarity.Rare;
+        } else if (rand < 2500n && this.elements.get(Rarity.Uncommon)?.length) { // 2000/10000
+            return Rarity.Uncommon;
+        } else { // 7500/10000
+            return Rarity.Common;
+        }
+    }
+}
+
+export let rb_ = RarityBag.pickOrDefault;

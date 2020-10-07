@@ -63,7 +63,7 @@ export const listeners: { [key: string]: CallableFunction } = {
             if (this.parse(msg)) {
                 return;
             }
-            
+
             let sanitized = msg.cleanContent?.replace(/["'`]/g, '');
             
             if (sanitized) {
@@ -94,28 +94,10 @@ export const listeners: { [key: string]: CallableFunction } = {
             
             if (server.allowedListen(msg) && !msg.author.bot) {
                 if ((Math.random() * 100) < 1.0 && server.no_context_channel) {
-                    let channel = server.no_context_channel;
-                    if (msg.cleanContent?.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
-                        this.client.createMessage(channel, msg.cleanContent);
-                        if (server.no_context_role) {
-                            for (let [_, member] of (msg.channel as Eris.TextChannel).guild.members) {
-                                if (member.id === msg.author.id) {
-                                    member.addRole(server.no_context_role);
-                                } else if (member.roles.includes(server.no_context_role)) {
-                                    member.removeRole(server.no_context_role);
-                                }
-                            }
-                            f.randFromFile('nocontext.txt', 'No context', function(name) {
-                                (msg.channel as Eris.TextChannel).guild.roles.get(server!.no_context_role)?.edit({name: name});
-                            });
-
-                            if (Math.random() * 4 < 1.0) {
-                                this.postClue(server.allowed(msg) ? msg.channel.id : server.allowed_channels[0]);
-                            }
-                        }
-                    }
+                    this.tryRemoveContext(msg, server);
                 }   
             }
+
             if (server.allowed(msg)) {
                 if (this.parse(msg)) {
                     return;
@@ -181,7 +163,7 @@ export const listeners: { [key: string]: CallableFunction } = {
 
             let content = msg.content!;
             await msg.removeReaction(emojis.devil.fullName);
-            await msg.edit(`Stolen by ${user.username}`);
+            await msg.edit(`${f.rb_(self.text.puzzleSteal, 'Stolen')} by ${user.username}`);
 
             (await user.getDMChannel()).createMessage(content);
             setTimeout(() => msg.delete(), 1000 * 5 * 60);
