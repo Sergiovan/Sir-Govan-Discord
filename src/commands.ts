@@ -199,5 +199,12 @@ export const beta_cmds: { [key: string]: CommandFunc} = {
     debug(this: Bot, msg: Eris.Message) {
         console.log(util.inspect(msg, true, 5, true));
     },
-    __die: cmds.die
+    __die: cmds.die,
+    post_clue(this: Bot, msg: Eris.Message) {
+        let server = botparams.servers.getServer(msg);
+        if (!server || server.beta !== this.beta || msg.author.id !== botparams.owner) {
+            return;
+        }
+        this.postClue(server.allowed(msg) ? msg.channel.id : server.allowed_channels[0]);
+    }
 }

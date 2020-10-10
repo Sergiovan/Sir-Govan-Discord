@@ -1,14 +1,17 @@
 "use strict"; // Oh boy
 
 import Eris from 'eris';
+import Storage from 'node-persist';
 
 import { botparams, emojis, Server } from './defines';
-import { randomCode, randomEnum, randFromFile, RarityBag, rb_ } from './utils';
+import { sleep, randomCode, randomEnum, randFromFile, RarityBag, rb_ } from './utils';
 import { CommandFunc } from './commands';
 import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets';
 import { createHash } from 'crypto';
 
 type Command = [string, (msg: Eris.Message) => void];
+
+const storage_location = 'data/bot';
 
 export class Bot {
     client: Eris.Client;
@@ -19,6 +22,8 @@ export class Bot {
     answer: string = '';
     puzzle_type: ClueType = ClueType.LetterPosition;
     clue_gen?: ClueGenerator;
+    clue_list: string[] = [];
+    clue_perm_data: any = null;
     clue_count: number = 0;
     last_clue: Date = new Date(0);
     puzzle_id: string = '';
@@ -26,7 +31,7 @@ export class Bot {
 
     text: { [key: string]: RarityBag } = {};
 
-    owner?: Eris.User;
+    _owner?: Eris.User;
 
     constructor(token: string, beta: boolean) {
         this.client = new Eris.Client(token, {
@@ -46,13 +51,51 @@ export class Bot {
 
         let self = this;
 
-        setTimeout(function check_connect() {
-            if (self.owner) {
-                self.startClues();
-            } else {
-                setTimeout(check_connect, 1000);
-            }
-        }, 1000);
+        this.load().catch(function(e) {
+            console.log('Could not load data from file: ', e);
+        }).finally(async function() { 
+            await self.owner();
+            self.startClues();
+        });
+    }
+
+    async owner(): Promise<Eris.User> {
+        if (this._owner) return this._owner;
+
+        let tries = 60; // 1 minute
+        while (tries--) {
+            if (this._owner) return this._owner;
+            await sleep(1000);
+        }
+
+        throw new Error('Owner was not available after 1 minute');
+    }
+
+    async load() {
+        await Storage.init({ dir: storage_location });
+        
+        this.answer = await Storage.getItem('answer') ?? '';
+        this.puzzle_type = await Storage.getItem('puzzle_type') ?? ClueType.LetterPosition;
+        this.clue_list = await Storage.getItem('clue_list') ?? [];
+        this.clue_perm_data = await Storage.getItem('clue_perm_data') ?? null;
+        this.clue_count = await Storage.getItem('clue_count') ?? 0;
+        this.last_clue = new Date(await Storage.getItem('last_clue') ?? 0);
+        this.puzzle_id = await Storage.getItem('puzzle_id') ?? '';
+        this.puzzle_stopped = await Storage.getItem('puzzle_stopped') ?? false;
+    }
+
+    async save() {
+        await Storage.init({ dir: storage_location });
+        await Promise.all([
+            Storage.setItem('answer', this.answer),
+            Storage.setItem('puzzle_type', this.puzzle_type),
+            Storage.setItem('clue_list', this.clue_list),
+            Storage.setItem('clue_perm_data', this.clue_perm_data),
+            Storage.setItem('clue_count', this.clue_count),
+            Storage.setItem('last_clue', this.last_clue.toJSON()),
+            Storage.setItem('puzzle_id', this.puzzle_id),
+            Storage.setItem('puzzle_stopped', this.puzzle_stopped)
+        ]);
     }
 
     parse(msg: Eris.Message) {
@@ -96,8 +139,23 @@ export class Bot {
     startClues() {
         // if (this.beta) return;
 
+        if (this.puzzle_stopped) {
+            this.tellTheBoss('Puzzle is paused');
+        }
+
+        if (this.answer) { // We already had something going
+            this.startGenerator();
+            this.tellTheBoss(`${this.beta ? 'Beta message! ' : ''}Puzzle resumed: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``);
+            console.log(`New clue game started: Clue is ${this.answer}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.puzzle_type]}`);
+            
+            return;
+        }
+
+        // Start from 0
         this.answer = randomCode();
         this.puzzle_type = randomEnum(ClueType);
+        this.clue_list = [];
+        this.clue_perm_data = null;
         this.clue_count = 0;
         this.startGenerator();
 
@@ -110,30 +168,47 @@ export class Bot {
     }
 
     startGenerator() {
-        this.clue_gen = mysteryGenerator(this.answer, this.puzzle_type);
+        this.clue_gen = mysteryGenerator(this.answer, this.puzzle_type, this.clue_perm_data);
     }
 
     canGetClue() {
         return !this.puzzle_stopped && (this.beta || (new Date().getTime() - (1000 * 60 * 60) > this.last_clue.getTime())) && this.clue_gen;
     }
 
-    getClue() {
+    getClue(): string | null {
         if (!this.canGetClue()) {
             console.log("No clue");
             return null;
         }
 
-        let res = this.clue_gen!.next();
-        if (res.done) {
-            this.startGenerator();
-            let ret = this.clue_gen!.next().value || null;
-            if (ret) {
-                this.last_clue = new Date();
+        if (this.clue_list.length === 0) {
+            for (let i = 0; i < 128; ++i) {
+                let clue = this.clue_gen!.next();
+                if (clue.done) {
+                    this.startGenerator();
+                    break;
+                } else {
+                    this.clue_list.push(clue.value.value);
+                    this.clue_perm_data = this.clue_perm_data ?? clue.value.perm_data;
+                    if (clue.value.cycle_end) {
+                        break;
+                    }
+                }
             }
-            return ret;
+
+            console.log("Got me some clues: ", this.clue_list);
         }
+
+        if (this.clue_list.length === 0) {
+            console.log("Catastrophic error occurred");
+            this.tellTheBoss("Puzzle stopped, catastrophic error happened");
+            this.puzzle_stopped = true;
+            return 'ERROR';
+        }
+
+        let clue = this.clue_list.shift(); 
         this.last_clue = new Date();
-        return res.value;
+        return clue!;
     }
 
     async postClue(channel: string) {
@@ -146,20 +221,25 @@ export class Bot {
         let self = this;
 
         setTimeout(async function() {
-            await msg.edit(`#${++self.clue_count}: \`${clue?.value}\`. Puzzle ID is \`${self.puzzle_id}\``);
+            let text = `#${++self.clue_count}: \`${clue}\`. Puzzle ID is \`${self.puzzle_id}\``;
+            await msg.edit(text);
             await msg.addReaction(emojis.devil.fullName);
         }, 2500);
     }
 
     async checkAnswer(answer: string, user: Eris.User) {
-        if (!this.answer?.length || !this.owner) {
+        if (!this.answer?.length || !this._owner || this.puzzle_stopped) {
             return;
         }
-        
 
         if (answer === this.answer) {
             this.answer = '';
+            this.puzzle_type = ClueType.LetterPosition;
+            this.clue_list = [];
+            this.clue_perm_data = null;
+            this.clue_count = 0;
             this.clue_gen = undefined;
+            this.puzzle_id = '';
 
             let dm = await user.getDMChannel();
             dm.createMessage(rb_(this.text.answerCorrect, 'You got it!'));
@@ -177,7 +257,10 @@ export class Bot {
             if (this.puzzle_stopped) {
                 return rb_(this.text.puzzleStopped, 'Puzzling has been temporarily stopped');
             } else {
-                return `Complete the passphrase and tell it to me for prizes. The clue is: ||${clueHelp(this.puzzle_type)}||\n${this.clue_count} clues have appeared so far\nPuzzle ID is \`${this.puzzle_id}\``;
+                return `${rb_(this.text.puzzleGoal, 'Complete the passphrase and tell it to me for prizes')}. ` + 
+                       `The clue is: ||${clueHelp(this.puzzle_type)}||\n` + 
+                       `${this.clue_count} ${rb_(this.text.puzzleSoFar, 'clues have appeared so far')}\n` + 
+                       `Puzzle ID is \`${this.puzzle_id}\``;
             }
         }
     }
@@ -191,8 +274,8 @@ export class Bot {
     }
 
     tellTheBoss(what: string) {
-        console.log(`[BOSS] ${what}`);
-        return this.owner!.getDMChannel().then((ch) => ch.createMessage(what));
+        console.log(`${'[BOSS]'.cyan} ${what}`);
+        return this.owner().then(owner => owner.getDMChannel().then((ch) => ch.createMessage(what)));
     }
 
     pin(msg: Eris.Message, forced: boolean = false) {
@@ -289,7 +372,7 @@ export class Bot {
         this.client.connect();
     }
 
-    die() {
+    async die() {
         for (let [guild_id, guild] of this.client.guilds) {
             let server = botparams.servers.ids[guild_id];
             if (!server || this.beta !== server.beta) {
@@ -297,11 +380,20 @@ export class Bot {
             }
 
             if (server.nickname) {
-                guild.editNickname(server.nickname);
+                await guild.editNickname(server.nickname);
             } else {
-                guild.editNickname(this.client.user.username);
+                await guild.editNickname(this.client.user.username);
             }
         }
-        this.client.disconnect({reconnect: false});
+
+        let self = this;
+        try {
+            await this.save(); 
+        } catch (e) {
+            console.log('Cannot save: ', e);
+        } finally {
+            self.client.disconnect({reconnect: false});
+            process.exit(0);
+        }
     }
 }

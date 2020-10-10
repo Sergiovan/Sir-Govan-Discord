@@ -11,14 +11,15 @@ export const listeners: { [key: string]: CallableFunction } = {
     ready(this: Bot) {
         let self = this;
 
-        this.owner = this.client.users.get(botparams.owner);
+        this._owner = this.client.users.get(botparams.owner);
 
         for (let [guild_id, guild] of this.client.guilds) {
             let server = botparams.servers.ids[guild_id];
             if (!server || this.beta !== server.beta) {
                 continue;
             }
-            guild.editNickname(f.rb_(this.text.nickname, server.nickname ?? '') + (this.beta ? ' (β)' : ''));
+            let new_nick = f.rb_(this.text.nickname, server.nickname || 'Sir Govan') + (this.beta ? ' (β)' : '');
+            guild.editNickname(new_nick);
             
         }
 
@@ -34,7 +35,6 @@ export const listeners: { [key: string]: CallableFunction } = {
         process.on('SIGINT', function() {
             console.log("Buh bai");
             self.die();
-            process.exit(0);
         });
 
         console.log("Ready!");

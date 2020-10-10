@@ -1,6 +1,7 @@
 .idea/
 .vscode/
 data/nocontext.txt
+data/bot
 node_modules/
 dist/
 secrets.ts

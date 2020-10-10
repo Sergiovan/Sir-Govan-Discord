@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
-import {argType} from './defines';
+import { argType } from './defines';
 
 interface StringArg {
     type: argType.string;
@@ -113,6 +113,10 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
         word++;
     }
     return ret;
+}
+
+export async function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export function randFromFile(filename: string, def: string, cb: (s: string) => void) {
