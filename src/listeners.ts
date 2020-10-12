@@ -141,28 +141,34 @@ export const listeners: { [key: string]: CallableFunction } = {
             if (msg.author.bot) {
                 return;
             }
-            if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
+            if ((msg.reactions[emojis.pushpin.fullName] && 
+                msg.reactions[emojis.pushpin.fullName].me) ||
+                self.message_locked(msg)) {
                 return;
             }
+
             let reactionaries = await msg.getReaction(findname, 4);
             if(reactionaries.filter((user) => user.id !== msg.author.id).length >= 3){
                 //We pin that shit!
+                self.lock_message(msg);
                 msg.addReaction(emojis.pushpin.fullName);
                 self.pin(msg);
             }
         }
 
         async function steal(msg: Eris.Message, user: Eris.User) {
-            if (!msg.reactions[emojis.devil.fullName].me) {
+            if (!msg.reactions[emojis.devil.fullName].me ||
+                self.message_locked(msg)) {
                 return;
             }
 
+            self.lock_message(msg);
             let content = msg.content!;
             await msg.removeReaction(emojis.devil.fullName);
             await msg.edit(`${f.rb_(self.text.puzzleSteal, 'Stolen')} by ${user.username}`);
 
             (await user.getDMChannel()).createMessage(content);
-            setTimeout(() => msg.delete(), 1000 * 5 * 60);
+            self.add_cleanup_task(() => msg.delete(), 1000 * 5 * 60);
         }
 
     },

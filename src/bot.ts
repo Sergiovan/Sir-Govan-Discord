@@ -11,13 +11,19 @@ import { createHash } from 'crypto';
 
 type Command = [string, (msg: Eris.Message) => void];
 
-const storage_location = 'data/bot';
+const storage_location = 'data/node-persist';
+
+type CleanupCode = [Date, () => void];
 
 export class Bot {
     client: Eris.Client;
 
     commands: Command[] = [];
     beta: boolean;
+    
+    cleanup_interval?: NodeJS.Timeout;
+    cleanup_list: CleanupCode[] = [];
+    message_mutex: Set<string> = new Set();
 
     answer: string = '';
     puzzle_type: ClueType = ClueType.LetterPosition;
@@ -50,6 +56,9 @@ export class Bot {
         this.beta = beta;
 
         let self = this;
+        
+        // Run every minute
+        this.cleanup_interval = setInterval(() => this.run_cleanup(), 1000 * 60); 
 
         this.load().catch(function(e) {
             console.log('Could not load data from file: ', e);
@@ -96,6 +105,42 @@ export class Bot {
             Storage.setItem('puzzle_id', this.puzzle_id),
             Storage.setItem('puzzle_stopped', this.puzzle_stopped)
         ]);
+    }
+
+    async run_cleanup(forced: boolean = false) {
+        let now = Date.now();
+        let i = this.cleanup_list.length;
+
+        while (i--) {
+            let [time, fn] = this.cleanup_list[i];
+            if (forced || time.getTime() <= now) {
+                await fn();
+                this.cleanup_list.splice(i, 1);
+            }
+        }
+    }
+
+    /// Notice, this method of locking/unlocking only works because 
+    /// this app is single-threaded...
+    message_locked(msg: Eris.Message) {
+        return this.message_mutex.has(msg.id);
+    }
+    
+    lock_message(msg: Eris.Message, ms: number = 1000 * 60) {
+        this.message_mutex.add(msg.id);
+        this.add_cleanup_task(() => this.message_mutex.delete(msg.id), ms);
+    }
+
+    add_cleanup_task(task: () => void, delay_ms: number) {
+        if (this.cleanup_interval) {
+            this.cleanup_list.push([
+                new Date(Date.now() + delay_ms),
+                task
+            ]);
+        } else {
+            console.log('Forced task through');
+            task();
+        }
     }
 
     parse(msg: Eris.Message) {
@@ -161,7 +206,7 @@ export class Bot {
 
         let hasher = createHash('md5');
         hasher.update(this.answer);
-        this.puzzle_id = hasher.digest('hex').substr(0, 8);
+        this.puzzle_id = hasher.digest('hex').substr(0, 16);
 
         this.tellTheBoss(`${this.beta ? 'Beta message! ' : ''}Puzzle started: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``);
         console.log(`New clue game started: Clue is ${this.answer}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.puzzle_type]}`);
@@ -220,8 +265,10 @@ export class Bot {
         let clue = this.getClue();
         let self = this;
 
+        let text = `#${++self.clue_count}: \`${clue}\`. Puzzle ID is \`${self.puzzle_id}\``;
+        console.log(`Clue: ${text}`);
+
         setTimeout(async function() {
-            let text = `#${++self.clue_count}: \`${clue}\`. Puzzle ID is \`${self.puzzle_id}\``;
             await msg.edit(text);
             await msg.addReaction(emojis.devil.fullName);
         }, 2500);
@@ -269,13 +316,16 @@ export class Bot {
         return this.client.createMessage(msg.channel.id, rb_(rb, def));    
     }
 
-    replyDM(msg: Eris.Message, def: string, rb?: RarityBag) {
-        return msg.author.getDMChannel().then(channel => this.client.createMessage(channel.id, rb_(rb, def)));
+    async replyDM(msg: Eris.Message, def: string, rb?: RarityBag) {
+        const channel = await msg.author.getDMChannel();
+        return await this.client.createMessage(channel.id, rb_(rb, def));
     }
 
-    tellTheBoss(what: string) {
+    async tellTheBoss(what: string) {
         console.log(`${'[BOSS]'.cyan} ${what}`);
-        return this.owner().then(owner => owner.getDMChannel().then((ch) => ch.createMessage(what)));
+        const owner = await this.owner();
+        const ch = await owner.getDMChannel();
+        return await ch.createMessage(what);
     }
 
     pin(msg: Eris.Message, forced: boolean = false) {
@@ -357,7 +407,7 @@ export class Bot {
                     }
                 }
                 randFromFile('nocontext.txt', 'No context', function(name) {
-                    (msg.channel as Eris.TextChannel).guild.roles.get(server!.no_context_role)?.edit({name: name});
+                    (msg.channel as Eris.TextChannel).guild.roles.get(server.no_context_role)?.edit({name: name});
                 });
 
                 if (Math.random() * 4 < 1.0) {
@@ -373,27 +423,31 @@ export class Bot {
     }
 
     async die() {
-        for (let [guild_id, guild] of this.client.guilds) {
-            let server = botparams.servers.ids[guild_id];
-            if (!server || this.beta !== server.beta) {
-                continue;
-            }
-
-            if (server.nickname) {
-                await guild.editNickname(server.nickname);
-            } else {
-                await guild.editNickname(this.client.user.username);
-            }
-        }
-
-        let self = this;
         try {
             await this.save(); 
+
+            for (let [guild_id, guild] of this.client.guilds) {
+                let server = botparams.servers.ids[guild_id];
+                if (!server || this.beta !== server.beta) {
+                    continue;
+                }
+
+                if (server.nickname) {
+                    await guild.editNickname(server.nickname);
+                } else {
+                    await guild.editNickname(this.client.user.username);
+                }
+            }
+
+            if (this.cleanup_interval) {
+                clearInterval(this.cleanup_interval);
+            }
+            await this.run_cleanup(true);
+
         } catch (e) {
-            console.log('Cannot save: ', e);
+            console.log('Error while quitting: ', e);
         } finally {
-            self.client.disconnect({reconnect: false});
-            process.exit(0);
+            this.client.disconnect({reconnect: false});
         }
     }
 }
