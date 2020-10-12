@@ -191,7 +191,7 @@ export class Bot {
         if (this.answer) { // We already had something going
             this.startGenerator();
             this.tellTheBoss(`${this.beta ? 'Beta message! ' : ''}Puzzle resumed: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``);
-            console.log(`New clue game started: Clue is ${this.answer}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.puzzle_type]}`);
+            console.log(`Puzzle resumed: Clue is ${this.answer}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.puzzle_type]}`);
             
             return;
         }
@@ -424,7 +424,13 @@ export class Bot {
 
     async die() {
         try {
+            if (this.cleanup_interval) {
+                clearInterval(this.cleanup_interval);
+            }
+
             await this.save(); 
+
+            await this.run_cleanup(true);
 
             for (let [guild_id, guild] of this.client.guilds) {
                 let server = botparams.servers.ids[guild_id];
@@ -438,11 +444,6 @@ export class Bot {
                     await guild.editNickname(this.client.user.username);
                 }
             }
-
-            if (this.cleanup_interval) {
-                clearInterval(this.cleanup_interval);
-            }
-            await this.run_cleanup(true);
 
         } catch (e) {
             console.log('Error while quitting: ', e);
