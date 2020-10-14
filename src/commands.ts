@@ -28,16 +28,8 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     roll(this: Bot, msg: Eris.Message) {
-        let [err, num] = parseArgs(msg, arg(0, '20'));
-        let bignum: bigint;
-        if (!err) {
-            try {
-                bignum = BigInt(num);
-            } catch (e) {
-                bignum = 20n;
-            }
-            this.reply(msg, `${randomBigInt(bignum, 1n)}${rb_(this.text.roll, "")}`);
-        }
+        let [num] = parseArgs(msg, arg(argType.bigint, 20n));
+        this.reply(msg, `${randomBigInt(num, 1n)}${rb_(this.text.roll, "")}`);
     },
 
     color(this: Bot, msg: Eris.Message) {
@@ -45,30 +37,28 @@ export const cmds: { [key: string]: CommandFunc } = {
         if (!server) {
             return;
         }
-        let [err, color] = parseArgs(msg, arg(argType.string, `${Math.floor(Math.random() * 0x1000000)}`));
-        if (!err) {
-            let number = Number.parseInt('0x' + (''+color).replace(/^(#|0x)/, ''));
-            if (!Number.isNaN(number) && Number.isFinite(number) && number >= 0 && number < 0x1000000) {
-                let member = msg.member;
-                let guild = (msg.channel as Eris.TextChannel).guild;
-                let roles = guild.roles;
-                let user_roles = roles.filter((role) => member?.roles.includes(role.id) || false);
-                user_roles.sort((a, b) => b.position - a.position);
-                user_roles[0].edit({color: number});
-            } else if (Number.isNaN(number)) {
-                this.reply(msg, "That's not a valid color hex. Give me a valid hex, like #C0FFEE or #A156F2", this.text.colorNaN);
-            } else if (!Number.isFinite(number)) {
-               this.reply(msg, "That color would blow your mind. Give me a valid hex, like #0084CA or #F93822", this.text.colorInfinite);
-            } else if (number < 0) {
-                this.reply(msg, "A negative hex? Now I know you're just fucking with me", this.text.colorNegative);
-            } else {
-                this.reply(msg, "I'm unsure your monitor can even render that. Your hex is too high. " +
-                    "Give me a valid hex, like #00AE8F, or #F2F0A1", this.text.colorError);
-            }
+        let [color] = parseArgs(msg, arg(argType.string, `${Math.floor(Math.random() * 0x1000000)}`));
+        if (!color) {
+            this.reply(msg, "Missing color parameter. Please provide me with a hex number", this.text.colorNoColor);
+            return;
+        }
+        let number = Number.parseInt('0x' + (''+color).replace(/^(#|0x)/, ''));
+        if (!Number.isNaN(number) && Number.isFinite(number) && number >= 0 && number < 0x1000000) {
+            let member = msg.member;
+            let guild = (msg.channel as Eris.TextChannel).guild;
+            let roles = guild.roles;
+            let user_roles = roles.filter((role) => member?.roles.includes(role.id) || false);
+            user_roles.sort((a, b) => b.position - a.position);
+            user_roles[0].edit({color: number});
+        } else if (Number.isNaN(number)) {
+            this.reply(msg, "That's not a valid color hex. Give me a valid hex, like #C0FFEE or #A156F2", this.text.colorNaN);
+        } else if (!Number.isFinite(number)) {
+            this.reply(msg, "That color would blow your mind. Give me a valid hex, like #0084CA or #F93822", this.text.colorInfinite);
+        } else if (number < 0) {
+            this.reply(msg, "A negative hex? Now I know you're just fucking with me", this.text.colorNegative);
         } else {
-            // Very niche, do not worry
-            this.reply(msg, "Incredibly, something went wrong. I will now tell my master about it", this.text.genericError);
-            this.tellTheBoss(`Something went very wrong when changing colors: \`\`\`${err}\`\`\`, \`${color}\``);
+            this.reply(msg, "I'm unsure your monitor can even render that. Your hex is too high. " +
+                "Give me a valid hex, like #00AE8F, or #F2F0A1", this.text.colorError);
         }
     },
 
@@ -111,37 +101,32 @@ export const cmds: { [key: string]: CommandFunc } = {
         }
         let self = this;
         let thischannel = msg.channel;
-        let [err, messageID] = parseArgs(msg, arg(argType.string));
-        if (!err) {
-            if (messageID) {
-                let success = false;
-                for (let elem of (msg.channel as Eris.TextChannel).guild.channels) {
-                    let [_, channel] = elem;
-                    if (server.allowed_channels_listen.includes(channel.id)) {
-                        try {
-                            let msg = await (channel as Eris.TextChannel).getMessage(messageID as string);
-                            if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
-                                self.client.createMessage(thischannel.id, rb_(self.text.pinAlreadyPinned, "That message is already pinned"));
-                                return;
-                            }
-                            msg.addReaction(emojis.pushpin.fullName);
-                            self.pin(msg, true);
-                            success = true;
-                            break;
-                        } catch (err) {
-                            
+        let [messageID] = parseArgs(msg, arg(argType.string));
+        if (messageID) {
+            let success = false;
+            for (let elem of (msg.channel as Eris.TextChannel).guild.channels) {
+                let [_, channel] = elem;
+                if (server.allowed_channels_listen.includes(channel.id)) {
+                    try {
+                        let msg = await (channel as Eris.TextChannel).getMessage(messageID as string);
+                        if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
+                            self.client.createMessage(thischannel.id, rb_(self.text.pinAlreadyPinned, "That message is already pinned"));
+                            return;
                         }
+                        msg.addReaction(emojis.pushpin.fullName);
+                        self.pin(msg, true);
+                        success = true;
+                        break;
+                    } catch (err) {
+                        
                     }
                 }
-                if (!success) {
-                    this.reply(msg, "Invalid message ID", this.text.pinInvalidMessage);
-                }
-            } else {
-                this.reply(msg, "Missing message ID", this.text.pinNoMessage);
+            }
+            if (!success) {
+                this.reply(msg, "Invalid message ID", this.text.pinInvalidMessage);
             }
         } else {
-            this.reply(msg, "Hm. Something went wrong there", this.text.genericError);
-            this.tellTheBoss(`Something went very wrong when pinning: \`\`\`${err}\`\`\`, \`${messageID}\``);
+            this.reply(msg, "Missing message ID", this.text.pinNoMessage);
         }
     },
 
@@ -160,20 +145,15 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     check(this: Bot, msg: Eris.Message) {
-        let [err, answer] = parseArgs(msg, arg(argType.string));
-        if (!err) {
-            if (answer) {
-                if (this.puzzler.checkAnswer(answer as string)) {
-                    this.reply(msg, "Correct!", this.text.checkCorrect);
-                } else {
-                    this.reply(msg, "Incorrect", this.text.checkIncorrect);
-                }
+        let [answer] = parseArgs(msg, arg(argType.string));
+        if (answer) {
+            if (this.puzzler.checkAnswer(answer as string)) {
+                this.reply(msg, "Correct!", this.text.checkCorrect);
             } else {
-                this.reply(msg, "Missing answer to check", this.text.checkMissingAnswer);
+                this.reply(msg, "Incorrect", this.text.checkIncorrect);
             }
         } else {
-            this.reply(msg, "How quaint. An error occurred", this.text.genericError);
-            this.tellTheBoss(`Something went very wrong when pinning: \`\`\`${err}\`\`\`, \`${answer}\``);
+            this.reply(msg, "Missing answer to check", this.text.checkMissingAnswer);
         }
 
     },

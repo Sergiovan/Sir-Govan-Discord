@@ -8,6 +8,14 @@ import * as crypto from 'crypto';
 
 import { argType } from './defines';
 
+// Yoinked from https://github.com/Morglod/ts-tuple-hacks/blob/master/index.ts
+// Nabs the length of a tuple as a literal type
+export type TupleLen<T extends unknown[]> = T['length'];
+// Grabs the head of a tuple
+export type TupleHead<T extends unknown[]> = T extends [infer U, ...any[]] ? U : never;
+// Grabs the tail of a tuple. For 1-element tuples it returns `never` instead of `[]`
+export type TupleTail<T extends unknown[]> = T extends [unknown, ...infer U] ? (U extends [] ? never : U) : never;
+
 interface StringArg {
     type: argType.string;
     value: string | null;
@@ -33,18 +41,48 @@ interface RoleArg {
     value: string | null;
 }
 
+interface BigIntArg {
+    type: argType.bigint;
+    value: bigint | null;
+}
+
 interface RestArg {
     type: argType.rest;
     value: string | null;
 }
 
-type Arg = StringArg | NumberArg | UserArg | ChannelArg | RoleArg | RestArg;
+type Arg = StringArg | NumberArg | UserArg | ChannelArg | RoleArg | BigIntArg | RestArg;
+
+// Decodes argument type to the object it's encoding
+type DeArg<T extends Arg> = 
+    (T extends StringArg ? string :
+    T extends NumberArg ? number :
+    T extends UserArg ? Eris.Member : 
+    T extends ChannelArg ? Eris.Channel :
+    T extends RoleArg ? Eris.Role : 
+    T extends BigIntArg ? bigint :
+    T extends RestArg ? string : never) | undefined;
+
+// Ho boy. Decodes all arguments in an array, given:
+type DeArgsHelper<H extends Arg, T> = 
+    T extends never ? [DeArg<H>] : // If there is no tail, simply return an array containing this very element
+    T extends Arg[] ?  // If there is a tail, however
+                        (T['length'] extends 1 ? [DeArg<H>, DeArg<T[0]>] : // For a length 1 tail, just finish up the thing
+                         [DeArg<H>, ...DeArgsHelper<T[0], TupleTail<T>>]) : // Otherwise recursively call this with the tail
+    [never]; // Delete the planet
+
+// Decodes all arguments in an array
+type DeArgs<T extends Arg[]> = 
+    TupleLen<T> extends 1 ? 
+    [DeArg<T[0]>] : // Single argument, do simple decoding
+    DeArgsHelper<T[0], TupleTail<T>>; // Multiple arguments, go mad
 
 export function arg (type: argType.string, value?: string | null): StringArg;
 export function arg (type: argType.number, value?: number | null): NumberArg;
 export function arg (type: argType.user, value?: string | null): UserArg;
 export function arg (type: argType.channel, value?: string | null): ChannelArg;
 export function arg (type: argType.role, value?: string | null): RoleArg;
+export function arg (type: argType.bigint, value?: bigint | null): BigIntArg;
 export function arg (type: argType.rest, value?: string | null): RestArg;
 
 export function arg(type: argType, value: any = null): Arg {
@@ -54,12 +92,15 @@ export function arg(type: argType, value: any = null): Arg {
     };
 }
 
-export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
-    let ret: Array<boolean | number | string | Eris.Member | Eris.Channel | Eris.Role | null | undefined> = [false];
+export function parseArgs<T extends Arg[]>(msg: Eris.Message, ...args: T): [...DeArgs<T>]{
+    type Return = [...DeArgs<T>];
+
+    let ret: [...any[]] = []; 
     let word = 1;
     let words = msg.content.replace(/ +/g, ' ').split(' ');
     let specialHolder;
-    for (let arg of args) {
+    // Labels... whack
+    loop: for (let arg of args) {
         let inspected = words[word];
         switch (arg.type) {
             case argType.string:
@@ -73,7 +114,7 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
                         ret.push(arg.value);
                         word--;
                     } else {
-                        return [true];
+                        break loop;
                     }
                 }
                 break;
@@ -85,7 +126,7 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
                         break;
                     }
                 }
-                return [true];
+                break loop;
             case argType.channel:
                 specialHolder = /<#([0-9]+?)>/.exec(inspected);
                 if (specialHolder && specialHolder[1]) {
@@ -94,7 +135,7 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
                         break;
                     }
                 }
-                return [true];
+                break loop;
             case argType.role:
                 specialHolder = /<@\&([0-9]+?)>/.exec(inspected);
                 if (specialHolder && specialHolder[1]) {
@@ -103,7 +144,21 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
                         break;
                     }
                 }
-                return [true];
+                break loop;
+            case argType.bigint: {
+                let num: BigInt;
+                try {
+                    num = BigInt(inspected);
+                } catch (e) {
+                    if (arg.value) {
+                        num = arg.value;
+                    } else {
+                        break loop;
+                    }
+                }
+                ret.push(num);
+                break;
+            }
             case argType.rest:
                 ret.push(words.slice(word).join(' '));
                 break;
@@ -112,7 +167,7 @@ export function parseArgs(msg: Eris.Message, ...args: Arg[]) {
         }
         word++;
     }
-    return ret;
+    return ret as Return;
 }
 
 export async function sleep(ms: number) {

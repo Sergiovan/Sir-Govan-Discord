@@ -137,5 +137,6 @@ export enum argType {
     user = 2,
     channel = 3,
     role = 4,
+    bigint = 5,
     rest = 100
 };
