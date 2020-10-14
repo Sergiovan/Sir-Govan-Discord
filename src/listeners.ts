@@ -7,6 +7,8 @@ import { Bot } from './bot';
 import * as f from './utils';
 import 'colors';
 
+let in_sigint = false; // Booo, npm, boooo
+
 export const listeners: { [key: string]: CallableFunction } = {
     ready(this: Bot) {
         let self = this;
@@ -33,8 +35,12 @@ export const listeners: { [key: string]: CallableFunction } = {
         });
 
         process.on('SIGINT', function() {
-            console.log("Buh bai");
-            self.die();
+            if (!in_sigint) {
+                in_sigint = true;
+                
+                console.log("Buh bai");
+                self.die();
+            }
         });
 
         console.log("Ready!");

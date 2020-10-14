@@ -151,8 +151,7 @@ export const cmds: { [key: string]: CommandFunc } = {
 
     puzzle_pause(this: Bot, msg: Eris.Message) {
         if (msg.author.id === botparams.owner) {
-            this.puzzle_stopped = !this.puzzle_stopped;
-            if (this.puzzle_stopped) {
+            if (this.puzzler.togglePaused()) {
                 msg.channel.createMessage(`Puzzle has been stopped`);
             } else {
                 msg.channel.createMessage(`Puzzle has been resumed`);
@@ -164,7 +163,7 @@ export const cmds: { [key: string]: CommandFunc } = {
         let [err, answer] = parseArgs(msg, arg(argType.string));
         if (!err) {
             if (answer) {
-                if (answer === this.answer) {
+                if (this.puzzler.checkAnswer(answer as string)) {
                     this.reply(msg, "Correct!", this.text.checkCorrect);
                 } else {
                     this.reply(msg, "Incorrect", this.text.checkIncorrect);
@@ -205,6 +204,6 @@ export const beta_cmds: { [key: string]: CommandFunc} = {
         if (!server || server.beta !== this.beta || msg.author.id !== botparams.owner) {
             return;
         }
-        this.postClue(server.allowed(msg) ? msg.channel.id : server.allowed_channels[0]);
+        this.postClue(server.allowed(msg) ? msg.channel.id : server.allowed_channels[0], true);
     }
 }

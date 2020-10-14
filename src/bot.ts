@@ -1,13 +1,10 @@
-"use strict"; // Oh boy
-
 import Eris from 'eris';
-import Storage from 'node-persist';
 
 import { botparams, emojis, Server } from './defines';
 import { sleep, randomCode, randomEnum, randFromFile, RarityBag, rb_ } from './utils';
 import { CommandFunc } from './commands';
-import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets';
-import { createHash } from 'crypto';
+import { Persist } from './persist';
+import { Puzzler } from './puzzler';
 
 type Command = [string, (msg: Eris.Message) => void];
 
@@ -17,6 +14,9 @@ type CleanupCode = [Date, () => void];
 
 export class Bot {
     client: Eris.Client;
+    _owner?: Eris.User;
+    storage: Persist;
+    puzzler: Puzzler = new Puzzler;
 
     commands: Command[] = [];
     beta: boolean;
@@ -24,20 +24,8 @@ export class Bot {
     cleanup_interval?: NodeJS.Timeout;
     cleanup_list: CleanupCode[] = [];
     message_mutex: Set<string> = new Set();
-
-    answer: string = '';
-    puzzle_type: ClueType = ClueType.LetterPosition;
-    clue_gen?: ClueGenerator;
-    clue_list: string[] = [];
-    clue_perm_data: any = null;
-    clue_count: number = 0;
-    last_clue: Date = new Date(0);
-    puzzle_id: string = '';
-    puzzle_stopped: boolean = false;
-
+    
     text: { [key: string]: RarityBag } = {};
-
-    _owner?: Eris.User;
 
     constructor(token: string, beta: boolean) {
         this.client = new Eris.Client(token, {
@@ -60,11 +48,14 @@ export class Bot {
         // Run every minute
         this.cleanup_interval = setInterval(() => this.run_cleanup(), 1000 * 60); 
 
-        this.load().catch(function(e) {
-            console.log('Could not load data from file: ', e);
-        }).finally(async function() { 
-            await self.owner();
-            self.startClues();
+        this.storage = new Persist(storage_location);
+        this.storage.init().then(() => {
+            this.load().catch(function(e) {
+                console.log('Could not load data from file: ', e);
+            }).finally(async function() { 
+                await self.owner();
+                self.startClues();
+            });
         });
     }
 
@@ -81,29 +72,14 @@ export class Bot {
     }
 
     async load() {
-        await Storage.init({ dir: storage_location });
-        
-        this.answer = await Storage.getItem('answer') ?? '';
-        this.puzzle_type = await Storage.getItem('puzzle_type') ?? ClueType.LetterPosition;
-        this.clue_list = await Storage.getItem('clue_list') ?? [];
-        this.clue_perm_data = await Storage.getItem('clue_perm_data') ?? null;
-        this.clue_count = await Storage.getItem('clue_count') ?? 0;
-        this.last_clue = new Date(await Storage.getItem('last_clue') ?? 0);
-        this.puzzle_id = await Storage.getItem('puzzle_id') ?? '';
-        this.puzzle_stopped = await Storage.getItem('puzzle_stopped') ?? false;
+        return Promise.all([
+            this.puzzler.load(this.storage),
+        ]);
     }
 
     async save() {
-        await Storage.init({ dir: storage_location });
-        await Promise.all([
-            Storage.setItem('answer', this.answer),
-            Storage.setItem('puzzle_type', this.puzzle_type),
-            Storage.setItem('clue_list', this.clue_list),
-            Storage.setItem('clue_perm_data', this.clue_perm_data),
-            Storage.setItem('clue_count', this.clue_count),
-            Storage.setItem('last_clue', this.last_clue.toJSON()),
-            Storage.setItem('puzzle_id', this.puzzle_id),
-            Storage.setItem('puzzle_stopped', this.puzzle_stopped)
+        return Promise.all([
+            this.puzzler.save(this.storage),
         ]);
     }
 
@@ -114,8 +90,15 @@ export class Bot {
         while (i--) {
             let [time, fn] = this.cleanup_list[i];
             if (forced || time.getTime() <= now) {
-                await fn();
-                this.cleanup_list.splice(i, 1);
+                try {
+                    // Can throw, that's fine
+                    await fn();
+                } catch (e) {
+                    // Don't rethrow pls
+                    console.log('npm double SIGINT bug?: ', e);
+                } finally {
+                    this.cleanup_list.splice(i, 1);
+                }
             }
         }
     }
@@ -182,90 +165,30 @@ export class Bot {
     }
 
     startClues() {
-        // if (this.beta) return;
+        let text = `${this.beta ? 'Beta message! ' : ''}${this.puzzler.startClues()}`;
+        console.log(text);
+        this.tellTheBoss(text);
+    }
 
-        if (this.puzzle_stopped) {
-            this.tellTheBoss('Puzzle is paused');
-        }
+    async postClue(channel: string, forced: boolean = false) {
+        console.log('Posting clue');
+        let clue: string | null;
 
-        if (this.answer) { // We already had something going
-            this.startGenerator();
-            this.tellTheBoss(`${this.beta ? 'Beta message! ' : ''}Puzzle resumed: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``);
-            console.log(`Puzzle resumed: Clue is ${this.answer}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.puzzle_type]}`);
-            
+        try {
+            clue = this.puzzler.getClue(forced);
+        } catch (e) {
+            this.tellTheBoss(e.message);
+            console.error(e.message);
             return;
         }
 
-        // Start from 0
-        this.answer = randomCode();
-        this.puzzle_type = randomEnum(ClueType);
-        this.clue_list = [];
-        this.clue_perm_data = null;
-        this.clue_count = 0;
-        this.startGenerator();
-
-        let hasher = createHash('md5');
-        hasher.update(this.answer);
-        this.puzzle_id = hasher.digest('hex').substr(0, 16);
-
-        this.tellTheBoss(`${this.beta ? 'Beta message! ' : ''}Puzzle started: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``);
-        console.log(`New clue game started: Clue is ${this.answer}. ID is ${this.puzzle_id}. Puzzle type is: ${ClueType[this.puzzle_type]}`);
-    }
-
-    startGenerator() {
-        this.clue_gen = mysteryGenerator(this.answer, this.puzzle_type, this.clue_perm_data);
-    }
-
-    canGetClue() {
-        return !this.puzzle_stopped && (this.beta || (new Date().getTime() - (1000 * 60 * 60) > this.last_clue.getTime())) && this.clue_gen;
-    }
-
-    getClue(): string | null {
-        if (!this.canGetClue()) {
-            console.log("No clue");
-            return null;
+        if (clue === null) {
+            return;
         }
 
-        if (this.clue_list.length === 0) {
-            for (let i = 0; i < 128; ++i) {
-                let clue = this.clue_gen!.next();
-                if (clue.done) {
-                    this.startGenerator();
-                    break;
-                } else {
-                    this.clue_list.push(clue.value.value);
-                    this.clue_perm_data = this.clue_perm_data ?? clue.value.perm_data;
-                    if (clue.value.cycle_end) {
-                        break;
-                    }
-                }
-            }
-
-            console.log("Got me some clues: ", this.clue_list);
-        }
-
-        if (this.clue_list.length === 0) {
-            console.log("Catastrophic error occurred");
-            this.tellTheBoss("Puzzle stopped, catastrophic error happened");
-            this.puzzle_stopped = true;
-            return 'ERROR';
-        }
-
-        let clue = this.clue_list.shift(); 
-        this.last_clue = new Date();
-        return clue!;
-    }
-
-    async postClue(channel: string) {
-        console.log('Posting clue');
-        if (!this.canGetClue()) {
-            return null;
-        }
         let msg = await this.client.createMessage(channel, rb_(this.text.puzzleGenerating, 'Generating clue...'));
-        let clue = this.getClue();
-        let self = this;
 
-        let text = `#${++self.clue_count}: \`${clue}\`. Puzzle ID is \`${self.puzzle_id}\``;
+        let text = `#${this.puzzler.clue_count}: \`${clue}\`. Puzzle ID is \`${this.puzzler.puzzle_id}\``;
         console.log(`Clue: ${text}`);
 
         setTimeout(async function() {
@@ -275,19 +198,12 @@ export class Bot {
     }
 
     async checkAnswer(answer: string, user: Eris.User) {
-        if (!this.answer?.length || !this._owner || this.puzzle_stopped) {
+        if (!this._owner) {
             return;
         }
 
-        if (answer === this.answer) {
-            this.answer = '';
-            this.puzzle_type = ClueType.LetterPosition;
-            this.clue_list = [];
-            this.clue_perm_data = null;
-            this.clue_count = 0;
-            this.clue_gen = undefined;
-            this.puzzle_id = '';
-
+        if (this.puzzler.checkAnswer(answer)) {
+            this.puzzler.endPuzzle();
             let dm = await user.getDMChannel();
             dm.createMessage(rb_(this.text.answerCorrect, 'You got it!'));
 
@@ -298,16 +214,17 @@ export class Bot {
     }
 
     puzzleHelp(): string {
-        if (!this.answer) {
+        let puzzle_active, puzzle_stopped, help = this.puzzler.getHelp();
+        if (!puzzle_active) {
             return rb_(this.text.puzzleNothing, 'Nothing going on at the moment');
         } else {
-            if (this.puzzle_stopped) {
+            if (puzzle_stopped) {
                 return rb_(this.text.puzzleStopped, 'Puzzling has been temporarily stopped');
             } else {
                 return `${rb_(this.text.puzzleGoal, 'Complete the passphrase and tell it to me for prizes')}. ` + 
-                       `The clue is: ||${clueHelp(this.puzzle_type)}||\n` + 
-                       `${this.clue_count} ${rb_(this.text.puzzleSoFar, 'clues have appeared so far')}\n` + 
-                       `Puzzle ID is \`${this.puzzle_id}\``;
+                       `The clue is: ||${help}||\n` + 
+                       `${this.puzzler.clue_count} ${rb_(this.text.puzzleSoFar, 'clues have appeared so far')}\n` + 
+                       `Puzzle ID is \`${this.puzzler.puzzle_id}\``;
             }
         }
     }
@@ -335,7 +252,9 @@ export class Bot {
             console.log("Can't pin this >:(");
             return false;
         } else {
-            let icon = forced ? 'https://emojipedia-us.s3.amazonaws.com/thumbs/120/twitter/131/double-exclamation-mark_203c.png' : 'https://cdn.discordapp.com/emojis/263774481233870848.png';
+            let icon = forced ? 
+                'https://emojipedia-us.s3.amazonaws.com/thumbs/120/twitter/131/double-exclamation-mark_203c.png' : 
+                'https://cdn.discordapp.com/emojis/263774481233870848.png';
             let r = Math.floor(Math.random() * 0x10) * 0x10;
             let g = Math.floor(Math.random() * 0x10) * 0x10;
             let b = Math.floor(Math.random() * 0x10) * 0x10;
