@@ -5,6 +5,7 @@ import { sleep, randomCode, randomEnum, randFromFile, RarityBag, rb_ } from './u
 import { CommandFunc } from './commands';
 import { Persist } from './persist';
 import { Puzzler } from './puzzler';
+import * as util from 'util';
 
 type Command = [string, (msg: Eris.Message) => void];
 
@@ -57,6 +58,19 @@ export class Bot {
                 self.startClues();
             });
         });
+    }
+
+    [util.inspect.custom](depth: number, opts: any) {
+        const forboden = ['client'];
+        let res: any = {};
+        for (let prop in this) {
+            if (!this.hasOwnProperty(prop) || forboden.indexOf(prop) !== -1) {
+                continue;
+            } else {
+                res[prop] = this[prop];
+            }
+        }
+        return res;
     }
 
     async owner(): Promise<Eris.User> {
@@ -214,7 +228,7 @@ export class Bot {
     }
 
     puzzleHelp(): string {
-        let puzzle_active, puzzle_stopped, help = this.puzzler.getHelp();
+        let [puzzle_active, puzzle_stopped, help] = this.puzzler.getHelp();
         if (!puzzle_active) {
             return rb_(this.text.puzzleNothing, 'Nothing going on at the moment');
         } else {

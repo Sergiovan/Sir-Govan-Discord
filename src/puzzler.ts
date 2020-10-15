@@ -51,7 +51,7 @@ export class Puzzler {
             return 'Puzzle is paused';
         }
 
-        if (this.answer) { // We already had something going
+        if (this.answer?.length) { // We already had something going
             this.startGenerator();
             return `Puzzle resumed: \`${this.answer}\`. ID: \`${this.puzzle_id}\`. Puzzle type is: \`${ClueType[this.puzzle_type]}\``;
         }
@@ -114,7 +114,7 @@ export class Puzzler {
     }
 
     puzzleOngoing() {
-        return this.answer?.length && !this.puzzle_stopped;
+        return this.answer.length && !this.puzzle_stopped;
     }
 
     checkAnswer(answer: string) {
@@ -136,13 +136,13 @@ export class Puzzler {
     }
 
     getHelp(): [boolean, boolean, string] {
-        if (!this.answer) {
+        if (!this.answer.length) {
             return [false, false, ''];
         } else {
             if (this.puzzle_stopped) {
-                return [true, false, ''];
+                return [true, true, ''];
             } else {
-                return [true, true, clueHelp(this.puzzle_type)];
+                return [true, false, clueHelp(this.puzzle_type)];
             }
         }
     }

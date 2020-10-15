@@ -19,6 +19,12 @@ export const cmds: { [key: string]: CommandFunc } = {
         }
     },
 
+    status(this: Bot, msg: Eris.Message) {
+        if (msg.author.id === botparams.owner) {
+            console.log(util.inspect(this, true, 5, true));
+        }
+    },
+
     ping(this: Bot, msg: Eris.Message) {
         this.reply(msg, "Pong", this.text.ping);
     },
