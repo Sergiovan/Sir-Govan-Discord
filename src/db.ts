@@ -1,7 +1,10 @@
 import Knex from 'knex';
 
-interface User {
+interface Table {
     rowid: number;
+}
+
+export interface User extends Table {
     id: string;
     name: string;
     discriminator: string;
@@ -14,8 +17,7 @@ interface User {
     option_uninterested: boolean;
 }
 
-interface Puzzle {
-    rowid: number;
+export interface Puzzle extends Table {
     id: string;
     answer: string;
     type: number;
@@ -24,23 +26,20 @@ interface Puzzle {
     winner: number | null;
 }
 
-interface Clue {
-    rowid: number;
+export interface Clue extends Table {
     puzzle_id: number;
     message_id: string;
     content: string;
     created_time: Date;
 }
 
-interface ClueSteal {
-    rowid: number;
+export interface ClueSteal extends Table {
     clue_id: number;
     user_id: number;
-    steal_time: number;
+    steal_time: Date;
 }
 
-interface XpTransaction {
-    rowid: number;
+export interface XpTransaction extends Table {
     user_sender: number | null;
     user_receiver: number | null;
     amount: number;
@@ -48,8 +47,8 @@ interface XpTransaction {
     transaction_time: Date;
 }
 
-type DBName = 'users' | 'puzzles' | 'clues' | 'clue_steals' | 'xp_transactions';
-type DBRecord<T extends DBName> = 
+export type DBName = 'users' | 'puzzles' | 'clues' | 'clue_steals' | 'xp_transactions';
+export type DBRecord<T extends DBName> = 
     T extends 'users' ? User :
     T extends 'puzzles' ? Puzzle :
     T extends 'clues' ? Clue :
@@ -60,7 +59,7 @@ type DBRecord<T extends DBName> =
 // Note: I am unsure of what this actually does, or how to do it better
 // If you are reading this and you do please shoot me a mail or pull request, thx
 type AnyOrUnknownToOther<T1, T2> = unknown extends T1 ? T2 : T1;
-type KnexApproved<T> = Readonly<Readonly<Partial<AnyOrUnknownToOther<Knex.MaybeRawRecord<T>, {}>>>>;
+export type KnexApproved<T> = Readonly<Readonly<Partial<AnyOrUnknownToOther<Knex.MaybeRawRecord<T>, {}>>>>;
 
 
 export class DB {
@@ -86,6 +85,23 @@ export class DB {
 
     async delete<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {
         return await this.table(table).where(where).del();
+    }
+
+    async get<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {
+        return await this.table(table).where(where);
+    }
+
+    async getFirst<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {
+        return await this.table(table).where(where).first();
+    }
+
+    async getLast<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {
+        let elems = await this.table(table).where(where);
+        if (elems.length) {
+            return elems[elems.length - 1];
+        } else {
+            return undefined;
+        }
     }
 
     async select<T extends DBName>(table: T, where: Partial<DBRecord<T>>, select: (keyof DBRecord<T>)[] = []) {
