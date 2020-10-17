@@ -1,0 +1,42 @@
+CREATE TABLE "main"."users" (
+    "id" VARCHAR(24) NOT NULL UNIQUE, -- DISCORD SNOWFLAKE
+    "name" TEXT NOT NULL, -- DISCORD NAME
+    "discriminator" TEXT NOT NULL, -- DISCORD DISCRIMINATOR
+    "nickname" TEXT DEFAULT NULL, -- DISCORD SERVER NICKNAME
+    "avatar" TEXT NOT NULL, -- DISCORD STATIC AVATAR URL
+    "xp" INTEGER NOT NULL DEFAULT (0), -- CURRENT XP AMOUNT
+    "xp_total" INTEGER NOT NULL DEFAULT (0), -- TOTAL LIFETIME XP
+    "level" INTEGER NOT NULL DEFAULT (0), -- CURRENT XP LEVEL
+    "is_member" BOOLEAN NOT NULL DEFAULT (1), -- IF THE USER IS A MEMBER STILL
+    "option_uninterested" BOOLEAN NOT NULL DEFAULT (0) -- PLEASE DO NOT SHOW PROMPTS THX
+);
+
+CREATE TABLE "main"."puzzles" (
+    "id" VARCHAR(24) NOT NULL, -- PUZZLE ID HEX
+    "answer" TEXT NOT NULL, -- PUZZLE ANSWER
+    "type" INTEGER NOT NULL, -- PUZZLE TYPE
+    "started_time" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "ended_time" TIMESTAMP DEFAULT NULL, -- PUZZLE END TIME
+    "winner" INTEGER DEFAULT NULL REFERENCES users(rowid) -- WINNING USER
+);
+
+CREATE TABLE "main"."clues" (
+    "puzzle_id" INTEGER NOT NULL REFERENCES puzzles(rowid),
+    "message_id" VARCHAR(24) NOT NULL, -- DISCORD MESSAGE SNOWFLAKE
+    "content" TEXT NOT NULL, -- CLUE CONTENT
+    "created_time" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE "main"."clue_steals" (
+    "clue_id" INTEGER NOT NULL REFERENCES clues(rowid),
+    "user_id" INTEGER NOT NULL REFERENCES users(rowid),
+    "steal_time" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE "main"."xp_transactions" (
+    "user_sender" INTEGER REFERENCES users(rowid), -- NULL IS SIR GOVAN
+    "user_receiver" INTEGER REFERENCES users(rowid), -- NULL IS SIR GOVAN
+    "amount" INTEGER NOT NULL,
+    "reason" INTEGER NOT NULL, -- SEE CODE FOR REASONS
+    "transaction_time" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);

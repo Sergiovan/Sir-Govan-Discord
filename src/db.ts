@@ -1,0 +1,103 @@
+import Knex from 'knex';
+
+interface User {
+    rowid: number;
+    id: string;
+    name: string;
+    discriminator: string;
+    nickname: string | null;
+    avatar: string;
+    xp: number;
+    xp_total: number;
+    level: number;
+    is_member: boolean;
+    option_uninterested: boolean;
+}
+
+interface Puzzle {
+    rowid: number;
+    id: string;
+    answer: string;
+    type: number;
+    started_time: Date;
+    ended_time: Date | null;
+    winner: number | null;
+}
+
+interface Clue {
+    rowid: number;
+    puzzle_id: number;
+    message_id: string;
+    content: string;
+    created_time: Date;
+}
+
+interface ClueSteal {
+    rowid: number;
+    clue_id: number;
+    user_id: number;
+    steal_time: number;
+}
+
+interface XpTransaction {
+    rowid: number;
+    user_sender: number | null;
+    user_receiver: number | null;
+    amount: number;
+    reason: number;
+    transaction_time: Date;
+}
+
+type DBName = 'users' | 'puzzles' | 'clues' | 'clue_steals' | 'xp_transactions';
+type DBRecord<T extends DBName> = 
+    T extends 'users' ? User :
+    T extends 'puzzles' ? Puzzle :
+    T extends 'clues' ? Clue :
+    T extends 'clue_steals' ? ClueSteal :
+    T extends 'xp_transactions' ? XpTransaction : never;
+
+// These type shenanigans are so knex will take my parameters without throwing a hissy fit
+// Note: I am unsure of what this actually does, or how to do it better
+// If you are reading this and you do please shoot me a mail or pull request, thx
+type AnyOrUnknownToOther<T1, T2> = unknown extends T1 ? T2 : T1;
+type KnexApproved<T> = Readonly<Readonly<Partial<AnyOrUnknownToOther<Knex.MaybeRawRecord<T>, {}>>>>;
+
+
+export class DB {
+    conn: Knex;
+
+    constructor(db_file: string) {
+        this.conn = Knex({
+            client: 'sqlite3',
+            connection: {
+                filename: db_file
+            },
+            useNullAsDefault: true
+        });
+    }
+
+    async insert<T extends DBName>(table: T, value: KnexApproved<DBRecord<T>>) {
+        return await this.table(table).insert(value);
+    }
+
+    async update<T extends DBName>(table: T, where: Partial<DBRecord<T>>, update: KnexApproved<DBRecord<T>>) {
+        return await this.table(table).where(where).update(update);
+    }
+
+    async delete<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {
+        return await this.table(table).where(where).del();
+    }
+
+    async select<T extends DBName>(table: T, where: Partial<DBRecord<T>>, select: (keyof DBRecord<T>)[] = []) {
+        return await this.table(table).select(select.length ? select : '*').where(where);
+    }
+
+    table<T extends DBName>(table: T) {
+        return this.conn<DBRecord<T>>(table);
+    }
+
+    close() {
+        this.conn.destroy();
+    }
+
+};

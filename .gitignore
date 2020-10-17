@@ -3,6 +3,8 @@
 data/nocontext.txt
 data/node-persist/
 data/db/*.db
+data/db/*.db.bak
+data/db/last
 node_modules/
 dist/
 secrets.ts
