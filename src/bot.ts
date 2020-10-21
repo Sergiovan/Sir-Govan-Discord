@@ -1,23 +1,34 @@
 import Eris from 'eris';
 
-import { botparams, emojis, Server } from './defines';
+import { botparams, emojis, Emoji, Server } from './defines';
 import { sleep, randomCode, randomEnum, randFromFile, RarityBag, rb_ } from './utils';
 import { CommandFunc } from './commands';
 import { Persist } from './persist';
 import { Puzzler } from './puzzler';
+import { DBWrapper, DBUserProxy } from './db_wrapper';
+import { DB } from './db';
 import * as util from 'util';
 
 type Command = [string, (msg: Eris.Message) => void];
 
 const storage_location = 'data/node-persist';
+const db_location = 'data/db/bot.db';
 
 type CleanupCode = [Date, () => void];
+
+interface BotUser {
+    db_user: DBUserProxy;
+    last_spoke: number;
+};
 
 export class Bot {
     client: Eris.Client;
     _owner?: Eris.User;
     storage: Persist;
     puzzler: Puzzler = new Puzzler;
+    db: DBWrapper;
+
+    users: {[key: string]: BotUser} = {};
 
     commands: Command[] = [];
     beta: boolean;
@@ -43,6 +54,7 @@ export class Bot {
         });
 
         this.beta = beta;
+        this.db = new DBWrapper(new DB(db_location));
 
         let self = this;
         
@@ -87,7 +99,7 @@ export class Bot {
 
     async load() {
         return Promise.all([
-            this.puzzler.load(this.storage),
+            this.puzzler.load(this.storage)
         ]);
     }
 
@@ -115,6 +127,50 @@ export class Bot {
                 }
             }
         }
+    }
+
+    async update_users() {
+        let db_users = await this.db.getAllUsers();
+        let new_users: {[key: string]: BotUser} = {};
+        let seen: Set<string> = new Set<string>();
+
+        for (let user of db_users) {
+            seen.add(user.id);
+            if (this.client.users.has(user.id)) {
+                user.is_member = 1;
+
+                new_users[user.id] = {db_user: user, last_spoke: Date.now()};
+
+                user.commit();
+            } else {
+                user.is_member = 0;
+                user.commit();
+            }
+        }
+
+        for (let [guild_id, guild] of this.client.guilds) {
+            let server = botparams.servers.ids[guild_id.toString()];
+
+            if (server && server.beta === this.beta) {
+                for (let [member_id, member] of guild.members) {
+                    if (seen.has(member_id.toString())) {
+                        let db_user = new_users[member_id.toString()].db_user;
+
+                        db_user.name = member.username;
+                        db_user.discriminator = member.discriminator;
+                        db_user.avatar = member.avatar ? member.avatarURL : member.defaultAvatarURL;
+                        db_user.nickname = member.nick ?? null;
+
+                        db_user.commit();
+                    } else {
+                        let db_user = await this.db.addUser(member.user, 1, member.bot ? 1 : 0 , member.nick);
+                        new_users[member.id] = {db_user: db_user, last_spoke: Date.now()};
+                    }
+                }
+            }     
+        }
+
+        this.users = new_users;
     }
 
     /// Notice, this method of locking/unlocking only works because 
@@ -178,10 +234,20 @@ export class Bot {
         };
     }
 
-    startClues() {
+    async startClues() {
         let text = `${this.beta ? 'Beta message! ' : ''}${this.puzzler.startClues()}`;
         console.log(text);
         this.tellTheBoss(text);
+
+        let pzl = await this.db.getPuzzle(this.puzzler.puzzle_id);
+        if (!pzl) {
+            this.db.addPuzzle({
+                id: this.puzzler.puzzle_id,
+                answer: this.puzzler.answer,
+                type: this.puzzler.puzzle_type as number,
+                started_time: new Date()
+            });
+        }
     }
 
     async postClue(channel: string, forced: boolean = false) {
@@ -205,8 +271,9 @@ export class Bot {
         let text = `#${this.puzzler.clue_count}: \`${clue}\`. Puzzle ID is \`${this.puzzler.puzzle_id}\``;
         console.log(`Clue: ${text}`);
 
-        setTimeout(async function() {
-            await msg.edit(text);
+        setTimeout(async () => {
+            msg = await msg.edit(text);
+            await this.db.addClue(this.puzzler.puzzle_id, msg);
             await msg.addReaction(emojis.devil.fullName);
         }, 2500);
     }
@@ -217,6 +284,7 @@ export class Bot {
         }
 
         if (this.puzzler.checkAnswer(answer)) {
+            let id = this.puzzler.puzzle_id;
             this.puzzler.endPuzzle();
             let dm = await user.getDMChannel();
             dm.createMessage(rb_(this.text.answerCorrect, 'You got it!'));
@@ -224,6 +292,13 @@ export class Bot {
             await this.tellTheBoss(`${user.username} (${user.id}) got it!`);
 
             setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
+
+            let puzzle = await this.db.getPuzzle(id);
+            if (puzzle && this.users[user.id]) {
+                puzzle.winner = this.users[user.id].db_user.rowid;
+                puzzle.ended_time = new Date();
+                puzzle.commit();
+            }
         }
     }
 
@@ -257,6 +332,26 @@ export class Bot {
         const owner = await this.owner();
         const ch = await owner.getDMChannel();
         return await ch.createMessage(what);
+    }
+
+    async maybe_pin(msg: Eris.Message, emoji: Emoji) {
+        let findname = emoji.id ? `${emoji.name}:${emoji.id}` : emoji.name;
+        if (msg.author.bot) {
+            return;
+        }
+        if ((msg.reactions[emojis.pushpin.fullName] && 
+            msg.reactions[emojis.pushpin.fullName].me) ||
+            this.message_locked(msg)) {
+            return;
+        }
+
+        let reactionaries = await msg.getReaction(findname, 4);
+        if(reactionaries.filter((user) => user.id !== msg.author.id).length >= 3){
+            //We pin that shit!
+            this.lock_message(msg);
+            msg.addReaction(emojis.pushpin.fullName);
+            this.pin(msg);
+        }
     }
 
     pin(msg: Eris.Message, forced: boolean = false) {
@@ -327,6 +422,22 @@ export class Bot {
         }
     }
 
+    async maybe_steal(msg: Eris.Message, user: Eris.User) {
+        if (!msg.reactions[emojis.devil.fullName].me ||
+            this.message_locked(msg)) {
+            return;
+        }
+
+        this.lock_message(msg);
+        let content = msg.content!;
+        await msg.removeReaction(emojis.devil.fullName);
+        await msg.edit(`${rb_(this.text.puzzleSteal, 'Stolen')} by ${user.username}`);
+
+        (await user.getDMChannel()).createMessage(content);
+        this.db.addClueSteal(msg, user);
+        this.add_cleanup_task(() => msg.delete(), 1000 * 5 * 60);
+    }
+
     async tryRemoveContext(msg: Eris.Message, server: Server) {
         let channel = server.no_context_channel;
         if (msg.cleanContent?.length && msg.cleanContent.length <= 280 && !msg.attachments.length) {
@@ -382,6 +493,7 @@ export class Bot {
             console.log('Error while quitting: ', e);
         } finally {
             this.client.disconnect({reconnect: false});
+            this.db.close();
         }
     }
 }

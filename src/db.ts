@@ -13,8 +13,8 @@ export interface User extends Table {
     xp: number;
     xp_total: number;
     level: number;
-    is_member: boolean;
-    option_uninterested: boolean;
+    is_member: number;
+    option_uninterested: number;
 }
 
 export interface Puzzle extends Table {
@@ -76,7 +76,7 @@ export class DB {
     }
 
     async insert<T extends DBName>(table: T, value: KnexApproved<DBRecord<T>>) {
-        return await this.table(table).insert(value);
+        return await this.table(table).insert(value).select('rowid', '*');
     }
 
     async update<T extends DBName>(table: T, where: Partial<DBRecord<T>>, update: KnexApproved<DBRecord<T>>) {
@@ -88,15 +88,15 @@ export class DB {
     }
 
     async get<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {
-        return await this.table(table).where(where);
+        return await this.table(table).where(where).select('rowid', '*');
     }
 
     async getFirst<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {
-        return await this.table(table).where(where).first();
+        return await this.table(table).where(where).select('rowid', '*').first();
     }
 
     async getLast<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {
-        let elems = await this.table(table).where(where);
+        let elems = await this.table(table).select('rowid', '*').where(where);
         if (elems.length) {
             return elems[elems.length - 1];
         } else {
@@ -105,7 +105,7 @@ export class DB {
     }
 
     async select<T extends DBName>(table: T, where: Partial<DBRecord<T>>, select: (keyof DBRecord<T>)[] = []) {
-        return await this.table(table).select(select.length ? select : '*').where(where);
+        return await this.table(table).select(select.length ? select : '*', 'rowid').where(where);
     }
 
     table<T extends DBName>(table: T) {

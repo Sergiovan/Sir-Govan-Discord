@@ -1,7 +1,6 @@
 import Eris from 'eris';
 import * as db from './db';
 
-
 class DBProxy<T extends db.DBName, U extends db.DBRecord<T>> {
     table: T;
     rowid: number;
@@ -17,7 +16,10 @@ class DBProxy<T extends db.DBName, U extends db.DBRecord<T>> {
     get(target: U, key: keyof U | 'commit') {
         if (key === 'commit') {
             return async () => {
-                await this.db.conn(this.table).where('rowid', this.rowid).update(this.to_commit);
+                if (Object.keys(this.to_commit).length === 0) {
+                    return;
+                }
+                await this.db.conn(this.table).update(this.to_commit).where('rowid', this.rowid);
                 this.to_commit = {};
             };
         } else {
@@ -29,7 +31,9 @@ class DBProxy<T extends db.DBName, U extends db.DBRecord<T>> {
         if (key === 'rowid') {
             throw new Error('Cannot modify rowid');
         } else {
-            this.to_commit[key] = value;
+            if (target[key] !== value) {
+                this.to_commit[key] = value;
+            }
             return true;
         }
     }
@@ -39,7 +43,9 @@ type Committable<T> = T & {commit: () => Promise<void>}
 type MaybeProxy<T> = Promise<Committable<T> | undefined>
 type JustProxy<T> = Promise<Committable<T>>;
 
-class DBWrapper {
+export type DBUserProxy = Committable<db.User>;
+
+export class DBWrapper {
     db: db.DB;
 
     constructor(database: db.DB) {
@@ -66,7 +72,7 @@ class DBWrapper {
             .map((e) => new Proxy(e, new DBProxy('users', e.rowid, this.db)) as Committable<db.User>);
     }
 
-    async addUser(user: Eris.User, member: boolean, nickname: string | null = null): JustProxy<db.User> {
+    async addUser(user: Eris.User, member: number, uninterested: number, nickname: string | null = null): JustProxy<db.User> {
         let data: Partial<db.User> = {
             id: user.id,
             name: user.username,
@@ -77,7 +83,7 @@ class DBWrapper {
             xp_total: 0,
             level: 0,
             is_member: member,
-            option_uninterested: false
+            option_uninterested: uninterested
         };
 
         return this.add('users', data);
@@ -188,5 +194,4 @@ class DBWrapper {
 
         return this.add('xp_transactions', data);
     }
-
 };
