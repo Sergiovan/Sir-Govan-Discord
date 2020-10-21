@@ -1,6 +1,6 @@
 "use strict";
 
-import Eris, { PrivateChannel } from 'eris';
+import Eris, { Guild, PrivateChannel, Member, User } from 'eris';
 
 import { botparams, Emoji, emojis } from './defines';
 import { Bot } from './bot';
@@ -141,6 +141,58 @@ export const listeners: { [key: string]: CallableFunction } = {
                 }
                 this.maybe_steal(m, u.user);
             }
+        }
+    },
+
+    guildMemberAdd(this: Bot, guild: Guild, member: Member) {
+        let server = botparams.servers.ids[guild.id];
+        
+        if (!server || server.beta !== this.beta) {
+            return;
+        }
+
+        if (this.users[member.id]) {
+            this.users[member.id].update_member(member);
+            this.users[member.id].commit();
+        } else {
+            this.db.addUser(member.user, 1, member.bot ? 1 : 0, member.nick).then((u) => this.add_user(u));
+        }
+    },
+
+    guildMemberRemove(this: Bot, guild: Guild, member: Member | {id: string, user: Eris.User}) {
+        let server = botparams.servers.ids[guild.id];
+        
+        if (!server || server.beta !== this.beta) {
+            return;
+        }
+
+        if (this.users[member.id]) {
+            this.users[member.id].db_user.is_member = 0;
+            this.users[member.id].commit();
+        }
+    },
+
+    guildMemberUpdate(this: Bot, guild: Guild, member: Member, oldMember: {roles: Array<string>, nick: string }) {
+        let server = botparams.servers.ids[guild.id];
+        
+        if (!server || server.beta !== this.beta) {
+            return;
+        }
+
+        if (this.users[member.id]) {
+            this.users[member.id].update_member(member);
+            this.users[member.id].commit();
+        } else {
+            this.db.addUser(member.user, 1, member.bot ? 1 : 0, member.nick).then((u) => this.add_user(u));
+        }
+    },
+
+    userUpdate(this: Bot, user: User, oldUser: {username: string, discriminator: string, avatar: string}) {
+        if (this.users[user.id]) {
+            this.users[user.id].update_user(user);
+            this.users[user.id].commit();
+        } else {
+            this.db.addUser(user, 1, user.bot ? 1 : 0).then((u) => this.add_user(u));
         }
     },
 

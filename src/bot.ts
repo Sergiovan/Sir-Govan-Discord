@@ -16,9 +16,36 @@ const db_location = 'data/db/bot.db';
 
 type CleanupCode = [Date, () => void];
 
-interface BotUser {
+class BotUser {
     db_user: DBUserProxy;
     last_spoke: number;
+
+    constructor(db_user: DBUserProxy) {
+        this.db_user = db_user;
+        this.last_spoke = Date.now();
+    }
+
+    allow(): boolean {
+        return this.db_user.is_member > 0 && !this.db_user.option_uninterested;
+    }
+
+    update_user(user: Eris.User) {
+        this.db_user.name = user.username;
+        this.db_user.discriminator = user.discriminator;
+        this.db_user.avatar = user.avatar ? user.avatarURL : user.defaultAvatarURL;
+    }
+
+    update_member(member: Eris.Member) {
+        this.db_user.is_member = 1;
+        this.db_user.name = member.username;
+        this.db_user.discriminator = member.discriminator;
+        this.db_user.avatar = member.avatar ? member.avatarURL : member.defaultAvatarURL;
+        this.db_user.nickname = member.nick ?? null;
+    }
+
+    commit() {
+        this.db_user.commit();
+    }
 };
 
 export class Bot {
@@ -139,7 +166,7 @@ export class Bot {
             if (this.client.users.has(user.id)) {
                 user.is_member = 1;
 
-                new_users[user.id] = {db_user: user, last_spoke: Date.now()};
+                new_users[user.id] = new BotUser(user);
 
                 user.commit();
             } else {
@@ -154,23 +181,23 @@ export class Bot {
             if (server && server.beta === this.beta) {
                 for (let [member_id, member] of guild.members) {
                     if (seen.has(member_id.toString())) {
-                        let db_user = new_users[member_id.toString()].db_user;
-
-                        db_user.name = member.username;
-                        db_user.discriminator = member.discriminator;
-                        db_user.avatar = member.avatar ? member.avatarURL : member.defaultAvatarURL;
-                        db_user.nickname = member.nick ?? null;
+                        let db_user = new_users[member_id.toString()];
+                        db_user.update_member(member);
 
                         db_user.commit();
                     } else {
                         let db_user = await this.db.addUser(member.user, 1, member.bot ? 1 : 0 , member.nick);
-                        new_users[member.id] = {db_user: db_user, last_spoke: Date.now()};
+                        new_users[member.id] = new BotUser(db_user);
                     }
                 }
             }     
         }
 
         this.users = new_users;
+    }
+
+    add_user(user: DBUserProxy) {
+        this.users[user.id] = new BotUser(user);
     }
 
     /// Notice, this method of locking/unlocking only works because 
@@ -279,7 +306,7 @@ export class Bot {
     }
 
     async checkAnswer(answer: string, user: Eris.User) {
-        if (!this._owner) {
+        if (!this._owner || (user.id === this._owner.id && !this.beta)) {
             return;
         }
 
