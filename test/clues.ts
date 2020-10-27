@@ -1,5 +1,5 @@
 import { randomCode } from '../src/utils';
-import { Clue, ClueType, clueHelp, mysteryGenerator } from '../src/secrets';
+import { Clue, ClueType, clueHelp, mysteryGenerator } from '../src/secrets/secrets';
 
 function testClues() {
 

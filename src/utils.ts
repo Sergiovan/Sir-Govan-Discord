@@ -1,5 +1,3 @@
-"use strict";
-
 import Eris from 'eris';
 
 import * as fs from 'fs';
@@ -95,10 +93,9 @@ export function arg(type: argType, value: any = null): Arg {
 export function parseArgs<T extends Arg[]>(msg: Eris.Message, ...args: T): [...DeArgs<T>]{
     type Return = [...DeArgs<T>];
 
-    let ret: [...any[]] = []; 
+    const ret: [...any[]] = []; 
+    const words = msg.content.replace(/ +/g, ' ').split(' ');
     let word = 1;
-    let words = msg.content.replace(/ +/g, ' ').split(' ');
-    let specialHolder;
     // Labels... whack
     loop: for (let arg of args) {
         let inspected = words[word];
@@ -118,33 +115,36 @@ export function parseArgs<T extends Arg[]>(msg: Eris.Message, ...args: T): [...D
                     }
                 }
                 break;
-            case argType.user:
-                specialHolder = /<@!?([0-9]+?)>/.exec(inspected);
-                if (specialHolder && specialHolder[1]) {
-                    if ((msg.channel as Eris.TextChannel).guild.members.get(specialHolder[1])) {
-                        ret.push((msg.channel as Eris.TextChannel).guild.members.get(specialHolder[1]));
+            case argType.user: {
+                const regex_res = /<@!?([0-9]+?)>/.exec(inspected);
+                if (regex_res && regex_res[1]) {
+                    if ((msg.channel as Eris.TextChannel).guild.members.get(regex_res[1])) {
+                        ret.push((msg.channel as Eris.TextChannel).guild.members.get(regex_res[1]));
                         break;
                     }
                 }
                 break loop;
-            case argType.channel:
-                specialHolder = /<#([0-9]+?)>/.exec(inspected);
-                if (specialHolder && specialHolder[1]) {
-                    if ((msg.channel as Eris.TextChannel).guild.channels.get(specialHolder[1])) {
-                        ret.push((msg.channel as Eris.TextChannel).guild.channels.get(specialHolder[1]));
+            }
+            case argType.channel: {
+                const regex_res = /<#([0-9]+?)>/.exec(inspected);
+                if (regex_res && regex_res[1]) {
+                    if ((msg.channel as Eris.TextChannel).guild.channels.get(regex_res[1])) {
+                        ret.push((msg.channel as Eris.TextChannel).guild.channels.get(regex_res[1]));
                         break;
                     }
                 }
                 break loop;
-            case argType.role:
-                specialHolder = /<@\&([0-9]+?)>/.exec(inspected);
-                if (specialHolder && specialHolder[1]) {
-                    if ((msg.channel as Eris.TextChannel).guild.roles.get(specialHolder[1])) {
-                        ret.push((msg.channel as Eris.TextChannel).guild.roles.get(specialHolder[1]));
+            }
+            case argType.role: {
+                const regex_res = /<@\&([0-9]+?)>/.exec(inspected);
+                if (regex_res && regex_res[1]) {
+                    if ((msg.channel as Eris.TextChannel).guild.roles.get(regex_res[1])) {
+                        ret.push((msg.channel as Eris.TextChannel).guild.roles.get(regex_res[1]));
                         break;
                     }
                 }
                 break loop;
+            }
             case argType.bigint: {
                 let num: BigInt;
                 try {
@@ -180,19 +180,19 @@ export function randFromFile(filename: string, def: string, cb: (s: string) => v
             console.log(`Error detected: ${err}`);
             cb(def);
         } else {
-            let lines = data.trim().split('\n');
+            const lines = data.trim().split('\n');
             cb(lines[Math.floor(Math.random() * lines.length)]);
         }
     });
 }
 
 export function randomBigInt(max: bigint = 20n, min: bigint = 0n): bigint {
-    let r: bigint;
     const range = 1n + max - min;
     const bytes = BigInt(Math.ceil(range.toString(2).length / 8));
     const bits = bytes * 8n;
     const buckets = (2n ** bits) / range;
     const limit = buckets * range;
+    let r: bigint;
 
     do {
         r = BigInt('0x' + crypto.randomBytes(Number(bytes)).toString('hex'));
@@ -238,7 +238,7 @@ export function randomLetter(): string {
 
 export function randomCode(): string {
     const len = 16; // 16, huh?
-    let mask = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?'.split('');
+    const mask = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?'.split('');
     shuffleArray(mask);
 
     return mask.slice(0, len).join('');
@@ -332,12 +332,12 @@ export class RarityBag {
         if (!rarity) {
             rarity = this.randomRarity();
         } 
-        let elems = this.elements.get(rarity!);
+        const elems = this.elements.get(rarity!);
         return elems?.length ? randomElement(elems) : def;
     } 
 
     randomRarity(): Rarity {
-        let rand = randomBigInt(9999n); // [0-9999], 10000 values
+        const rand = randomBigInt(9999n); // [0-9999], 10000 values
         if (rand === 0n && this.elements.get(Rarity.WhatTheActualFuck)?.length) { // 1/10000
             return Rarity.WhatTheActualFuck;
         } else if (rand < 100n && this.elements.get(Rarity.Mythical)?.length) { // 99/10000 
@@ -352,4 +352,4 @@ export class RarityBag {
     }
 }
 
-export let rb_ = RarityBag.pickOrDefault;
+export const rb_ = RarityBag.pickOrDefault;

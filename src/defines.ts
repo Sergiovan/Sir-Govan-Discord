@@ -1,16 +1,4 @@
-"use strict";
-
 import Eris from 'eris';
-
-type ServerObjParam = {
-    beta?: boolean;
-    allowed_channels?: Array<string>;
-    allowed_channels_listen?: Array<string>;
-    pin_channel?: string;
-    no_context_channel?: string;
-    no_context_role?: string;
-    nickname?: string;
-};
 
 export class Server {
     id: string;
@@ -22,7 +10,7 @@ export class Server {
     no_context_role: string;
     nickname: string;
 
-    constructor(id: string, obj: ServerObjParam) {
+    constructor(id: string, obj: Partial<Server>) {
         this.id = id;
         this.beta = obj.beta || false;
         this.allowed_channels = obj.allowed_channels || [];
@@ -139,4 +127,10 @@ export enum argType {
     role = 4,
     bigint = 5,
     rest = 100
+};
+
+export enum xpTransferReason {
+    Passive,
+    NoContext,
+
 };

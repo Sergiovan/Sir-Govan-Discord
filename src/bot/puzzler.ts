@@ -1,8 +1,10 @@
-import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from './secrets';
-import { Persist } from './persist';
-import {  randomCode, randomEnum, rb_ } from './utils';
-
 import { createHash } from 'crypto';
+
+import {  randomCode, randomEnum } from '../utils';
+
+import { Persist } from '../data/persist';
+
+import { ClueType, ClueGenerator, mysteryGenerator, clueHelp } from '../secrets/secrets';
 
 export class Puzzler {
     answer: string = '';
@@ -64,7 +66,7 @@ export class Puzzler {
         this.clue_count = 0;
         this.startGenerator();
 
-        let hasher = createHash('md5');
+        const hasher = createHash('md5');
         hasher.update(this.answer);
         this.puzzle_id = hasher.digest('hex').substr(0, 16);
 
@@ -87,7 +89,7 @@ export class Puzzler {
 
         if (this.clue_list.length === 0) {
             for (let i = 0; i < 128; ++i) {
-                let clue = this.clue_gen!.next();
+                const clue = this.clue_gen!.next();
                 if (clue.done) {
                     this.startGenerator();
                     break;
@@ -107,7 +109,7 @@ export class Puzzler {
             throw new Error('Puzzle stopped while calling getClue(), catastrophic error happened');
         }
 
-        let clue = this.clue_list.shift(); 
+        const clue = this.clue_list.shift(); 
         this.last_clue = new Date();
         ++this.clue_count;
         return clue!;

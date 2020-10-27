@@ -1,4 +1,5 @@
 import Eris from 'eris';
+
 import * as db from './db';
 
 class DBProxy<T extends db.DBName, U extends db.DBRecord<T>> {
@@ -15,11 +16,17 @@ class DBProxy<T extends db.DBName, U extends db.DBRecord<T>> {
 
     get(target: U, key: keyof U | 'commit') {
         if (key === 'commit') {
-            return async () => {
+            return () => {
                 if (Object.keys(this.to_commit).length === 0) {
                     return;
                 }
-                await this.db.conn(this.table).update(this.to_commit).where('rowid', this.rowid);
+                // This can take some time, that's ok
+                this.db.conn(this.table).update(this.to_commit).where('rowid', this.rowid);
+                for (let element in this.to_commit) {
+                    if (this.to_commit[element] !== undefined) {
+                        target[element] = this.to_commit[element]!; // Could be null, that's okay
+                    }
+                }
                 this.to_commit = {};
             };
         } else {
@@ -48,8 +55,8 @@ export type DBUserProxy = Committable<db.User>;
 export class DBWrapper {
     db: db.DB;
 
-    constructor(database: db.DB) {
-        this.db = database;
+    constructor(database_location: string) {
+        this.db = new db.DB(database_location);
     }
 
     close() {
@@ -61,7 +68,7 @@ export class DBWrapper {
     }
 
     private async add<T extends db.DBName>(table: T, data: Partial<db.DBRecord<T>>) {
-        let rowid = await this.db.conn(table).insert(data);
+        const rowid = await this.db.conn(table).insert(data);
         data.rowid = rowid[0];
         
         return this.proxify(table, data as db.DBRecord<T>);
@@ -73,7 +80,7 @@ export class DBWrapper {
     }
 
     async addUser(user: Eris.User, member: number, uninterested: number, nickname: string | null = null): JustProxy<db.User> {
-        let data: Partial<db.User> = {
+        const data: Partial<db.User> = {
             id: user.id,
             name: user.username,
             discriminator: user.discriminator,
@@ -99,7 +106,7 @@ export class DBWrapper {
             id = user;
         }
 
-        let obj = await this.db.getFirst('users', {id: id});
+        const obj = await this.db.getFirst('users', {id: id});
         if (obj) {
             return this.proxify('users', obj);
         } else {
@@ -112,7 +119,7 @@ export class DBWrapper {
     }
 
     async getPuzzle(id: string): MaybeProxy<db.Puzzle> {
-        let obj = await this.db.getLast('puzzles', {id: id});
+        const obj = await this.db.getLast('puzzles', {id: id});
         if (obj) {
             return this.proxify('puzzles', obj);
         } else {
@@ -121,11 +128,11 @@ export class DBWrapper {
     }
 
     async addClue(puzzle: string, msg: Eris.Message): JustProxy<db.Clue> {
-        let puzzle_data = await this.getPuzzle(puzzle);
+        const puzzle_data = await this.getPuzzle(puzzle);
         if (!puzzle_data) {
             throw Error(`Puzzle ${puzzle} doesn't exist in database`);
         }
-        let data: Partial<db.Clue> = {
+        const data: Partial<db.Clue> = {
             puzzle_id: puzzle_data.rowid,
             message_id: msg.id,
             content: msg.content,
@@ -135,7 +142,7 @@ export class DBWrapper {
     }
 
     async getClue(msg: Eris.Message) {
-        let obj = await this.db.getFirst('clues', {message_id: msg.id});
+        const obj = await this.db.getFirst('clues', {message_id: msg.id});
         if (obj) {
             return this.proxify('clues', obj);
         } else {
@@ -144,16 +151,16 @@ export class DBWrapper {
     }
 
     async addClueSteal(msg: Eris.Message, user: Eris.User) {
-        let clue_data = await this.getClue(msg);
+        const clue_data = await this.getClue(msg);
         if (!clue_data) {
             throw Error(`Clue for message ${msg.id} does not exist in database`);
         }
-        let user_data = await this.getUser(user);
+        const user_data = await this.getUser(user);
         if (!user_data) {
             throw Error(`User ${user.username} does not exist in database`);
         }
 
-        let data: Partial<db.ClueSteal> = {
+        const data: Partial<db.ClueSteal> = {
             clue_id: clue_data.rowid,
             user_id: user_data.rowid,
             steal_time: new Date()
@@ -166,6 +173,7 @@ export class DBWrapper {
         if (!from && !to) {
             throw new Error("Cannot have XP transaction without users");
         }
+
         let from_data, to_data;
         if (from) {
             from_data = await this.getUser(from);
@@ -184,7 +192,7 @@ export class DBWrapper {
             to_data = null;
         }
 
-        let data: Partial<db.XpTransaction> = {
+        const data: Partial<db.XpTransaction> = {
             user_sender: from_data?.rowid ?? null,
             user_receiver: to_data?.rowid ?? null,
             amount: amount,

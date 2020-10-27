@@ -1,5 +1,3 @@
-"use strict";
-
 import Eris from 'eris';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -7,8 +5,8 @@ import * as util from 'util';
 
 import { Bot } from './bot';
 
-import { botparams, argType, emojis } from './defines';
-import { arg, parseArgs, randomBigInt, rb_ } from './utils';
+import { botparams, argType, emojis } from '../defines';
+import { arg, parseArgs, randomBigInt, rb_ } from '../utils';
 
 export type CommandFunc = (msg: Eris.Message) => void;
 
