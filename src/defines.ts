@@ -99,6 +99,22 @@ export const botparams: BotParams = {
                 no_context_role: '424949624348868608',
                 nickname: 'Admin bot'
             }),
+            '785872130029256743': new Server('785872130029256743', { // mmk server
+                beta: false,
+                allowed_channels: [
+                    // Empty, only listen
+                ],
+                allowed_channels_listen: [
+                    '785872439812816936', // talky talky
+                    '785873031494369311', // bee tee es
+                    '785894960243146752', // anym
+                    '814794847277023232', // tunes
+                    '785873644525584394', // simp
+                    '785872130029256747'  // welcum // Note: I did not come up with these names, ok?
+                ],
+                pin_channel: '822930237418504312',
+                nickname: "Sosa's husband"
+            })
         },
         getServer(msg: Eris.Message): Server | undefined {
             if(!(msg?.channel as Eris.TextChannel)?.guild) {
