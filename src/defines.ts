@@ -3,22 +3,34 @@ import Eris from 'eris';
 export class Server {
     id: string;
     beta: boolean;
+    nickname: string;
+
     allowed_channels: Array<string>;
     allowed_channels_listen: Array<string>;
+    
     pin_channel: string;
+    pin_amount: number;
+    
     no_context_channel: string;
     no_context_role: string;
-    nickname: string;
+
+    puzzle_channel: string;
 
     constructor(id: string, obj: Partial<Server>) {
         this.id = id;
         this.beta = obj.beta || false;
+        this.nickname = obj.nickname || '';
+
         this.allowed_channels = obj.allowed_channels || [];
         this.allowed_channels_listen = obj.allowed_channels_listen || [];
+        
         this.pin_channel = obj.pin_channel || '';
+        this.pin_amount = obj.pin_amount || 3; // Default pin amount is 3
+        
         this.no_context_channel = obj.no_context_channel || '';
         this.no_context_role = obj.no_context_role || '';
-        this.nickname = obj.nickname || '';
+
+        this.puzzle_channel = obj.puzzle_channel || '';
     }
 
     allowed(msg: Eris.Message): boolean {
@@ -86,6 +98,7 @@ export const botparams: BotParams = {
             }),
             '140942235670675456': new Server('140942235670675456', { // The club
                 beta: false,
+                nickname: 'Admin bot',
                 allowed_channels: [
                     '271748090090749952',   // #config-chat
                     '222466032290234368'	// #bot-chat
@@ -97,10 +110,11 @@ export const botparams: BotParams = {
                 pin_channel: '422796631235362841',  // #hall-of-fame
                 no_context_channel: '422796552935964682',  // #no-context
                 no_context_role: '424949624348868608',
-                nickname: 'Admin bot'
+                puzzle_channel: '271748090090749952', // #config-chat
             }),
             '785872130029256743': new Server('785872130029256743', { // mmk server
                 beta: false,
+                nickname: "Sosa's husband",
                 allowed_channels: [
                     // Empty, only listen
                 ],
@@ -110,10 +124,11 @@ export const botparams: BotParams = {
                     '785894960243146752', // anym
                     '814794847277023232', // tunes
                     '785873644525584394', // simp
-                    '785872130029256747'  // welcum // Note: I did not come up with these names, ok?
+                    '785872130029256747', // welcum // Note: I did not come up with these names, ok?
+                    '824345444649140224', // it's called art baby look it up
+                    '831961057194016778', // cum is a meal replacement
                 ],
                 pin_channel: '822930237418504312',
-                nickname: "Sosa's husband"
             })
         },
         getServer(msg: Eris.Message): Server | undefined {
