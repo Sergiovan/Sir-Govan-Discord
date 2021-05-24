@@ -646,7 +646,7 @@ export class Bot {
             day: `${msg_time.getDate()}`,
             month: rb_(this.text.tweetMonth, `${months[msg_time.getMonth()]}`),
             year: `${msg_time.getFullYear()}`,
-            client: rb_(this.text.twitterClient, 'Twitter Web App'),
+            client: rb_(this.text.tweetClient, 'Twitter Web App'),
             any_numbers: any_numbers,
             retweets: retweets,
             quotes: quotes,
