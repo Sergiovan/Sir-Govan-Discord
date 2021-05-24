@@ -2,6 +2,7 @@ import Eris from 'eris';
 import * as util from 'util';
 
 import { encode } from 'html-entities';
+import * as twemoji from 'twemoji';
 
 import { CommandFunc } from './commands';
 import { Puzzler } from './puzzler';
@@ -489,6 +490,8 @@ export class Bot {
 
     /** Attempts to retweet a message */
     async maybe_retweet(msg: Eris.Message, retweeter: Eris.Member, add_extras: boolean) {
+        let self = this;
+        
         function get_at(usr: Eris.User) {
             return `${usr.username}#${usr.discriminator}`
         }
@@ -525,8 +528,17 @@ export class Bot {
             text = text.replace(/(#[^ \t\n\r]+)/g, '<span class="twitter-link">$1</span>');
             text = text.replace(/(https?:\/\/[^ \t\n\r]+)/g, '<span class="twitter-link">$1</span>');
 
+
             text = text.replace(/\x00/g, ' ');
 
+            return text;
+        }
+
+        function emojify(text: string) {
+            text = twemoji.parse(text);
+            console.log(text);
+            text = text.replace(/&lt;\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
+            console.log(text);
             return text;
         }
 
@@ -577,6 +589,7 @@ export class Bot {
         }
 
         let tweet_text = clean_content(this.clean_content(msg, channel));
+        tweet_text = emojify(tweet_text);
 
         let image = '';
         if (msg.attachments.length) {
@@ -669,6 +682,7 @@ export class Bot {
                 }
 
                 let tweet_text = clean_content(this.clean_content(extra, channel));
+                tweet_text = emojify(tweet_text);
 
                 let replies = rb_(this.text.tweetEsotericAmount, '') || 
                                 number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, ''));
