@@ -535,7 +535,17 @@ export class Bot {
         }
 
         function emojify(text: string) {
-            text = twemoji.parse(text);
+            text = twemoji.parse(text, {
+                callback: function(icon, options: any, variant) {
+                    switch ( icon ) {
+                        case 'a9':      // © copyright
+                        case 'ae':      // ® registered trademark
+                        case '2122':    // ™ trademark
+                            return false;
+                    }
+                    return ''.concat(options.base, options.size, '/', icon, options.ext);
+                }
+            });
             text = text.replace(/&lt;\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
             return text;
         }
