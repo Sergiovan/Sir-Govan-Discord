@@ -683,8 +683,8 @@ export class Bot {
                     verified: !!author_member,
                     at: get_at(author),
                     time: rb_(this.text.tweetEsotericTime, time_str),
-                    replyTo: replies_to,
-                    tweetText: tweet_text,
+                    replyTo: replies_to ? rb_(this.text.tweetExtraReply, replies_to) : replies_to,
+                    tweetText: rb_(this.text.tweetExtraText, tweet_text),
                     replies: replies,
                     retweets: retweets,
                     likes: likes
