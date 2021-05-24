@@ -11,6 +11,7 @@ export type TweetMoreData = {
     time: string; // xs, xm, xh or day mon year
     replyTo?: string;
     tweetText: string; // Raw html, encode beforehand
+    image?: string;
     replies: string;
     retweets: string;
     likes: string;

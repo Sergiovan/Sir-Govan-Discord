@@ -536,9 +536,7 @@ export class Bot {
 
         function emojify(text: string) {
             text = twemoji.parse(text);
-            console.log(text);
             text = text.replace(/&lt;\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
-            console.log(text);
             return text;
         }
 
@@ -588,9 +586,7 @@ export class Bot {
             }
         }
 
-        let tweet_text = clean_content(this.clean_content(msg, channel));
-        tweet_text = emojify(tweet_text);
-
+        
         let image = '';
         if (msg.attachments.length) {
             for (let att of msg.attachments) {
@@ -602,12 +598,19 @@ export class Bot {
         }
         if (!image && msg.embeds.length) {
             for (let embed of msg.embeds) {
-                if (embed.image) {
-                    image = embed.image.proxy_url ?? embed.image.url ?? '';
+                if (embed.type === 'image') {
+                    image = embed.thumbnail?.url ?? '';
                     break;
                 }
             }
         }
+
+        let tweet_text = this.clean_content(msg, channel);
+        if (tweet_text === image) {
+            tweet_text = '';
+        }
+        tweet_text = clean_content(tweet_text);
+        tweet_text = emojify(tweet_text);
 
         let msg_time = new Date(msg.timestamp);
 
@@ -649,8 +652,6 @@ export class Bot {
             });
 
             for (let extra of extras.reverse()) {
-                if (!extra.content.length || extra.attachments.length) continue;
-
                 const author = extra.author;
                 const author_member = guild.members.get(author.id);
 
@@ -681,7 +682,29 @@ export class Bot {
                     }
                 }
 
-                let tweet_text = clean_content(this.clean_content(extra, channel));
+                let image = '';
+                if (extra.attachments.length) {
+                    for (let att of extra.attachments) {
+                        if (!/\.(webm|mp4)$/g.test(att.filename)) { // Img
+                            image = att.url;
+                            break;
+                        }
+                    }
+                }
+                if (!image && extra.embeds.length) {
+                    for (let embed of extra.embeds) {
+                        if (embed.type === 'image') {
+                            image = embed.thumbnail?.url ?? '';
+                            break;
+                        }
+                    }
+                }
+
+                let tweet_text = this.clean_content(extra, channel);
+                if (tweet_text === image) {
+                    tweet_text = '';
+                }
+                tweet_text = clean_content(tweet_text);
                 tweet_text = emojify(tweet_text);
 
                 let replies = rb_(this.text.tweetEsotericAmount, '') || 
@@ -699,6 +722,7 @@ export class Bot {
                     time: rb_(this.text.tweetEsotericTime, time_str),
                     replyTo: replies_to ? rb_(this.text.tweetExtraReply, replies_to) : replies_to,
                     tweetText: rb_(this.text.tweetExtraText, tweet_text),
+                    image: image,
                     replies: replies,
                     retweets: retweets,
                     likes: likes
