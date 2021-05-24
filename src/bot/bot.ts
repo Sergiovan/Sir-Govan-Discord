@@ -528,7 +528,6 @@ export class Bot {
             text = text.replace(/(#[^ \t\n\r]+)/g, '<span class="twitter-link">$1</span>');
             text = text.replace(/(https?:\/\/[^ \t\n\r]+)/g, '<span class="twitter-link">$1</span>');
 
-
             text = text.replace(/\x00/g, ' ');
 
             return text;
@@ -643,7 +642,7 @@ export class Bot {
             tweetText: tweet_text,
             image: image,
             factCheck: rb_(this.text.tweetFactCheck, ''),
-            hour: `${msg_time.getHours()}:${msg_time.getMinutes()}`,
+            hour: `${msg_time.getHours().toString().padStart(2, '0')}:${msg_time.getMinutes().toString().padStart(2, '0')}`,
             day: `${msg_time.getDate()}`,
             month: `${months[msg_time.getMonth()]}`,
             year: `${msg_time.getFullYear()}`,
