@@ -623,12 +623,12 @@ export class Bot {
 
         let msg_time = new Date(msg.timestamp);
 
-        let retweets = rb_(this.text.tweetEsotericAmount, '') || 
-                        number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, ''));
-        let quotes = rb_(this.text.tweetEsotericAmount, '') || 
-                        number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, ''));
-        let likes = rb_(this.text.tweetEsotericAmount, '') || 
-                        number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, ''));
+        let retweets = rb_(this.text.tweetEsotericAmount, '', 0.2) || 
+                        number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
+        let quotes = rb_(this.text.tweetEsotericAmount, '', 0.2) || 
+                        number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
+        let likes = rb_(this.text.tweetEsotericAmount, '', 0.2) || 
+                        number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
         let any_numbers: boolean = retweets.length > 0 || quotes.length > 0 || likes.length > 0;
 
         let tweet: TweetData = {
@@ -644,7 +644,7 @@ export class Bot {
             factCheck: rb_(this.text.tweetFactCheck, ''),
             hour: `${msg_time.getHours().toString().padStart(2, '0')}:${msg_time.getMinutes().toString().padStart(2, '0')}`,
             day: `${msg_time.getDate()}`,
-            month: `${months[msg_time.getMonth()]}`,
+            month: rb_(this.text.tweetMonth, `${months[msg_time.getMonth()]}`),
             year: `${msg_time.getFullYear()}`,
             client: rb_(this.text.twitterClient, 'Twitter Web App'),
             any_numbers: any_numbers,
@@ -716,21 +716,21 @@ export class Bot {
                 tweet_text = clean_content(tweet_text);
                 tweet_text = emojify(tweet_text);
 
-                let replies = rb_(this.text.tweetEsotericAmount, '') || 
-                                number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, ''));
-                let retweets = rb_(this.text.tweetEsotericAmount, '') || 
-                            number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, ''));
-                let likes = rb_(this.text.tweetEsotericAmount, '') || 
-                            number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, ''));
+                let replies = rb_(this.text.tweetEsotericAmount, '', 0.05) || 
+                                number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
+                let retweets = rb_(this.text.tweetEsotericAmount, '', 0.05) || 
+                            number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
+                let likes = rb_(this.text.tweetEsotericAmount, '', 0.05) || 
+                            number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
 
                 let extra_tweet: TweetMoreData = {
                     avatar: author.avatarURL,
-                    name: rb_(this.text.tweetUsername, author_member?.nick ?? author.username),
+                    name: rb_(this.text.tweetUsername, author_member?.nick ?? author.username, 0.2),
                     verified: !!author_member,
                     at: get_at(author),
-                    time: rb_(this.text.tweetEsotericTime, time_str),
-                    replyTo: replies_to ? rb_(this.text.tweetExtraReply, replies_to) : replies_to,
-                    tweetText: rb_(this.text.tweetExtraText, tweet_text),
+                    time: rb_(this.text.tweetEsotericTime, time_str, 0.2),
+                    replyTo: replies_to ? rb_(this.text.tweetExtraReply, replies_to, 0.2) : replies_to,
+                    tweetText: rb_(this.text.tweetExtraText, tweet_text, 0.1),
                     image: image,
                     replies: replies,
                     retweets: retweets,

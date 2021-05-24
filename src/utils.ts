@@ -249,11 +249,11 @@ export function fullName(user: Eris.User): string {
 }
 
 export enum Rarity {
-    Common = 0, // 75%
-    Uncommon = 1, // 20%
-    Rare = 2, // 4%
-    Mythical = 3, // 0.99%
-    WhatTheActualFuck = 4 // 0.01%
+    Common = 0, // 75% - 100%
+    Uncommon = 1, // 20% - 25%
+    Rare = 2, // 4% - 5%
+    Mythical = 3, // 0.99% - 1%
+    WhatTheActualFuck = 4 // 0.01% - 0.01%
 }
 
 export type RBElementValue = string | (() => string);
@@ -307,10 +307,10 @@ export class RarityBag {
         }
     }
 
-    static pickOrDefault(bag: RarityBag | undefined | null, def: RBElementValue): string {
+    static pickOrDefault(bag: RarityBag | undefined | null, def: RBElementValue, modifier: number = 1): string {
         let chosen: RBElementValue;
         if (bag) {
-            chosen = bag.get(def);
+            chosen = bag.get(def, modifier);
         } else {
             chosen = def;
         }
@@ -332,23 +332,24 @@ export class RarityBag {
         }
     }
 
-    get(def: RBElementValue, rarity?: Rarity): RBElementValue {
+    get(def: RBElementValue, modifier: number, rarity?: Rarity): RBElementValue {
         if (!rarity) {
-            rarity = this.randomRarity();
+            rarity = this.randomRarity(modifier);
         } 
         const elems = this.elements.get(rarity!);
         return elems?.length ? randomElement(elems) : def;
     } 
 
-    randomRarity(): Rarity {
-        const rand = randomBigInt(9999n); // [0-9999], 10000 values
-        if (rand === 0n && this.elements.get(Rarity.WhatTheActualFuck)?.length) { // 1/10000
+    randomRarity(modifier: number): Rarity {
+        const rarities = [1 * modifier, 100 * modifier, 500 * modifier, 2500 * modifier];
+        const rand = Number(randomBigInt(9999n)); // [0-9999], 10000 values
+        if (rand < rarities[0] && this.elements.get(Rarity.WhatTheActualFuck)?.length) { // 1/10000
             return Rarity.WhatTheActualFuck;
-        } else if (rand < 100n && this.elements.get(Rarity.Mythical)?.length) { // 99/10000 
+        } else if (rand < rarities[1] && this.elements.get(Rarity.Mythical)?.length) { // 99/10000 
             return Rarity.Mythical;
-        } else if (rand < 500n && this.elements.get(Rarity.Rare)?.length) { // 400/10000
+        } else if (rand < rarities[2] && this.elements.get(Rarity.Rare)?.length) { // 400/10000
             return Rarity.Rare;
-        } else if (rand < 2500n && this.elements.get(Rarity.Uncommon)?.length) { // 2000/10000
+        } else if (rand < rarities[3] && this.elements.get(Rarity.Uncommon)?.length) { // 2000/10000
             return Rarity.Uncommon;
         } else { // 7500/10000
             return Rarity.Common;
