@@ -7,9 +7,10 @@ import { botparams, Emoji, emojis } from '../defines';
 import * as f from '../utils';
 
 let in_sigint = false; // Booo, npm, boooo
+type ListenerFunction = (...args: any[]) => void;
 
-// Listeners here run regardless of if the bot is ready or not
-export const fixed_listeners: { [key: string]: CallableFunction } = {
+/** Holds all listeners that will never be changed or updated while the bot*/
+export const fixed_listeners: { [key: string]: ListenerFunction } = {
     async ready(this: Bot) {
         const self = this;
 
@@ -58,7 +59,7 @@ export const fixed_listeners: { [key: string]: CallableFunction } = {
     }
 };
 
-export const listeners: { [key: string]: CallableFunction } = {
+export const listeners: { [key: string]: ListenerFunction } = {
     messageCreate(this: Bot, msg: Eris.Message) {
         if (!msg.guildID) {
             // DMs, tread carefully
@@ -125,7 +126,7 @@ export const listeners: { [key: string]: CallableFunction } = {
         }
     },
 
-    async messageReactionAdd(this: Bot, msg: Eris.Message, emoji: Emoji, user: string) {
+    async messageReactionAdd(this: Bot, msg: Eris.Message, emoji: Emoji, user: Eris.Member) {
         const server = botparams.servers.getServer(msg)
         if (!server) {
             return;
@@ -136,21 +137,40 @@ export const listeners: { [key: string]: CallableFunction } = {
         if (!server.allowed(msg) && !server.allowedListen(msg)) {
             return;
         }
-        if (user === this.client.user.id) {
+        if (user.id === this.client.user.id) {
+            // Actually...
             return;
         }
 
+        if (server.allowed(msg) || server.allowedListen(msg)) {
+            switch (emoji.name) {
+                // Retweeting
+                case emojis.repeat_one.fullName: // fallthrough
+                case emojis.repeat.fullName: {
+                    const m = await msg.channel.getMessage(msg.id);
+                    const u = user;
+                    if (!m || !u) {
+                        return;
+                    }
+                    this.maybe_retweet(m, u, emoji.name === emojis.repeat.fullName);
+                    break;
+                }
+            }
+        }
         if (server.allowedListen(msg)) {
-            // Pinning
-            if (emoji.name === emojis.pushpin.fullName) {
-                const m = await msg.channel.getMessage(msg.id);
-                this.maybe_pin(m, emoji);
+            switch (emoji.name) {
+                // Pinning
+                case emojis.pushpin.fullName: {
+                    const m = await msg.channel.getMessage(msg.id);
+                    this.maybe_pin(m, emoji);
+                    break;
+                }
             }
         }
         if (server.allowed(msg)) {
             if (emoji.name === emojis.devil.fullName) {
                 const m = await msg.channel.getMessage(msg.id);
-                const u = (msg.channel as Eris.TextChannel).guild.members.get(user)
+                const u = user;
                 if (!u || !m) {
                     return;
                 }

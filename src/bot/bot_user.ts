@@ -3,25 +3,31 @@ import Eris from 'eris';
 import { DBUserProxy } from '../data/db_wrapper';
 import { xp } from '../secrets/secrets';
 
+/**
+ * Wrapper for a discord user, with extra data 
+ */
 export class BotUser {
-    db_user: DBUserProxy;
-    last_spoke: number;
+    db_user: DBUserProxy; // Database proxy for users
+    last_spoke: number; // Timestamp for last time this user spoke
 
     constructor(db_user: DBUserProxy) {
         this.db_user = db_user;
         this.last_spoke = Date.now();
     }
 
+    /** If this user wants shenanigans */
     allow(): boolean {
         return this.db_user.is_member > 0 && !this.db_user.option_uninterested;
     }
 
+    /** Updates the db user with a real Eris user */
     update_user(user: Eris.User) {
         this.db_user.name = user.username;
         this.db_user.discriminator = user.discriminator;
         this.db_user.avatar = user.avatar ? user.avatarURL : user.defaultAvatarURL;
     }
 
+    /** Updates the db user with a real Eris guild member */
     update_member(member: Eris.Member) {
         this.db_user.is_member = 1;
         this.db_user.name = member.username;
@@ -30,6 +36,7 @@ export class BotUser {
         this.db_user.nickname = member.nick ?? null;
     }
 
+    /** Adds or removes xp from a user */
     change_xp(amount: number) {
         if (amount > 0) {
             return this.add_xp(amount);
@@ -40,6 +47,7 @@ export class BotUser {
         }
     }
 
+    /** Adds XP to a user */
     add_xp(amount: number) {
         this.db_user.xp += amount;
         this.db_user.xp_total += amount;
@@ -47,6 +55,7 @@ export class BotUser {
         return true;
     }
 
+    /** Removes XP from a user, if possible */
     remove_xp(amount: number) {
         if (this.db_user.xp < amount) {
             return false;
@@ -56,6 +65,7 @@ export class BotUser {
         }
     }
 
+    /** Commits this user's data to the database */
     commit() {
         this.db_user.commit();
     }

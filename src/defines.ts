@@ -95,6 +95,7 @@ export const botparams: BotParams = {
                 pin_channel: '216992217988857857', // #807_73571n6
                 no_context_channel: '422797217456324609', // #no-context
                 no_context_role: '424933828826497024',
+                puzzle_channel: '216992217988857857', // #807_73571n6
             }),
             '140942235670675456': new Server('140942235670675456', { // The club
                 beta: false,
@@ -147,7 +148,9 @@ export const emojis = {
     ok_hand: new Emoji('👌'),
     fist: new Emoji('✊'),
     exlamations: new Emoji('‼️'),
-    devil: new Emoji('😈')
+    devil: new Emoji('😈'),
+    repeat: new Emoji('🔁'),
+    repeat_one: new Emoji('🔂'),
 };
 
 export enum argType {
