@@ -623,17 +623,17 @@ export class Bot {
 
         let msg_time = new Date(msg.timestamp);
 
-        let retweets = rb_(this.text.tweetEsotericAmount, '', 0.2) || 
+        let retweets = rb_(this.text.tweetEsotericAmountBefore, '', 0.2) || 
                         number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
-        let quotes = rb_(this.text.tweetEsotericAmount, '', 0.2) || 
+        let quotes = rb_(this.text.tweetEsotericAmountBefore, '', 0.2) || 
                         number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
-        let likes = rb_(this.text.tweetEsotericAmount, '', 0.2) || 
+        let likes = rb_(this.text.tweetEsotericAmountBefore, '', 0.2) || 
                         number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
         let any_numbers: boolean = retweets.length > 0 || quotes.length > 0 || likes.length > 0;
 
         let tweet: TweetData = {
-            theme: rb_(this.text.tweetTheme, 'dim') as TweetTheme,
-            retweeter: rb_(this.text.tweetRetweeter, retweeter.username),
+            theme: rb_(this.text.tweetTheme, 'dim', 2) as TweetTheme,
+            retweeter: rb_(this.text.tweetRetweeter, retweeter.username, 0.5),
             avatar: author.avatarURL,
             name: author_member?.nick ?? author.username,
             verified: !!author_member,
