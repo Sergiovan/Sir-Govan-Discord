@@ -417,8 +417,8 @@ export class Bot {
     /** Returns a cleaned string from a message content. Spaces in names are replaced with \0
      * and need to be returned to ' '
     */
-    clean_content(msg: Eris.Message, channel: Eris.TextChannel): string {
-        let text = msg.content;
+    clean_content(msg: Eris.Message | string, channel: Eris.TextChannel): string {
+        let text = typeof msg === 'string' ? msg : msg.content;
         let self = this;
 
         text = text.replace(/<@!?([0-9]+)>/g, function(match: string, m1: string) {
@@ -549,6 +549,102 @@ export class Bot {
             return text;
         }
 
+        function is_reply(msg: Eris.Message): boolean {
+            return msg.messageReference !== null;
+        }
+
+        async function replies_at(msg: Eris.Message) {
+            let replies_to: string = '';
+            if (msg.messageReference !== null) { // Reply
+                if (msg.referencedMessage !== null) { // Message was not deleted
+                    let reply_msg: Eris.Message;
+                    if (msg.referencedMessage) {
+                        reply_msg = msg.referencedMessage;
+                    } else {
+                        reply_msg = await self.client.getMessage(msg.messageReference.channelID, msg.messageReference.channelID);
+                    }
+                    replies_to = get_at(reply_msg.author);
+                }
+            }
+            return replies_to;
+        }
+
+        function get_attachment(msg: Eris.Message): string {
+            if (msg.attachments.length) {
+                for (let att of msg.attachments) {
+                    if (!/\.(webm|mp4)$/g.test(att.filename)) { // Img
+                        return att.url;
+                    }
+                }
+            }
+            if (msg.embeds.length) {
+                for (let embed of msg.embeds) {
+                    if (embed.type === 'image') {
+                        return embed.thumbnail?.url ?? '';
+                    }
+                }
+            }
+            return '';
+        }
+
+        function group_messages(msgs: Eris.Message[]): Eris.Message[][] {
+            let ret: Eris.Message[][] = [];
+            let cur: Eris.Message[] = [msgs[0]];
+            let last_user: string = msgs[0].author.id;
+            let last_time: number = msgs[0].timestamp;
+            const time_diff = 1000 * 30; // 30 seconds
+            let has_attachment: boolean = get_attachment(msgs[0]) !== '';
+
+            for (let i = 1; i < msgs.length; ++i) {
+                let msg = msgs[i];
+
+                if (msg.author.id !== last_user) {
+                    ret.push(cur);
+                    cur = [msg];
+                    has_attachment = get_attachment(msg) !== '';
+                    last_user = msg.author.id;
+                    last_time = msg.timestamp;
+                    continue;
+                }
+                
+                // Same user
+
+                if (msg.timestamp > last_time + time_diff ) {
+                    ret.push(cur);
+                    cur = [msg];
+                    has_attachment = get_attachment(msg) !== '';
+                    last_time = msg.timestamp;
+                    continue;
+                }
+
+                last_time = msg.timestamp;
+
+                // In time
+
+                if (is_reply(msg)) {
+                    ret.push(cur);
+                    cur = [msg];
+                    has_attachment = get_attachment(msg) !== '';
+                    continue;
+                }
+
+                if (get_attachment(msg)) {
+                    let had_attachment = has_attachment;
+                    has_attachment = true;
+                    if (had_attachment) {
+                        ret.push(cur);
+                        cur = [msg];
+                        continue;
+                    } 
+                }
+
+                cur.push(msg);
+            }
+
+            ret.push(cur);
+            return ret;
+        }
+
         const server = botparams.servers.getServer(msg);
         if (!server || server.beta !== this.beta || !server.pin_channel) {
             return;
@@ -581,43 +677,32 @@ export class Bot {
             'Oct', 'Nov', 'Dec'
         ];
 
-        let replies_to: string = '';
-        
-        if (msg.messageReference !== null) { // Reply
-            if (msg.referencedMessage !== null) { // Message was not deleted
-                let reply_msg: Eris.Message;
-                if (msg.referencedMessage) {
-                    reply_msg = msg.referencedMessage;
-                } else {
-                    reply_msg = await this.client.getMessage(msg.messageReference.channelID, msg.messageReference.channelID);
-                }
-                replies_to = get_at(reply_msg.author);
-            }
-        }
+        let context = (await this.client.getMessages(msg.channel.id, {
+            after: msg.id,
+            limit: 50
+        })).reverse();
 
+        context.unshift(msg);
+
+        let groups = group_messages(context);
+
+        let replies_to: string = await replies_at(msg);
         
         let image = '';
-        if (msg.attachments.length) {
-            for (let att of msg.attachments) {
-                if (!/\.(webm|mp4)$/g.test(att.filename)) { // Img
-                    image = att.url;
-                    break;
+        let tweet_text = '';
+        for (let msg of groups[0]) {
+            let tmp_image = get_attachment(msg);
+            let tmp_tweet_text = this.clean_content(msg.content, channel);
+            if (!image && tmp_image) {
+                image = tmp_image;
+                if (image === tmp_tweet_text) {
+                    tmp_tweet_text = '';
                 }
-            }
+            } 
+            tweet_text += `${tmp_tweet_text}${tmp_tweet_text.length ? '\n' : ''}`;
         }
-        if (!image && msg.embeds.length) {
-            for (let embed of msg.embeds) {
-                if (embed.type === 'image') {
-                    image = embed.thumbnail?.url ?? '';
-                    break;
-                }
-            }
-        }
+        tweet_text = tweet_text.replace(/\s+$/g, '');
 
-        let tweet_text = this.clean_content(msg, channel);
-        if (tweet_text === image) {
-            tweet_text = '';
-        }
         tweet_text = clean_content(tweet_text);
         tweet_text = emojify(tweet_text);
 
@@ -631,12 +716,18 @@ export class Bot {
                         number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
         let any_numbers: boolean = retweets.length > 0 || quotes.length > 0 || likes.length > 0;
 
+        let verified = author_member !== undefined && // Member exists and 
+                        (!server.no_context_role ||   // Either this server has no context role or 
+                          author_member.roles.includes(server.no_context_role)); // This member has no context role
+
+        console.log(verified);
+
         let tweet: TweetData = {
             theme: rb_(this.text.tweetTheme, 'dim', 2) as TweetTheme,
             retweeter: rb_(this.text.tweetRetweeter, retweeter.username, 0.5),
             avatar: author.avatarURL,
             name: author_member?.nick ?? author.username,
-            verified: !!author_member,
+            verified: verified,
             at: get_at(author),
             replyTo: replies_to,
             tweetText: tweet_text,
@@ -654,13 +745,12 @@ export class Bot {
             moreTweets: []
         };
 
-        if (add_extras) {
-            let extras = await this.client.getMessages(msg.channel.id, {
-                after: msg.id,
-                limit: 10
-            });
+        groups.shift(); // Remove first group
 
-            for (let extra of extras.reverse()) {
+        if (add_extras) {
+
+            for (let group of groups) {
+                let extra = group[0]; // First msg
                 const author = extra.author;
                 const author_member = guild.members.get(author.id);
 
@@ -677,42 +767,23 @@ export class Bot {
                     time_str = `${time.getDate()} ${months[time.getMonth()]} ${time.getFullYear()}`;
                 }
 
-                let replies_to: string = '';
-            
-                if (extra.messageReference !== null) { // Reply
-                    if (extra.referencedMessage !== null) { // Message was not deleted
-                        let reply_msg: Eris.Message;
-                        if (extra.referencedMessage) {
-                            reply_msg = extra.referencedMessage;
-                        } else {
-                            reply_msg = await this.client.getMessage(extra.messageReference.channelID, extra.messageReference.channelID);
-                        }
-                        replies_to = get_at(reply_msg.author);
-                    }
-                }
+                let replies_to: string = await replies_at(extra);
 
                 let image = '';
-                if (extra.attachments.length) {
-                    for (let att of extra.attachments) {
-                        if (!/\.(webm|mp4)$/g.test(att.filename)) { // Img
-                            image = att.url;
-                            break;
+                let tweet_text = '';
+                for (let msg of group) {
+                    let tmp_image = get_attachment(msg);
+                    let tmp_tweet_text = this.clean_content(msg.content, channel);
+                    if (!image && tmp_image) {
+                        image = tmp_image;
+                        if (image === tmp_tweet_text) {
+                            tmp_tweet_text = '';
                         }
-                    }
+                    } 
+                    tweet_text += `${tmp_tweet_text}${tmp_tweet_text.length ? '\n' : ''}`;
                 }
-                if (!image && extra.embeds.length) {
-                    for (let embed of extra.embeds) {
-                        if (embed.type === 'image') {
-                            image = embed.thumbnail?.url ?? '';
-                            break;
-                        }
-                    }
-                }
+                tweet_text = tweet_text.replace(/\s+$/g, '');
 
-                let tweet_text = this.clean_content(extra, channel);
-                if (tweet_text === image) {
-                    tweet_text = '';
-                }
                 tweet_text = clean_content(tweet_text);
                 tweet_text = emojify(tweet_text);
 
@@ -723,10 +794,12 @@ export class Bot {
                 let likes = rb_(this.text.tweetEsotericAmount, '', 0.05) || 
                             number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
 
+                let verified = (!!author_member && (!server.no_context_role || author_member.roles.includes(server.no_context_role)));
+
                 let extra_tweet: TweetMoreData = {
                     avatar: author.avatarURL,
                     name: rb_(this.text.tweetUsername, author_member?.nick ?? author.username, 0.2),
-                    verified: !!author_member,
+                    verified: verified,
                     at: get_at(author),
                     time: rb_(this.text.tweetEsotericTime, time_str, 0.2),
                     replyTo: replies_to ? rb_(this.text.tweetExtraReply, replies_to, 0.2) : replies_to,
