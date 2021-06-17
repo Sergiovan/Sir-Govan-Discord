@@ -545,7 +545,7 @@ export class Bot {
                     return ''.concat(options.base, options.size, '/', icon, options.ext);
                 }
             });
-            text = text.replace(/&lt;\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
+            text = text.replace(/&lt;a?\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
             return text;
         }
 
