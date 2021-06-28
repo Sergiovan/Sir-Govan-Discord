@@ -128,6 +128,10 @@ export const botparams: BotParams = {
                     '785872130029256747', // welcum // Note: I did not come up with these names, ok?
                     '824345444649140224', // it's called art baby look it up
                     '831961057194016778', // cum is a meal replacement
+                    '847251232796311552', // gaymers playing genshin
+                    '838014715519041556', // tinder men suck
+                    '858006470238142474', // astro sluts
+                    '835566308782768199', // dee pee ar
                 ],
                 pin_channel: '822930237418504312',
             })
