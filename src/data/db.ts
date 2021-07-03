@@ -1,3 +1,4 @@
+import { Snowflake } from 'discord.js';
 import Knex from 'knex';
 
 interface Table {
@@ -5,7 +6,7 @@ interface Table {
 }
 
 export interface User extends Table {
-    id: string;
+    id: Snowflake;
     name: string;
     discriminator: string;
     nickname: string | null;
@@ -61,7 +62,6 @@ export type DBRecord<T extends DBName> =
 type AnyOrUnknownToOther<T1, T2> = unknown extends T1 ? T2 : T1;
 export type KnexApproved<T> = Readonly<Readonly<Partial<AnyOrUnknownToOther<Knex.MaybeRawRecord<T>, {}>>>>;
 
-
 export class DB {
     conn: Knex;
 
@@ -108,7 +108,7 @@ export class DB {
         return await this.table(table).select(select.length ? select : '*', 'rowid').where(where);
     }
 
-    table<T extends DBName>(table: T) {
+    table<T extends DBName>(table: T): Knex.QueryBuilder<DBRecord<T>> {
         return this.conn<DBRecord<T>>(table);
     }
 

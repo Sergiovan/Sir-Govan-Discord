@@ -1,28 +1,33 @@
 import 'colors';
-import Eris from 'eris';
+import * as D from 'discord.js';
 
 import { Bot } from './bot';
 
 import { botparams, Emoji, emojis } from '../defines';
 import * as f from '../utils';
+import { assert } from 'console';
 
 let in_sigint = false; // Booo, npm, boooo
-type ListenerFunction = (...args: any[]) => void;
+export type ListenerFunction = (this: Bot, ...args: any[]) => void;
+
+const E = D.Constants.Events;
+type ClientListener<K extends keyof D.ClientEvents> = (this: Bot, ...args: D.ClientEvents[K]) => Awaited<void>;
 
 /** Holds all listeners that will never be changed or updated while the bot*/
-export const fixed_listeners: { [key: string]: ListenerFunction } = {
-    async ready(this: Bot) {
+export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} = {
+    async [E.CLIENT_READY](this: Bot) {
         const self = this;
 
-        this.owner = this.client.users.get(botparams.owner);
+        this.owner = await this.client.users.fetch(botparams.owner);
+        await this.client.guilds.fetch();
 
-        for (let [guild_id, guild] of this.client.guilds) {
+        for (let [guild_id, guild] of this.client.guilds.cache) {
             const server = botparams.servers.ids[guild_id];
             if (!server || this.beta !== server.beta) {
                 continue;
             }
             const new_nick = f.rb_(this.text.nickname, server.nickname || 'Sir Govan') + (this.beta ? ' (β)' : '');
-            guild.editNickname(new_nick);
+            guild.me?.setNickname(new_nick);
             
         }
 
@@ -50,32 +55,35 @@ export const fixed_listeners: { [key: string]: ListenerFunction } = {
         console.log("Ready!");
     },
 
-    error(this: Bot, err: Error, id: number) {
-        console.error(err, id);
+    [E.ERROR](this: Bot, err: Error) {
+        console.error(err);
 
-        this.client.disconnect({reconnect: true});
+        this.client.destroy();
         this.clearListeners(); // Disable everything so things don't happ
-        this.client.connect();
+        this.connect(); // TODO Will this megadie
     }
 };
 
-export const listeners: { [key: string]: ListenerFunction } = {
-    messageCreate(this: Bot, msg: Eris.Message) {
-        if (!msg.guildID) {
+export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} = {
+    [E.MESSAGE_CREATE](this: Bot, msg: D.Message) {
+        if (msg.channel instanceof D.DMChannel) {
             // DMs, tread carefully
-            const channel_user = (msg.channel as Eris.PrivateChannel).recipient;
+            const channel_user = msg.channel.recipient;
             let channel_name = `${channel_user.username}#${channel_user.discriminator}`;
-            const message_mine = msg.author.id === this.client.user.id;
+            const message_mine = msg.author.id === this.client.user!.id;
             if (!message_mine) {
                 channel_name = 'me';
             }
 
-            const author: string = message_mine ? 'me' : `${msg.author.username}#${msg.author.discriminator}`;
+            // TODO Better logging
+            const author: string = message_mine ? 'me' : msg.author.tag;
             console.log(`${author.cyan} @ ${channel_name.cyan}: ${msg.cleanContent}`);
+
             if (message_mine) {
                 return;
             }
             
+            // TODO Huuuu
             if (this.parse(msg)) {
                 return;
             }
@@ -103,16 +111,16 @@ export const listeners: { [key: string]: ListenerFunction } = {
                 return;
             }
 
-            const author: string = msg.author.id === this.client.user.id ? 'me' : `${msg.author.username}#${msg.author.discriminator}`;
-            console.log(`${author.cyan} @ ${(msg.channel as Eris.TextChannel).name.cyan}: ${msg.cleanContent}`);
+            const author: string = msg.author.id === this.client.user!.id ? 'me' : `${msg.author.username}#${msg.author.discriminator}`;
+            console.log(`${author.cyan} @ ${msg.channel.name.cyan}: ${msg.cleanContent}`);
             
-            if (msg.author.id === this.client.user.id) {
+            if (msg.author.id === this.client.user!.id) {
                 return;
             }
             
             if (server.allowedListen(msg) && !msg.author.bot) {
                 if ((Math.random() * 100) < 1.0 && server.no_context_channel) {
-                    this.tryRemoveContext(msg, server);
+                    this.maybe_remove_context(msg);
                 } else {
                     this.tickUser(msg.author);
                 }
@@ -126,9 +134,10 @@ export const listeners: { [key: string]: ListenerFunction } = {
         }
     },
 
-    async messageReactionAdd(this: Bot, msg: Eris.Message, emoji: Emoji, user: Eris.Member) {
-        const server = botparams.servers.getServer(msg)
-        if (!server) {
+    async [E.MESSAGE_REACTION_ADD](this: Bot, reaction: D.MessageReaction, user: D.User | D.PartialUser) {
+        const msg = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
+        const server = botparams.servers.getServer(msg);
+        if (!msg.guild || !server) {
             return;
         }
         if (server.beta !== this.beta) {
@@ -137,50 +146,52 @@ export const listeners: { [key: string]: ListenerFunction } = {
         if (!server.allowed(msg) && !server.allowedListen(msg)) {
             return;
         }
-        if (user.id === this.client.user.id) {
+        if (user.id === this.client.user!.id) {
             // Actually...
             return;
         }
 
+        const emoji = reaction.emoji;
+
         if (server.allowed(msg) || server.allowedListen(msg)) {
-            switch (emoji.name) {
+            switch (emoji.identifier) {
                 // Retweeting
-                case emojis.repeat_one.fullName: // fallthrough
-                case emojis.repeat.fullName: {
-                    const m = await msg.channel.getMessage(msg.id);
-                    const u = user;
+                case emojis.repeat_one.asReaction: // fallthrough
+                case emojis.repeat.asReaction: {
+                    const m = msg;
+                    const u = await msg.guild.members.fetch(user.id);
                     if (!m || !u) {
                         return;
                     }
-                    this.maybe_retweet(m, u, emoji.name === emojis.repeat.fullName);
+                    this.maybe_retweet(m, u, emoji.identifier === emojis.repeat.asReaction);
                     break;
                 }
             }
         }
         if (server.allowedListen(msg)) {
-            switch (emoji.name) {
+            switch (emoji.identifier) {
                 // Pinning
-                case emojis.pushpin.fullName: {
-                    const m = await msg.channel.getMessage(msg.id);
-                    this.maybe_pin(m, emoji);
+                case emojis.pushpin.asReaction: {
+                    const m = msg;
+                    this.maybe_pin(m, emojis.pushpin);
                     break;
                 }
             }
         }
         if (server.allowed(msg)) {
-            if (emoji.name === emojis.devil.fullName) {
-                const m = await msg.channel.getMessage(msg.id);
-                const u = user;
+            if (emoji.identifier === emojis.devil.asReaction) {
+                const m = msg;
+                const u = user.partial ? await user.fetch() : user;
                 if (!u || !m) {
                     return;
                 }
-                this.maybe_steal(m, u.user);
+                this.maybe_steal(m, u);
             }
         }
     },
 
-    guildMemberAdd(this: Bot, guild: Eris.Guild, member: Eris.Member) {
-        const server = botparams.servers.ids[guild.id];
+    [E.GUILD_MEMBER_ADD](this: Bot, member: D.GuildMember) {
+        const server = botparams.servers.ids[member.guild.id];
         
         if (!server || server.beta !== this.beta) {
             return;
@@ -190,12 +201,12 @@ export const listeners: { [key: string]: ListenerFunction } = {
             this.users[member.id].update_member(member);
             this.users[member.id].commit();
         } else {
-            this.db.addUser(member.user, 1, member.bot ? 1 : 0, member.nick).then((u) => this.add_user(u));
+            this.db.addUser(member.user, 1, member.user.bot ? 1 : 0, member.nickname).then((u) => this.add_user(u));
         }
     },
 
-    guildMemberRemove(this: Bot, guild: Eris.Guild, member: Eris.Member | {id: string, user: Eris.User}) {
-        const server = botparams.servers.ids[guild.id];
+    [E.GUILD_MEMBER_REMOVE](this: Bot, member: D.GuildMember | D.PartialGuildMember) {
+        const server = botparams.servers.ids[member.guild.id];
         
         if (!server || server.beta !== this.beta) {
             return;
@@ -207,8 +218,9 @@ export const listeners: { [key: string]: ListenerFunction } = {
         }
     },
 
-    guildMemberUpdate(this: Bot, guild: Eris.Guild, member: Eris.Member, oldMember: {roles: Array<string>, nick: string }) {
-        const server = botparams.servers.ids[guild.id];
+    [E.GUILD_MEMBER_UPDATE](this: Bot, old_member: D.GuildMember | D.PartialGuildMember, member: D.GuildMember) {
+        console.log('Nickname updated :)');
+        const server = botparams.servers.ids[member.guild.id];
         
         if (!server || server.beta !== this.beta) {
             return;
@@ -218,11 +230,11 @@ export const listeners: { [key: string]: ListenerFunction } = {
             this.users[member.id].update_member(member);
             this.users[member.id].commit();
         } else {
-            this.db.addUser(member.user, 1, member.bot ? 1 : 0, member.nick).then((u) => this.add_user(u));
+            this.db.addUser(member.user, 1, member.user.bot ? 1 : 0, member.nickname).then((u) => this.add_user(u));
         }
     },
 
-    userUpdate(this: Bot, user: Eris.User, oldUser: {username: string, discriminator: string, avatar: string}) {
+    [E.USER_UPDATE](this: Bot, old_user: D.User | D.PartialUser, user: D.User) {
         if (this.users[user.id]) {
             this.users[user.id].update_user(user);
             this.users[user.id].commit();

@@ -1,4 +1,4 @@
-import Eris from 'eris';
+import * as D from 'discord.js';
 
 import { DBUserProxy } from '../data/db_wrapper';
 import { xp } from '../secrets/secrets';
@@ -21,19 +21,19 @@ export class BotUser {
     }
 
     /** Updates the db user with a real Eris user */
-    update_user(user: Eris.User) {
+    update_user(user: D.User) {
         this.db_user.name = user.username;
         this.db_user.discriminator = user.discriminator;
-        this.db_user.avatar = user.avatar ? user.avatarURL : user.defaultAvatarURL;
+        this.db_user.avatar = user.displayAvatarURL();
     }
 
     /** Updates the db user with a real Eris guild member */
-    update_member(member: Eris.Member) {
+    update_member(member: D.GuildMember) {
         this.db_user.is_member = 1;
-        this.db_user.name = member.username;
-        this.db_user.discriminator = member.discriminator;
-        this.db_user.avatar = member.avatar ? member.avatarURL : member.defaultAvatarURL;
-        this.db_user.nickname = member.nick ?? null;
+        this.db_user.name = member.user.username;
+        this.db_user.discriminator = member.user.discriminator;
+        this.db_user.avatar = member.user.displayAvatarURL();
+        this.db_user.nickname = member.nickname;
     }
 
     /** Adds or removes xp from a user */

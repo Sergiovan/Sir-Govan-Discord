@@ -1,4 +1,4 @@
-import Eris from 'eris';
+import * as D from 'discord.js';
 import * as util from 'util';
 
 import { encode } from 'html-entities';
@@ -8,7 +8,7 @@ import { CommandFunc } from './commands';
 import { Puzzler } from './puzzler';
 import { BotUser } from './bot_user';
 import { cmds, aliases, beta_cmds } from './commands';
-import { listeners, fixed_listeners } from './listeners';
+import { listeners, fixed_listeners, ListenerFunction } from './listeners';
 
 import { botparams, emojis, Emoji, Server, xpTransferReason } from '../defines';
 import { randFromFile, RarityBag, rb_ } from '../utils';
@@ -28,10 +28,11 @@ const db_location = 'data/db/bot.db';
 /** Pair containing a function and when to execute it */
 type CleanupCode = [Date, () => void];
 
-/** Wrapper over Eris Client class */
+/** Wrapper over Discord.js Client class */
 export class Bot {
-    client: Eris.Client; // Eris client 
-    owner?: Eris.User; // Me, Sergiovan. How exciting
+    client: D.Client; // Discord.js client 
+    token: string; // Login token
+    owner?: D.User; // Me, Sergiovan. How exciting
     storage: Persist; // Basic persistent storage
     puzzler: Puzzler = new Puzzler; // Puzzle stuff
     db: DBWrapper; // Database for advanced persistent storage
@@ -48,16 +49,24 @@ export class Bot {
     text: { [key: string]: RarityBag } = {}; // Text instance, for random chance texts
 
     constructor(token: string, beta: boolean) {
-        this.client = new Eris.Client(token, {
+        this.token = token;
+
+        const Flags = D.Intents.FLAGS;
+        this.client = new D.Client({
             intents: [
-                "guilds",
-                "guildMembers",
-                "guildVoiceStates",
-                "guildPresences",
-                "guildMessages",
-                "guildMessageReactions",
-                "directMessages",
-                "directMessageReactions"
+                Flags.GUILDS,
+                Flags.GUILD_MEMBERS,
+                Flags.GUILD_VOICE_STATES,
+                Flags.GUILD_PRESENCES,
+                Flags.GUILD_MESSAGES,
+                Flags.GUILD_MESSAGE_REACTIONS,
+                Flags.DIRECT_MESSAGES,
+                Flags.DIRECT_MESSAGE_REACTIONS
+            ],
+            partials: [
+                'MESSAGE',
+                'CHANNEL',
+                'REACTION'
             ]
         });
 
@@ -85,17 +94,21 @@ export class Bot {
 
     /** Only called in the constructor, these are set just once */
     setFixedListeners() {
-        for (let event in fixed_listeners) {
+        let event: keyof D.ClientEvents;
+        for (event in fixed_listeners) {
             this.client.removeAllListeners(event);
-            this.client.on(event, fixed_listeners[event].bind(this));
+            let func: ListenerFunction = listeners[event]!;
+            this.client.on(event, func.bind(this));
         }
     }
 
     /** Called every time the bot restarts */
     setListeners() {
-        for (let event in listeners) {
+        let event: keyof D.ClientEvents;
+        for (event in listeners) {
             this.client.removeAllListeners(event);
-            this.client.on(event, listeners[event].bind(this));
+            let func: ListenerFunction = listeners[event]!;
+            this.client.on(event, func.bind(this));
         }
     }
 
@@ -108,6 +121,7 @@ export class Bot {
 
     /** Sets up commands and aliases */
     setCommands() {
+        // TODO Slash commands
         for (let cmd in cmds) {
             this.addCommand(`!${cmd}`, cmds[cmd]);
         }
@@ -181,11 +195,11 @@ export class Bot {
     async update_users() {
         const db_users = await this.db.getAllUsers(); // Users in the database
         const new_users: {[key: string]: BotUser} = {}; // Users that are new
-        const seen: Set<string> = new Set<string>(); // Users we have already seen
+        const seen: Set<D.Snowflake> = new Set<D.Snowflake>(); // Users we have already seen
 
         for (let user of db_users) {
             seen.add(user.id);
-            if (this.client.users.has(user.id)) { // The bot can see this user
+            if (this.client.users.resolve(user.id)) { // The bot can see this user
                 user.is_member = 1;
 
                 new_users[user.id] = new BotUser(user);
@@ -198,19 +212,19 @@ export class Bot {
         }
 
         // For each member in every server
-        for (let [guild_id, guild] of this.client.guilds) {
-            const server = botparams.servers.ids[guild_id.toString()];
+        for (let [guild_id, guild] of this.client.guilds.cache) {
+            const server = botparams.servers.ids[guild_id];
 
             if (server && server.beta === this.beta) {
-                for (let [member_id, member] of guild.members) {
-                    if (seen.has(member_id.toString())) { // We've seen this user when going through the db
-                        const db_user = new_users[member_id.toString()];
+                for (let [member_id, member] of guild.members.cache) {
+                    if (seen.has(member_id)) { // We've seen this user when going through the db
+                        const db_user = new_users[member_id];
                         db_user.update_member(member); // Update its member data as well
 
                         db_user.commit();
                     } else {
                         // This user was not in the db, so add it now
-                        const db_user = await this.db.addUser(member.user, 1, member.bot ? 1 : 0 , member.nick);
+                        const db_user = await this.db.addUser(member.user, 1, member.user.bot ? 1 : 0 , member.nickname);
                         new_users[member.id] = new BotUser(db_user);
                     }
                 }
@@ -230,12 +244,14 @@ export class Bot {
      * Notice, this method of locking/unlocking only works because 
      * this app is single-threaded...
     */
-    message_locked(msg: Eris.Message) {
+    message_locked(msg: D.Message) {
+        // TODO This mechanism has to be rethought
         return this.message_mutex.has(msg.id);
     }
     
     /** Lock a message, unlock after a minute */
-    lock_message(msg: Eris.Message, ms: number = 1000 * 60) {
+    lock_message(msg: D.Message, ms: number = 1000 * 60) {
+        // TODO Change this mechanism
         this.message_mutex.add(msg.id);
         this.add_cleanup_task(() => this.message_mutex.delete(msg.id), ms);
     }
@@ -254,7 +270,8 @@ export class Bot {
     }
 
     /** Parses a message to run a command */
-    parse(msg: Eris.Message) {
+    parse(msg: D.Message) {
+        // TODO Commands...
         const message = msg.content;
         for(let [commandName, command] of this.commands){
             if(message.split(' ')[0] === commandName){
@@ -267,6 +284,7 @@ export class Bot {
 
     /** Adds a command to the list of commands */
     addCommand(name: string, command: CommandFunc) {
+        // TODO Commands...
         this.commands.push([name, command]);
     }
 
@@ -308,7 +326,13 @@ export class Bot {
      * 
      * If `forced` is true the clue is forced
      */
-    async postClue(channel: string, forced: boolean = false) {
+    async postClue(channel: D.Snowflake, forced: boolean = false) {
+        let chn = this.client.channels.resolve(channel);
+        if (!chn?.isText()) {
+            console.error(`Tried to post clue in invalid channel ${channel}`);
+            return;
+        }
+        
         console.log('Posting clue');
         let clue: string | null;
 
@@ -324,20 +348,21 @@ export class Bot {
             return; // Can happen if it's not time yet
         }
 
-        let msg = await this.client.createMessage(channel, rb_(this.text.puzzleGenerating, 'Generating clue...'));
+        let msg = await chn.send(rb_(this.text.puzzleGenerating, 'Generating clue...'));
 
         const text = `#${this.puzzler.clue_count}: \`${clue}\`. Puzzle ID is \`${this.puzzler.puzzle_id}\``;
         console.log(`Clue: ${text}`);
 
+        // TODO Funky buttons?
         setTimeout(async () => {
             msg = await msg.edit(text);
             await this.db.addClue(this.puzzler.puzzle_id, msg);
-            await msg.addReaction(emojis.devil.fullName);
+            await msg.react(emojis.devil.asReaction);
         }, 2500);
     }
 
     /** Verifies that `answer` is the answer to the current puzzle */
-    async checkAnswer(answer: string, user: Eris.User) {
+    async checkAnswer(answer: string, user: D.User) {
         // I cannot accidentally ruin the puzzle... Haha oops
         if (!this.owner || (user.id === this.owner.id && !this.beta)) {
             return;
@@ -347,8 +372,8 @@ export class Bot {
         if (this.puzzler.checkAnswer(answer)) {
             const id = this.puzzler.puzzle_id;
             this.puzzler.endPuzzle();
-            const dm = await user.getDMChannel();
-            dm.createMessage(rb_(this.text.answerCorrect, 'You got it!'));
+            const dm = user.dmChannel ?? await user.createDM();
+            dm.send(rb_(this.text.answerCorrect, 'You got it!'));
 
             await this.tellTheBoss(`${user.username} (${user.id}) got it!`);
 
@@ -387,10 +412,10 @@ export class Bot {
      * 
      * If `to` is null, the xp is destroyed
      * */
-    transferXp(amount: number, from: Eris.User, to: Eris.User, reason: xpTransferReason): boolean;
-    transferXp(amount: number, from: Eris.User | null, to: Eris.User, reason: xpTransferReason): true;
-    transferXp(amount: number, from: Eris.User, to: Eris.User | null, reason: xpTransferReason): boolean;
-    transferXp(amount: number, from: Eris.User | null, to: Eris.User | null, reason: xpTransferReason) {
+    transferXp(amount: number, from: D.User, to: D.User, reason: xpTransferReason): boolean;
+    transferXp(amount: number, from: D.User | null, to: D.User, reason: xpTransferReason): true;
+    transferXp(amount: number, from: D.User, to: D.User | null, reason: xpTransferReason): boolean;
+    transferXp(amount: number, from: D.User | null, to: D.User | null, reason: xpTransferReason) {
         if (from) {
             if (!this.users[from.id].remove_xp(amount)) {
                 return false; // If we cannot remove this amount of xp from the donor, the whole thing is cancelled
@@ -406,7 +431,7 @@ export class Bot {
     }
 
     /** Transfer passive xp to a user when they talk */
-    async tickUser(user: Eris.User) {
+    async tickUser(user: D.User) {
         const bot_user = this.users[user.id];
         if ((bot_user.last_spoke + xp.passive_timeout * 1000) < Date.now()) {
             bot_user.last_spoke = Date.now();
@@ -417,22 +442,22 @@ export class Bot {
     /** Returns a cleaned string from a message content. Spaces in names are replaced with \0
      * and need to be returned to ' '
     */
-    clean_content(msg: Eris.Message | string, channel: Eris.TextChannel): string {
+    clean_content(msg: D.Message | string, channel: D.TextChannel | D.ThreadChannel): string {
         let text = typeof msg === 'string' ? msg : msg.content;
         let self = this;
 
-        text = text.replace(/<@!?([0-9]+)>/g, function(match: string, m1: string) {
-            const m = channel.guild.members.get(m1);
-            return `@${m?.nick ?? self.client.users.get(m1)?.username ?? "unknown-user"}`.replace(/ /g, '\x00');
+        text = text.replace(/<@!?([0-9]+)>/g, function(match: string, m1: D.Snowflake) {
+            const m = channel.guild.members.resolve(m1);
+            return `@${m?.displayName ?? self.client.users.resolve(m1)?.username ?? "unknown-user"}`.replace(/ /g, '\x00');
         });
 
-        text = text.replace(/<@\&([0-9]+)>/g, function(match: string, m1: string) {
-            const r = channel.guild.roles.get(m1);
+        text = text.replace(/<@\&([0-9]+)>/g, function(match: string, m1: D.Snowflake) {
+            const r = channel.guild.roles.resolve(m1);
             return `#${r?.name ?? "deleted-role"}`.replace(/ /g, '\x00');
         });
 
-        text = text.replace(/<#([0-9]+)>/g, function(match: string, m1: string) {
-            const c = channel.guild.channels.get(m1);
+        text = text.replace(/<#([0-9]+)>/g, function(match: string, m1: D.Snowflake) {
+            const c = channel.guild.channels.resolve(m1);
             return `@${c?.name ?? "deleted-channel"}`.replace(/ /g, '\x00');
         });
 
@@ -443,58 +468,55 @@ export class Bot {
      * 
      * NOTE: Does not use inline replies!! 
      */
-    reply(msg: Eris.Message, def: string, rb?: RarityBag) {
-        return this.client.createMessage(msg.channel.id, rb_(rb, def));    
+    reply(msg: D.Message, def: string, rb?: RarityBag) {
+        return msg.channel.send(rb_(rb, def));
     }
 
     /** Writes a DM to the author of `msg` */
-    async replyDM(msg: Eris.Message, def: string, rb?: RarityBag) {
-        const channel = await msg.author.getDMChannel();
-        return await this.client.createMessage(channel.id, rb_(rb, def));
+    async replyDM(msg: D.Message, def: string, rb?: RarityBag) {
+        const channel = msg.author.dmChannel ?? await msg.author.createDM();
+        return await channel.send(rb_(rb, def));
     }
 
     /** Writes me, Sergiovan, a DM */
     async tellTheBoss(what: string) {
         console.log(`${'[BOSS]'.cyan} ${what}`);
-        const ch = this.owner?.getDMChannel();
-        return (await ch)?.createMessage(what);
+        const ch = this.owner?.dmChannel ?? await this.owner?.createDM();
+        return ch?.send(what);
     }
 
     /** Attempts to pin a message */
-    async maybe_pin(msg: Eris.Message, emoji: Emoji) {
+    async maybe_pin(msg: D.Message, emoji: Emoji) {
         const server = botparams.servers.getServer(msg);
         if (!server || server.beta !== this.beta || !server.pin_channel) {
             return;
         }
 
-        const findname = emoji.id ? `${emoji.name}:${emoji.id}` : emoji.name;
         if (msg.author.bot) { // Do not pin bot messages
             return;
         }
 
-        if ((msg.reactions[emojis.pushpin.fullName] && 
-            msg.reactions[emojis.pushpin.fullName].me) ||
-            this.message_locked(msg)) {
+        // Do not pin messages where I've already reacted
+        // TODO This doesn't work...
+        if ((msg.reactions.resolve(emojis.pushpin.asReaction)?.me) || this.message_locked(msg)) {
             return; // If this messages has been pinned or is locked for pinning, cease
         }
 
-        let reactionaries = await msg.getReaction(findname);
+        let reactionaries = await msg.reactions.resolve(emoji.asReaction)?.users.fetch();
+        if (!reactionaries) return; // ???
+
         // At least `server.pin_amount` pins that are not the author or bots
-        if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).length >= server.pin_amount){
+        if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.pin_amount){
             //We pin that shit!
-            this.lock_message(msg);
-            await msg.addReaction(emojis.pushpin.fullName);
+            this.lock_message(msg); // TODO huuuuu
+            await msg.react(emojis.pushpin.asReaction);
             this.pin(msg);
         }
     }
 
     /** Attempts to retweet a message */
-    async maybe_retweet(msg: Eris.Message, retweeter: Eris.Member, add_extras: boolean) {
+    async maybe_retweet(msg: D.Message, retweeter: D.GuildMember, add_extras: boolean) {
         let self = this;
-        
-        function get_at(usr: Eris.User) {
-            return `${usr.username}#${usr.discriminator}`
-        }
 
         function random_tweet_number() {
             let rand = Math.random() - 0.25;
@@ -549,49 +571,37 @@ export class Bot {
             return text;
         }
 
-        function is_reply(msg: Eris.Message): boolean {
-            return msg.messageReference !== null;
+        function is_reply(msg: D.Message): boolean {
+            return msg.reference !== null;
         }
 
-        async function replies_at(msg: Eris.Message) {
-            let replies_to: string = '';
-            if (msg.messageReference !== null) { // Reply
-                if (msg.referencedMessage !== null) { // Message was not deleted
-                    let reply_msg: Eris.Message;
-                    if (msg.referencedMessage) {
-                        reply_msg = msg.referencedMessage;
-                    } else {
-                        reply_msg = await self.client.getMessage(msg.messageReference.channelID, msg.messageReference.channelID);
-                    }
-                    replies_to = get_at(reply_msg.author);
-                }
-            }
-            return replies_to;
+        async function replies_at(msg: D.Message) {
+            return msg.reference ? (await msg.fetchReference()).author.tag : '';
         }
 
-        function get_attachment(msg: Eris.Message): string {
-            if (msg.attachments.length) {
-                for (let att of msg.attachments) {
-                    if (!/\.(webm|mp4)$/g.test(att.filename)) { // Img
+        function get_attachment(msg: D.Message): string {
+            if (msg.attachments.size) {
+                for (let [att_id, att] of msg.attachments) {
+                    if (att.name && !/\.(webm|mp4)$/g.test(att.name)) { // Img
                         return att.url;
                     }
                 }
             }
             if (msg.embeds.length) {
                 for (let embed of msg.embeds) {
-                    if (embed.type === 'image') {
-                        return embed.thumbnail?.url ?? '';
+                    if (embed.image) {
+                        return embed.image.url;
                     }
                 }
             }
             return '';
         }
 
-        function group_messages(msgs: Eris.Message[]): Eris.Message[][] {
-            let ret: Eris.Message[][] = [];
-            let cur: Eris.Message[] = [msgs[0]];
+        function group_messages(msgs: D.Message[]): D.Message[][] {
+            let ret: D.Message[][] = [];
+            let cur: D.Message[] = [msgs[0]];
             let last_user: string = msgs[0].author.id;
-            let last_time: number = msgs[0].timestamp;
+            let last_time: number = msgs[0].createdTimestamp;
             const time_diff = 1000 * 30; // 30 seconds
             let has_attachment: boolean = get_attachment(msgs[0]) !== '';
 
@@ -603,21 +613,21 @@ export class Bot {
                     cur = [msg];
                     has_attachment = get_attachment(msg) !== '';
                     last_user = msg.author.id;
-                    last_time = msg.timestamp;
+                    last_time = msg.createdTimestamp;
                     continue;
                 }
                 
                 // Same user
 
-                if (msg.timestamp > last_time + time_diff ) {
+                if (msg.createdTimestamp > last_time + time_diff ) {
                     ret.push(cur);
                     cur = [msg];
                     has_attachment = get_attachment(msg) !== '';
-                    last_time = msg.timestamp;
+                    last_time = msg.createdTimestamp;
                     continue;
                 }
 
-                last_time = msg.timestamp;
+                last_time = msg.createdTimestamp;
 
                 // In time
 
@@ -650,25 +660,26 @@ export class Bot {
             return;
         }
 
-        if (!(msg.channel instanceof Eris.TextChannel)) return; // No DMs
+        if (msg.channel instanceof D.DMChannel || msg.channel instanceof D.NewsChannel) return; // No DMs or... news... channels?
 
-        const emoji = add_extras ? emojis.repeat.fullName : emojis.repeat_one.fullName;
+        const emoji = add_extras ? emojis.repeat.asReaction : emojis.repeat_one.asReaction;
 
-        if ((msg.reactions[emoji] && msg.reactions[emoji].me) || this.message_locked(msg)) {
+        // TODO Message locking... huuuu...
+        if (msg.reactions.resolve(emoji)?.me || this.message_locked(msg)) {
             return; // If this messages has been pinned or is locked for pinning, cease
         }
 
         this.lock_message(msg);
-        await msg.addReaction(emoji);
+        await msg.react(emoji);
         this.add_cleanup_task(() => {
-            msg.removeReaction(emoji);
+            msg.reactions.resolve(emoji)?.users.remove(self.client.user!.id);
         }, 1000 * 60 * 30);
 
         const channel = msg.channel;
         const guild = channel.guild;
 
         const author = msg.author;
-        const author_member = guild.members.get(author.id);
+        const author_member = await guild.members.fetch(author.id);
 
         const months = [
             'Jan', 'Feb', 'Mar',
@@ -677,10 +688,7 @@ export class Bot {
             'Oct', 'Nov', 'Dec'
         ];
 
-        let context = (await this.client.getMessages(msg.channel.id, {
-            after: msg.id,
-            limit: 50
-        })).reverse();
+        let context = (await (msg.channel.messages.fetch({after: msg.id, limit: 50}))).array().reverse();
 
         context.unshift(msg);
 
@@ -706,7 +714,7 @@ export class Bot {
         tweet_text = clean_content(tweet_text);
         tweet_text = emojify(tweet_text);
 
-        let msg_time = new Date(msg.timestamp);
+        let msg_time = new Date(msg.createdTimestamp);
 
         let retweets = rb_(this.text.tweetEsotericAmountBefore, '', 0.2) || 
                         number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
@@ -716,19 +724,19 @@ export class Bot {
                         number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
         let any_numbers: boolean = retweets.length > 0 || quotes.length > 0 || likes.length > 0;
 
-        let verified = author_member !== undefined && // Member exists and 
+        let verified = author_member !== null && // Member exists and 
                         (!server.no_context_role ||   // Either this server has no context role or 
-                          author_member.roles.includes(server.no_context_role)); // This member has no context role
+                          author_member.roles.cache.has(server.no_context_role)); // This member has no context role
 
         console.log(verified);
 
         let tweet: TweetData = {
             theme: rb_(this.text.tweetTheme, 'dim', 2) as TweetTheme,
-            retweeter: rb_(this.text.tweetRetweeter, retweeter.username, 0.5),
-            avatar: author.avatarURL,
-            name: author_member?.nick ?? author.username,
+            retweeter: rb_(this.text.tweetRetweeter, retweeter.user.username, 0.5),
+            avatar: author.displayAvatarURL(),
+            name: author_member?.displayName ?? author.username,
             verified: verified,
-            at: get_at(author),
+            at: author.tag,
             replyTo: replies_to,
             tweetText: tweet_text,
             image: image,
@@ -752,10 +760,10 @@ export class Bot {
             for (let group of groups) {
                 let extra = group[0]; // First msg
                 const author = extra.author;
-                const author_member = guild.members.get(author.id);
+                const author_member = await guild.members.fetch(author.id);
 
                 let time_str = '';
-                const time_diff = new Date().getTime() - extra.timestamp;
+                const time_diff = new Date().getTime() - extra.createdTimestamp;
                 if (time_diff < 60 * 1000) {
                     time_str = `${Math.floor(time_diff / 1000) % 60}s`;
                 } else if (time_diff < 60 * 60 * 1000) {
@@ -763,7 +771,7 @@ export class Bot {
                 } else if (time_diff < 24 * 60 * 60 * 1000) {
                     time_str = `${Math.floor(time_diff / 1000 / 60 / 60) % 24}h`;
                 } else {
-                    const time = new Date(extra.timestamp);
+                    const time = new Date(extra.createdTimestamp);
                     time_str = `${time.getDate()} ${months[time.getMonth()]} ${time.getFullYear()}`;
                 }
 
@@ -794,13 +802,15 @@ export class Bot {
                 let likes = rb_(this.text.tweetEsotericAmount, '', 0.05) || 
                             number_to_twitter_text(random_tweet_number(), rb_(this.text.tweetAmountSymbol, '', 0.2));
 
-                let verified = (!!author_member && (!server.no_context_role || author_member.roles.includes(server.no_context_role)));
+                let verified = author_member !== null && // Member exists and 
+                    (!server.no_context_role ||   // Either this server has no context role or 
+                        author_member.roles.cache.has(server.no_context_role)); // This member has no context role
 
                 let extra_tweet: TweetMoreData = {
-                    avatar: author.avatarURL,
-                    name: rb_(this.text.tweetUsername, author_member?.nick ?? author.username, 0.2),
+                    avatar: author.displayAvatarURL(),
+                    name: rb_(this.text.tweetUsername, author_member?.displayName ?? author.username, 0.2),
                     verified: verified,
-                    at: get_at(author),
+                    at: author.tag,
                     time: rb_(this.text.tweetEsotericTime, time_str, 0.2),
                     replyTo: replies_to ? rb_(this.text.tweetExtraReply, replies_to, 0.2) : replies_to,
                     tweetText: rb_(this.text.tweetExtraText, tweet_text, 0.1),
@@ -816,14 +826,14 @@ export class Bot {
 
         let img = await createImage(tweet);
 
-        await msg.channel.createMessage({
-            messageReference: {
-                channelID: msg.channel.id,
-                messageID: msg.id
-            }
-        }, {
-            name: 'tweet.png',
-            file: img 
+        await msg.channel.send({
+            reply: {
+                messageReference: msg
+            },
+            files: [{
+                name: 'tweet.png', // TODO Funky funny hella names
+                attachment: img 
+            }]
         });
     }
 
@@ -831,33 +841,36 @@ export class Bot {
      * 
      * If `forced` is true the forced pin emoji is used  
      */
-    pin(msg: Eris.Message, forced: boolean = false) {
+    async pin(msg: D.Message, forced: boolean = false) {
         const server = botparams.servers.getServer(msg);
         if (!server || server.beta !== this.beta || !server.pin_channel) {
             return false;
         }
-        const pinchannel = server.pin_channel;
+        const pinchannel = await msg.guild?.channels.fetch(server.pin_channel);
+        if (!pinchannel || !pinchannel.isText()) {
+            console.error(`Attempted to pin ${msg.id} in channel ${server.pin_channel}`);
+            return;
+        }
         const icon = forced ? 
             'https://emojipedia-us.s3.amazonaws.com/thumbs/120/twitter/131/double-exclamation-mark_203c.png' : 
             'https://cdn.discordapp.com/emojis/263774481233870848.png';
         const r = Math.floor(Math.random() * 0x10) * 0x10;
         const g = Math.floor(Math.random() * 0x10) * 0x10;
         const b = Math.floor(Math.random() * 0x10) * 0x10;
-        const embed: Eris.Embed = {
-            type: 'rich',
+        const embed: D.MessageEmbedOptions = {
             color: r << 16 | g << 8 | b, // Randomized color :D
             author: {
                 name: `${msg.author.username}`,
-                icon_url: msg.author.dynamicAvatarURL("png", 128)
+                iconURL: msg.author.displayAvatarURL({format: 'png', size: 128})
             },
             // thumbnail: {
             //     url: msg.author.dynamicAvatarURL("png", 128)
             // },
             description: `${msg.content}`,
-            timestamp: new Date(msg.timestamp).toISOString(),
+            timestamp: msg.createdTimestamp,
             footer: {
                 text: `${msg.id} - ${msg.channel.id}`,
-                icon_url: icon
+                iconURL: icon
             }
         };
         const guild_id = server.id;
@@ -865,9 +878,9 @@ export class Bot {
         const message_id = msg.id;
         const url = `https://canary.discordapp.com/channels/${guild_id}/${channel_id}/${message_id}`;
         let desc = `[Click to teleport](${url})`;
-        if(msg.attachments && msg.attachments.length){
-            const attachment = msg.attachments[0];
-            const embedtype: 'video' | 'image' = /\.(webm|mp4)$/g.test(attachment.filename) ? 'video' : 'image';
+        if(msg.attachments?.size){
+            const attachment = msg.attachments.array()[0];
+            const embedtype: 'video' | 'image' = /\.(webm|mp4)$/g.test(attachment.name ?? '') ? 'video' : 'image';
             embed[embedtype] = {
                 url: attachment.url
             };
@@ -881,7 +894,6 @@ export class Bot {
                 embed.video = nembed.video; 
                 desc = `[Click to go to video](${url})`;
             }
-            if (nembed.thumbnail) { embed.thumbnail = nembed.thumbnail; }
             if (nembed.image) { embed.image = nembed.image; }
         }
         if(!embed.description) {
@@ -892,47 +904,59 @@ export class Bot {
                 "value": desc
             }];
         }
-        this.client.createMessage(pinchannel, { embed: embed });
+        pinchannel.send({ embeds: [embed] });
         return true;
     }
 
     /** Attempts to steal a puzzle clue */
-    async maybe_steal(msg: Eris.Message, user: Eris.User) {
-        if (!msg.reactions[emojis.devil.fullName].me ||
-            this.message_locked(msg)) {
+    async maybe_steal(msg: D.Message, user: D.User) {
+        // TODO Change stealing with fancy buttons
+        if (!msg.reactions.resolve(emojis.devil.asReaction)?.me || this.message_locked(msg)) {
             return;
         }
 
         this.lock_message(msg);
-        const content = msg.content!;
-        await msg.removeReaction(emojis.devil.fullName);
+        const content = msg.content;
+        await msg.reactions.resolve(emojis.devil.asReaction)?.users.remove(this.client.user!.id);
         await msg.edit(`${rb_(this.text.puzzleSteal, 'Stolen')} by ${user.username}`);
 
-        (await user.getDMChannel()).createMessage(content);
+        (await user.createDM()).send(content);
         this.db.addClueSteal(msg, user);
         this.add_cleanup_task(() => msg.delete(), 1000 * 5 * 60);
     }
 
     /** Attempts to add a message to the no-context channel */
-    async tryRemoveContext(msg: Eris.Message, server: Server) {
-        const channel = server.no_context_channel;
+    async maybe_remove_context(msg: D.Message) {
+        const server = botparams.servers.getServer(msg);
+        if (!msg.guild || !server || server.beta !== this.beta || !server.no_context_channel) {
+            return false;
+        }
+        const channel = await this.client.channels.fetch(server.no_context_channel);
+
+        if (!channel?.isText()) {
+            return false;
+        }
 
         // TODO Variable msgcontent length and chance?
-        if (channel && msg.cleanContent && msg.cleanContent.length <= 280 && !msg.attachments.length) {
+        if (msg.cleanContent && msg.cleanContent.length <= 280) {
             // Post the message to the no-context channel
-            this.client.createMessage(channel, msg.cleanContent);
+            channel.send({
+                content: msg.cleanContent,
+                files: msg.attachments.array()
+            });
             this.transferXp(xp.secondsOfXp(60 * 60), null, msg.author, xpTransferReason.NoContext);
             if (server.no_context_role) {
+                let role = msg.guild.roles.cache.get(server.no_context_role)!;
                 // Shuffle the no-context role
-                for (let [_, member] of (msg.channel as Eris.TextChannel).guild.members) {
+                for (let [_, member] of msg.guild.members.cache) {
                     if (member.id === msg.author.id) {
-                        member.addRole(server.no_context_role);
-                    } else if (member.roles.includes(server.no_context_role)) {
-                        member.removeRole(server.no_context_role);
+                        member.roles.add(role);
+                    } else if (member.roles.cache.has(role.id)) {
+                        member.roles.remove(role);
                     }
                 }
                 randFromFile('nocontext.txt', 'No context', function(name) {
-                    (msg.channel as Eris.TextChannel).guild.roles.get(server.no_context_role)?.edit({name: name});
+                    role.edit({name: name});
                 });
 
                 // TODO If variable chance, variable chance here too?
@@ -946,7 +970,7 @@ export class Bot {
     /** Connects the client */
     async connect() {
         this.loadText();
-        this.client.connect();
+        this.client.login(this.token);
     }
 
     /** Disconnects the client and cleans up */
@@ -961,16 +985,16 @@ export class Bot {
             await this.run_cleanup(true);
 
             // Reset nickname
-            for (let [guild_id, guild] of this.client.guilds) {
+            for (let [guild_id, guild] of this.client.guilds.cache) {
                 const server = botparams.servers.ids[guild_id];
                 if (!server || this.beta !== server.beta) {
                     continue;
                 }
 
                 if (server.nickname) {
-                    await guild.editNickname(server.nickname);
+                    await guild.me?.setNickname(server.nickname);
                 } else {
-                    await guild.editNickname(this.client.user.username);
+                    await guild.me?.setNickname(null);
                 }
             }
 
@@ -978,7 +1002,7 @@ export class Bot {
             console.log('Error while quitting: ', e);
         } finally {
             // Do not reconnect
-            this.client.disconnect({reconnect: false});
+            this.client.destroy();
             this.db.close();
         }
     }

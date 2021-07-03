@@ -1,4 +1,4 @@
-import Eris from 'eris';
+import { GuildMember, User, TextChannel, Role, Message, Snowflake } from 'discord.js';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -55,9 +55,9 @@ type Arg = StringArg | NumberArg | UserArg | ChannelArg | RoleArg | BigIntArg | 
 type DeArg<T extends Arg> = 
     (T extends StringArg ? string :
     T extends NumberArg ? number :
-    T extends UserArg ? Eris.Member : 
-    T extends ChannelArg ? Eris.Channel :
-    T extends RoleArg ? Eris.Role : 
+    T extends UserArg ? GuildMember : 
+    T extends ChannelArg ? TextChannel :
+    T extends RoleArg ? Role : 
     T extends BigIntArg ? bigint :
     T extends RestArg ? string : never) | undefined;
 
@@ -90,7 +90,7 @@ export function arg(type: argType, value: any = null): Arg {
     };
 }
 
-export function parseArgs<T extends Arg[]>(msg: Eris.Message, ...args: T): [...DeArgs<T>]{
+export function parseArgs<T extends Arg[]>(msg: Message, ...args: T): [...DeArgs<T>]{
     type Return = [...DeArgs<T>];
 
     const ret: [...any[]] = []; 
@@ -118,8 +118,9 @@ export function parseArgs<T extends Arg[]>(msg: Eris.Message, ...args: T): [...D
             case argType.user: {
                 const regex_res = /<@!?([0-9]+?)>/.exec(inspected);
                 if (regex_res && regex_res[1]) {
-                    if ((msg.channel as Eris.TextChannel).guild.members.get(regex_res[1])) {
-                        ret.push((msg.channel as Eris.TextChannel).guild.members.get(regex_res[1]));
+                    let member = (msg.channel as TextChannel).guild.members.resolve(regex_res[1] as Snowflake);
+                    if (member) {
+                        ret.push(member);
                         break;
                     }
                 }
@@ -128,8 +129,9 @@ export function parseArgs<T extends Arg[]>(msg: Eris.Message, ...args: T): [...D
             case argType.channel: {
                 const regex_res = /<#([0-9]+?)>/.exec(inspected);
                 if (regex_res && regex_res[1]) {
-                    if ((msg.channel as Eris.TextChannel).guild.channels.get(regex_res[1])) {
-                        ret.push((msg.channel as Eris.TextChannel).guild.channels.get(regex_res[1]));
+                    let channel = (msg.channel as TextChannel).guild.channels.resolve(regex_res[1] as Snowflake);
+                    if (channel) {
+                        ret.push(channel);
                         break;
                     }
                 }
@@ -138,8 +140,9 @@ export function parseArgs<T extends Arg[]>(msg: Eris.Message, ...args: T): [...D
             case argType.role: {
                 const regex_res = /<@\&([0-9]+?)>/.exec(inspected);
                 if (regex_res && regex_res[1]) {
-                    if ((msg.channel as Eris.TextChannel).guild.roles.get(regex_res[1])) {
-                        ret.push((msg.channel as Eris.TextChannel).guild.roles.get(regex_res[1]));
+                    let role = (msg.channel as TextChannel).guild.roles.resolve(regex_res[1] as Snowflake);
+                    if (role) {
+                        ret.push(role);
                         break;
                     }
                 }
@@ -244,7 +247,7 @@ export function randomCode(): string {
     return mask.slice(0, len).join('');
 }
 
-export function fullName(user: Eris.User): string {
+export function fullName(user: User): string {
     return `${user.username}#${user.discriminator}`
 }
 

@@ -1,22 +1,23 @@
-import Eris from 'eris';
+import * as D from 'discord.js';
 
+// TODO This has to go
 export class Server {
-    id: string;
+    id: D.Snowflake;
     beta: boolean;
     nickname: string;
 
-    allowed_channels: Array<string>;
-    allowed_channels_listen: Array<string>;
+    allowed_channels: Array<D.Snowflake>;
+    allowed_channels_listen: Array<D.Snowflake>;
     
-    pin_channel: string;
+    pin_channel: D.Snowflake | null;
     pin_amount: number;
     
-    no_context_channel: string;
-    no_context_role: string;
+    no_context_channel: D.Snowflake | null;
+    no_context_role: D.Snowflake | null;
 
-    puzzle_channel: string;
+    puzzle_channel: D.Snowflake | null;
 
-    constructor(id: string, obj: Partial<Server>) {
+    constructor(id: D.Snowflake, obj: Partial<Server>) {
         this.id = id;
         this.beta = obj.beta || false;
         this.nickname = obj.nickname || '';
@@ -24,26 +25,20 @@ export class Server {
         this.allowed_channels = obj.allowed_channels || [];
         this.allowed_channels_listen = obj.allowed_channels_listen || [];
         
-        this.pin_channel = obj.pin_channel || '';
+        this.pin_channel = obj.pin_channel || null;
         this.pin_amount = obj.pin_amount || 3; // Default pin amount is 3
         
-        this.no_context_channel = obj.no_context_channel || '';
-        this.no_context_role = obj.no_context_role || '';
+        this.no_context_channel = obj.no_context_channel || null;
+        this.no_context_role = obj.no_context_role || null;
 
-        this.puzzle_channel = obj.puzzle_channel || '';
+        this.puzzle_channel = obj.puzzle_channel || null;
     }
 
-    allowed(msg: Eris.Message): boolean {
-        if (!msg || !msg.channel) {
-            return false;
-        }
+    allowed(msg: D.Message): boolean {
         return this.allowed_channels.includes(msg.channel.id);
     }
 
-    allowedListen(msg: Eris.Message): boolean {
-        if (!msg || !msg.channel) {
-            return false;
-        }
+    allowedListen(msg: D.Message): boolean {
         return this.allowed_channels_listen.includes(msg.channel.id);
     }
 }
@@ -59,9 +54,17 @@ export class Emoji {
         this.animated = animated;
     }
 
-    get fullName(): string {
+    get asReaction(): string {
         if (this.id) {
-            return `${this.name}:${this.id}`;
+            return `${this.id}`;
+        } else {
+            return this.name;
+        }
+    }
+
+    get asContent(): string {
+        if (this.id) {
+            return `${this.animated ? 'a:' : ''}${this.name}:${this.id}`
         } else {
             return this.name;
         }
@@ -75,9 +78,9 @@ type BotParams = {
         ids: {
             [key: string]: Server
         },
-        getServer: (msg: Eris.Message) => Server | undefined
+        getServer: (msg: D.Message) => Server | undefined
     },
-    owner: string
+    owner: D.Snowflake
 };
 
 export const botparams: BotParams = {
@@ -136,11 +139,11 @@ export const botparams: BotParams = {
                 pin_channel: '822930237418504312',
             })
         },
-        getServer(msg: Eris.Message): Server | undefined {
-            if(!(msg?.channel as Eris.TextChannel)?.guild) {
+        getServer(msg: D.Message): Server | undefined {
+            if(!msg.guild) {
                 return undefined;
             }
-            return this.ids[(msg.channel as Eris.TextChannel).guild.id];
+            return this.ids[msg.guild.id];
         }
     },
     owner: '120881455663415296' // Sergiovan#0831

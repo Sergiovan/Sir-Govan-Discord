@@ -1,4 +1,4 @@
-import Eris from 'eris';
+import * as D from 'discord.js';
 
 import * as db from './db';
 
@@ -64,7 +64,8 @@ export class DBWrapper {
     }
 
     private proxify<T extends db.DBName, U extends db.DBRecord<T>>(table: T, data: U): Committable<U> {
-        return new Proxy(data, new DBProxy(table, data.rowid, this.db)) as Committable<U>;
+        // The casts work because Committable<U> is stricter than ProxyHandler<U> and won't let the lax typing slip
+        return new Proxy(data, new DBProxy(table, data.rowid, this.db) as ProxyHandler<U>) as Committable<U>;
     }
 
     private async add<T extends db.DBName>(table: T, data: Partial<db.DBRecord<T>>) {
@@ -76,16 +77,16 @@ export class DBWrapper {
 
     async getAllUsers(): Promise<Committable<db.User>[]> {
         return (await this.db.get('users', {}))
-            .map((e) => new Proxy(e, new DBProxy('users', e.rowid, this.db)) as Committable<db.User>);
+            .map((e: db.DBRecord<'users'>) => new Proxy(e, new DBProxy('users', e.rowid, this.db)) as Committable<db.User>);
     }
 
-    async addUser(user: Eris.User, member: number, uninterested: number, nickname: string | null = null): JustProxy<db.User> {
+    async addUser(user: D.User, member: number, uninterested: number, nickname: string | null = null): JustProxy<db.User> {
         const data: Partial<db.User> = {
             id: user.id,
             name: user.username,
             discriminator: user.discriminator,
             nickname: nickname,
-            avatar: user.avatar ? user.avatarURL : user.defaultAvatarURL,
+            avatar: user.avatar ? user.avatarURL()! : user.defaultAvatarURL,
             xp: 0,
             xp_total: 0,
             level: 0,
@@ -96,11 +97,11 @@ export class DBWrapper {
         return this.add('users', data);
     }
 
-    async getUser(user: Eris.User): MaybeProxy<db.User>;
-    async getUser(user: string): MaybeProxy<db.User>;
-    async getUser(user: Eris.User | string): MaybeProxy<db.User> {
-        let id: string;
-        if (user instanceof Eris.User) {
+    async getUser(user: D.User): MaybeProxy<db.User>;
+    async getUser(user: D.Snowflake): MaybeProxy<db.User>;
+    async getUser(user: D.User | D.Snowflake): MaybeProxy<db.User> {
+        let id: D.Snowflake;
+        if (user instanceof D.User) {
             id = user.id;
         } else {
             id = user;
@@ -127,7 +128,7 @@ export class DBWrapper {
         }
     }
 
-    async addClue(puzzle: string, msg: Eris.Message): JustProxy<db.Clue> {
+    async addClue(puzzle: string, msg: D.Message): JustProxy<db.Clue> {
         const puzzle_data = await this.getPuzzle(puzzle);
         if (!puzzle_data) {
             throw Error(`Puzzle ${puzzle} doesn't exist in database`);
@@ -141,7 +142,7 @@ export class DBWrapper {
         return this.add('clues', data);
     }
 
-    async getClue(msg: Eris.Message) {
+    async getClue(msg: D.Message) {
         const obj = await this.db.getFirst('clues', {message_id: msg.id});
         if (obj) {
             return this.proxify('clues', obj);
@@ -150,7 +151,7 @@ export class DBWrapper {
         }
     }
 
-    async addClueSteal(msg: Eris.Message, user: Eris.User) {
+    async addClueSteal(msg: D.Message, user: D.User) {
         const clue_data = await this.getClue(msg);
         if (!clue_data) {
             throw Error(`Clue for message ${msg.id} does not exist in database`);
@@ -169,7 +170,7 @@ export class DBWrapper {
         return this.add('clue_steals', data);
     }
 
-    async transferXP(from: Eris.User | null, to: Eris.User | null, amount: number, reason: number) {
+    async transferXP(from: D.User | null, to: D.User | null, amount: number, reason: number) {
         if (!from && !to) {
             throw new Error("Cannot have XP transaction without users");
         }

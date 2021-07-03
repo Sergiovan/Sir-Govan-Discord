@@ -1,4 +1,4 @@
-import Eris from 'eris';
+import * as D from 'discord.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as util from 'util';
@@ -7,43 +7,45 @@ import { Bot } from './bot';
 
 import { botparams, argType, emojis } from '../defines';
 import { arg, parseArgs, randomBigInt, rb_ } from '../utils';
+import { setFlagsFromString } from 'v8';
 
-export type CommandFunc = (msg: Eris.Message) => void;
+export type CommandFunc = (msg: D.Message) => void;
 
 /** Stores all commands as functions */
+// TODO :)
 export const cmds: { [key: string]: CommandFunc } = {
     /** Kills the bot. Only I can use it though, no nonsense */
-    die(this: Bot, msg: Eris.Message) {
+    die(this: Bot, msg: D.Message) {
         if (msg.author.id === botparams.owner) {
             this.die();
         }
     },
 
     /** Debug command to check the status of the bot */
-    status(this: Bot, msg: Eris.Message) {
+    status(this: Bot, msg: D.Message) {
         if (msg.author.id === botparams.owner) {
             console.log(util.inspect(this, true, 5, true));
         }
     },
 
     /** Obligatory ping command */
-    ping(this: Bot, msg: Eris.Message) {
+    ping(this: Bot, msg: D.Message) {
         this.reply(msg, "Pong", this.text.ping);
     },
 
     /** Ping but it sends you a DM */
-    pingDM(this: Bot, msg: Eris.Message) {
+    pingDM(this: Bot, msg: D.Message) {
         this.replyDM(msg, "Pong", this.text.ping);
     },
 
     /** Rolls an n-sided dice */
-    roll(this: Bot, msg: Eris.Message) {
+    roll(this: Bot, msg: D.Message) {
         let [num] = parseArgs(msg, arg(argType.bigint, 20n));
         this.reply(msg, `${randomBigInt(num, 1n)}${rb_(this.text.roll, "")}`);
     },
 
     /** Changes a user's unique role color */
-    color(this: Bot, msg: Eris.Message) {
+    color(this: Bot, msg: D.Message) {
         let [color] = parseArgs(msg, arg(argType.string, `${Math.floor(Math.random() * 0x1000000)}`));
         if (!color) {
             this.reply(msg, "Missing color parameter. Please provide me with a hex number", this.text.colorNoColor);
@@ -55,21 +57,20 @@ export const cmds: { [key: string]: CommandFunc } = {
                 return; // Not in a server
             }
             let member = msg.member;
-            let guild = (msg.channel as Eris.TextChannel).guild;
-            let roles = guild.roles;
-            // TODO Filter out colorless roles
-            let user_roles = roles.filter((role) => member.roles.includes(role.id) || false);
+            let guild = (msg.channel as D.TextChannel).guild;
+
+            let user_roles = member.roles.cache.filter(role => !!role.color);
             user_roles.sort((a, b) => b.position - a.position);
 
             // Edit the first unique role
-            for (let role of user_roles) {
-                if (guild.members.find((usr) => usr.id !== member.id && usr.roles.includes(role.id))) {
+            for (let [role_id, role] of user_roles) {
+                if (guild.members.cache.find((usr) => usr.id !== member.id && usr.roles.cache.has(role_id))) {
                     continue;
                 }
-                role.edit({color: number});
-                break;
+                role.setColor(number);
+                return;
             }
-
+            this.reply(msg, "It seems like you have no valid role to color");
         } else if (Number.isNaN(number)) {
             this.reply(msg, "That's not a valid color hex. Give me a valid hex, like #C0FFEE or #A156F2", this.text.colorNaN);
         } else if (!Number.isFinite(number)) {
@@ -83,13 +84,13 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     /** Gives the current no-context role in use */
-    role(this: Bot, msg: Eris.Message) {
+    role(this: Bot, msg: D.Message) {
         let server = botparams.servers.getServer(msg);
-        if (!server) {
+        if (!msg.guild || !server) {
             return;
         }
         if (server.no_context_role) {
-            let rolename = (msg.channel as Eris.TextChannel).guild.roles.get(server.no_context_role)?.name;
+            let rolename = msg.guild.roles.resolve(server.no_context_role)?.name;
             if (!rolename) {
                 console.log(`The no context role ${server.no_context_role} doesn't exist in ${server.id}`.red);
                 return;
@@ -108,7 +109,7 @@ export const cmds: { [key: string]: CommandFunc } = {
                 // TODO Textify shiny reply
                 rolename += index === -1 ? "\nNote: This role does not exist anymore. It's a shiny!" : "";
                 let index_str = index === -1 ? 'NaN' : `${index+1}/${total}`;
-                self.client.createMessage(msg.channel.id, `${index_str}: ${rolename}`);
+                msg.channel.send(`${index_str}: ${rolename}`);
             });
         } else {
             // Very niche, sleep well
@@ -117,9 +118,9 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     /** Forcefully pin something into hall-of-fame */
-    async pin(this: Bot, msg: Eris.Message) { 
+    async pin(this: Bot, msg: D.Message) { 
         let server = botparams.servers.getServer(msg);
-        if (!server) {
+        if (!msg.guild || !server) {
             return; // Invalid
         }
         if (!server.pin_channel) {
@@ -131,17 +132,16 @@ export const cmds: { [key: string]: CommandFunc } = {
         let [messageID] = parseArgs(msg, arg(argType.string));
         if (messageID) {
             let success = false;
-            for (let elem of (msg.channel as Eris.TextChannel).guild.channels) {
-                let [_, channel] = elem;
-                if (server.allowed_channels_listen.includes(channel.id)) { // The message given is in a channel the bot can listen to
+            for (let [channel_id, channel] of msg.guild.channels.cache) {
+                if (channel.isText() && server.allowed_channels_listen.includes(channel_id)) { // The message given is in a channel the bot can listen to
                     try {
-                        let msg = await (channel as Eris.TextChannel).getMessage(messageID as string);
-                        if (msg.reactions[emojis.pushpin.fullName] && msg.reactions[emojis.pushpin.fullName].me) {
-                            self.client.createMessage(thischannel.id, rb_(self.text.pinAlreadyPinned, "That message is already pinned"));
+                        let msg = await channel.messages.fetch(messageID as D.Snowflake);
+                        if (msg.reactions.resolve(emojis.pushpin.asReaction)?.me) {
+                            thischannel.send(rb_(self.text.pinAlreadyPinned, "That message is already pinned"));
                             return;
                         }
-                        msg.addReaction(emojis.pushpin.fullName);
-                        self.pin(msg, true);
+                        msg.react(emojis.pushpin.asReaction);
+                        await self.pin(msg, true);
                         success = true;
                         break;
                     } catch (err) {
@@ -158,23 +158,23 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     /** Gives help and info relating to the puzzle */
-    puzzle(this: Bot, msg: Eris.Message) {
-        msg.channel.createMessage(this.puzzleHelp());
+    puzzle(this: Bot, msg: D.Message) {
+        this.reply(msg, this.puzzleHelp());
     },
 
     /** Pauses the puzzle, meaning no new clues will drop */
-    puzzle_pause(this: Bot, msg: Eris.Message) {
+    puzzle_pause(this: Bot, msg: D.Message) {
         if (msg.author.id === botparams.owner) {
             if (this.puzzler.togglePaused()) {
-                msg.channel.createMessage(`Puzzle has been stopped`);
+                msg.channel.send(`Puzzle has been stopped`);
             } else {
-                msg.channel.createMessage(`Puzzle has been resumed`);
+                msg.channel.send(`Puzzle has been resumed`);
             }
         }
     },
 
     /** Checks if the argument is the solution to the puzzle without actually using it */
-    check(this: Bot, msg: Eris.Message) {
+    check(this: Bot, msg: D.Message) {
         let [answer] = parseArgs(msg, arg(argType.string));
         if (answer) {
             if (this.puzzler.checkAnswer(answer as string)) {
@@ -189,7 +189,7 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     /** Reloads the text instanct of the bot. Useful if the text is changed while the bot is still running */
-    async reload_text(this: Bot, msg: Eris.Message) {
+    async reload_text(this: Bot, msg: D.Message) {
         if (msg.author.id === botparams.owner) {
             let [res, err] = await this.loadText();
             if (res) {
@@ -201,7 +201,7 @@ export const cmds: { [key: string]: CommandFunc } = {
     },
 
     /** ??? */
-    // steal(this: Bot, msg: Eris.Message) {
+    // steal(this: Bot, msg: D.Message) {
     //     let first_reply = rb_(this.text.stealFirst, '');
     //     if (first_reply.length) {
     //         this.reply(msg, first_reply);
@@ -217,7 +217,7 @@ export const aliases: { [key: string]: CommandFunc } = {
 /** Holds all commands that can only be ran if the bot is in beta mode */
 export const beta_cmds: { [key: string]: CommandFunc} = {
     /** Gives debug info for the message that calls this command */
-    debug(this: Bot, msg: Eris.Message) {
+    debug(this: Bot, msg: D.Message) {
         console.log(util.inspect(msg, true, 5, true));
     },
 
@@ -225,7 +225,7 @@ export const beta_cmds: { [key: string]: CommandFunc} = {
     __die: cmds.die,
 
     /** Forces a clue to be posted */
-    post_clue(this: Bot, msg: Eris.Message) {
+    post_clue(this: Bot, msg: D.Message) {
         let server = botparams.servers.getServer(msg);
         if (!server || server.beta !== this.beta || msg.author.id !== botparams.owner || !server.puzzle_channel) {
             return;
