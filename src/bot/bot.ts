@@ -11,7 +11,7 @@ import { cmds, aliases, beta_cmds } from './commands';
 import { listeners, fixed_listeners, ListenerFunction } from './listeners';
 
 import { botparams, emojis, Emoji, Server, xpTransferReason } from '../defines';
-import { randFromFile, RarityBag, rb_ } from '../utils';
+import { randFromFile, RarityBag, rb_, Logger } from '../utils';
 
 import { Persist } from '../data/persist';
 import { DBWrapper, DBUserProxy } from '../data/db_wrapper';
@@ -85,7 +85,7 @@ export class Bot {
         this.storage = new Persist(storage_location);
         this.storage.init().then(() => {
             this.load().catch(function(e) {
-                console.log('Could not load data from file: ', e);
+                Logger.error('Could not load data from file: ', e);
             }).finally(async function() { 
                 self.startClues(); // After it's loaded we start the puzzle
             });
@@ -97,7 +97,8 @@ export class Bot {
         let event: keyof D.ClientEvents;
         for (event in fixed_listeners) {
             this.client.removeAllListeners(event);
-            let func: ListenerFunction = listeners[event]!;
+            if (!fixed_listeners[event]) continue;
+            let func: ListenerFunction = fixed_listeners[event]!;
             this.client.on(event, func.bind(this));
         }
     }
@@ -107,6 +108,7 @@ export class Bot {
         let event: keyof D.ClientEvents;
         for (event in listeners) {
             this.client.removeAllListeners(event);
+            if (!listeners[event]) continue;
             let func: ListenerFunction = listeners[event]!;
             this.client.on(event, func.bind(this));
         }
@@ -183,7 +185,7 @@ export class Bot {
                     await fn();
                 } catch (e) {
                     // Don't rethrow pls
-                    console.log('npm double SIGINT bug?: ', e);
+                    Logger.error('npm double SIGINT bug?: ', e);
                 } finally {
                     this.cleanup_list.splice(i, 1);
                 }
@@ -264,7 +266,7 @@ export class Bot {
                 task
             ]);
         } else {
-            console.log('Forced task through');
+            Logger.debug('Forced task through');
             task();
         }
     }
@@ -298,8 +300,8 @@ export class Bot {
 
             return [true, null];
         } catch (e) {
-            console.error(e);
-            console.log('Could not reload text');
+            Logger.error(e);
+            Logger.error('Could not reload text');
             return [false, e];
         };
     }
@@ -307,7 +309,6 @@ export class Bot {
     /** Begin the puzzle */
     async startClues() {
         const text = `${this.beta ? 'Beta message! ' : ''}${this.puzzler.startClues()}`;
-        console.log(text);
         this.tellTheBoss(text); // This will not do anything if we're not connected by this point
 
         // Loads the latest from the database, or creates a new one
@@ -329,18 +330,18 @@ export class Bot {
     async postClue(channel: D.Snowflake, forced: boolean = false) {
         let chn = this.client.channels.resolve(channel);
         if (!chn?.isText()) {
-            console.error(`Tried to post clue in invalid channel ${channel}`);
+            Logger.error(`Tried to post clue in invalid channel ${channel}`);
             return;
         }
         
-        console.log('Posting clue');
+        Logger.debug('Posting clue');
         let clue: string | null;
 
         try {
             clue = this.puzzler.getClue(forced);
         } catch (e) {
             this.tellTheBoss(e.message);
-            console.error(e.message);
+            Logger.error(e.message);
             return;
         }
 
@@ -351,13 +352,13 @@ export class Bot {
         let msg = await chn.send(rb_(this.text.puzzleGenerating, 'Generating clue...'));
 
         const text = `#${this.puzzler.clue_count}: \`${clue}\`. Puzzle ID is \`${this.puzzler.puzzle_id}\``;
-        console.log(`Clue: ${text}`);
+        Logger.debug(`Clue: ${text}`);
 
         // TODO Funky buttons?
         setTimeout(async () => {
             msg = await msg.edit(text);
             await this.db.addClue(this.puzzler.puzzle_id, msg);
-            await msg.react(emojis.devil.asReaction);
+            await msg.react(emojis.devil.toString());
         }, 2500);
     }
 
@@ -378,7 +379,7 @@ export class Bot {
             await this.tellTheBoss(`${user.username} (${user.id}) got it!`);
 
             // Start a new puzzle in an hour
-            setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
+            this.client.setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
 
             const puzzle = await this.db.getPuzzle(id);
             if (puzzle && this.users[user.id]) {
@@ -464,6 +465,22 @@ export class Bot {
         return text;
     }
 
+    async randomize_self() {
+        let promises = [];
+        for (let [guild_id, guild] of this.client.guilds.cache) {
+            const server = botparams.servers.ids[guild_id];
+            if (!server || this.beta !== server.beta) {
+                continue;
+            }
+            const new_nick = rb_(this.text.nickname, server.nickname || 'Sir Govan') + (this.beta ? ' (β)' : '');
+            if (!guild.me) {
+                continue;
+            }
+            promises.push(guild.me.setNickname(new_nick));
+        }
+        return promises;
+    }
+
     /** Writes a message on the same channel as `msg`
      * 
      * NOTE: Does not use inline replies!! 
@@ -480,7 +497,7 @@ export class Bot {
 
     /** Writes me, Sergiovan, a DM */
     async tellTheBoss(what: string) {
-        console.log(`${'[BOSS]'.cyan} ${what}`);
+        Logger.debug(`${'[BOSS]'.cyan} ${what}`);
         const ch = this.owner?.dmChannel ?? await this.owner?.createDM();
         return ch?.send(what);
     }
@@ -498,18 +515,18 @@ export class Bot {
 
         // Do not pin messages where I've already reacted
         // TODO This doesn't work...
-        if ((msg.reactions.resolve(emojis.pushpin.asReaction)?.me) || this.message_locked(msg)) {
+        if ((msg.reactions.resolve(emojis.pushpin.toString())?.me) || this.message_locked(msg)) {
             return; // If this messages has been pinned or is locked for pinning, cease
         }
 
-        let reactionaries = await msg.reactions.resolve(emoji.asReaction)?.users.fetch();
+        let reactionaries = await msg.reactions.resolve(emoji.toString())?.users.fetch();
         if (!reactionaries) return; // ???
 
         // At least `server.pin_amount` pins that are not the author or bots
         if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.pin_amount){
             //We pin that shit!
             this.lock_message(msg); // TODO huuuuu
-            await msg.react(emojis.pushpin.asReaction);
+            await msg.react(emojis.pushpin.toString());
             this.pin(msg);
         }
     }
@@ -662,7 +679,7 @@ export class Bot {
 
         if (msg.channel instanceof D.DMChannel || msg.channel instanceof D.NewsChannel) return; // No DMs or... news... channels?
 
-        const emoji = add_extras ? emojis.repeat.asReaction : emojis.repeat_one.asReaction;
+        const emoji = add_extras ? emojis.repeat.toString() : emojis.repeat_one.toString();
 
         // TODO Message locking... huuuu...
         if (msg.reactions.resolve(emoji)?.me || this.message_locked(msg)) {
@@ -727,8 +744,6 @@ export class Bot {
         let verified = author_member !== null && // Member exists and 
                         (!server.no_context_role ||   // Either this server has no context role or 
                           author_member.roles.cache.has(server.no_context_role)); // This member has no context role
-
-        console.log(verified);
 
         let tweet: TweetData = {
             theme: rb_(this.text.tweetTheme, 'dim', 2) as TweetTheme,
@@ -848,7 +863,7 @@ export class Bot {
         }
         const pinchannel = await msg.guild?.channels.fetch(server.pin_channel);
         if (!pinchannel || !pinchannel.isText()) {
-            console.error(`Attempted to pin ${msg.id} in channel ${server.pin_channel}`);
+            Logger.error(`Attempted to pin ${msg.id} in channel ${server.pin_channel}`);
             return;
         }
         const icon = forced ? 
@@ -911,13 +926,13 @@ export class Bot {
     /** Attempts to steal a puzzle clue */
     async maybe_steal(msg: D.Message, user: D.User) {
         // TODO Change stealing with fancy buttons
-        if (!msg.reactions.resolve(emojis.devil.asReaction)?.me || this.message_locked(msg)) {
+        if (!msg.reactions.resolve(emojis.devil.toString())?.me || this.message_locked(msg)) {
             return;
         }
 
         this.lock_message(msg);
         const content = msg.content;
-        await msg.reactions.resolve(emojis.devil.asReaction)?.users.remove(this.client.user!.id);
+        await msg.reactions.resolve(emojis.devil.toString())?.users.remove(this.client.user!.id);
         await msg.edit(`${rb_(this.text.puzzleSteal, 'Stolen')} by ${user.username}`);
 
         (await user.createDM()).send(content);
@@ -999,7 +1014,7 @@ export class Bot {
             }
 
         } catch (e) {
-            console.log('Error while quitting: ', e);
+            Logger.error('Error while quitting: ', e);
         } finally {
             // Do not reconnect
             this.client.destroy();

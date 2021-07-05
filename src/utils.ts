@@ -1,5 +1,8 @@
 import { GuildMember, User, TextChannel, Role, Message, Snowflake } from 'discord.js';
 
+import 'colors';
+
+import * as util from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -180,7 +183,7 @@ export async function sleep(ms: number) {
 export function randFromFile(filename: string, def: string, cb: (s: string) => void) {
     fs.readFile(path.join('data', filename), "utf8", function(err, data) {
         if(err) {
-            console.log(`Error detected: ${err}`);
+            Logger.error(`Error detected: ${err}`);
             cb(def);
         } else {
             const lines = data.trim().split('\n');
@@ -361,3 +364,75 @@ export class RarityBag {
 }
 
 export const rb_ = RarityBag.pickOrDefault;
+
+export class Logger {
+    static readonly INFO    = 'INFO   '.cyan;
+    static readonly DEBUG   = 'DEBUG  '.green;
+    static readonly WARNING = 'WARNING'.yellow;
+    static readonly ERROR   = 'ERROR  '.red;
+    static readonly INSPECT = 'INSPECT'.white;
+    static readonly padding_len = 14 + 2 + 7 + 1;
+    static readonly padding = '\n' + ' '.repeat(Logger.padding_len);
+    static #previous_day: number = -1;
+
+    static #time(): string {
+        const now = new Date();
+        if (this.#previous_day !== now.getDate()) {
+            const day = `${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}`;
+            const str = `~~~ ${day} ~~~`;
+            this.#to_stdout(str);
+            this.#to_stderr(str);
+            this.#previous_day = now.getDate();
+        }
+        return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}` +
+               `:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}]`;
+    }
+
+    static #stringify(args: any[]): string {
+        return args.map(o => o['toString'] ? o.toString() as string : o as string).join(', ');
+    }
+    
+    static #to_stdout(str: string): void {
+        console.log(str);
+    }
+
+    static #to_stderr(str: string): void {
+        console.error(str);
+    }
+
+    static info(...args: any[]): void {
+        let str = this.#stringify(args);
+        const prefix = `${this.#time()}[${this.INFO}] `;
+        str = str.replace(/\n/g, this.padding);
+        this.#to_stdout(prefix + str);
+    }
+
+    static debug(...args: any[]): void {
+        let str = this.#stringify(args);
+        const prefix = `${this.#time()}[${this.DEBUG}] `;
+        str = str.replace(/\n/g, this.padding);
+        this.#to_stdout(prefix + str);
+    }
+
+    static warning(...args: any): void {
+        let str = this.#stringify(args);
+        const prefix = `${this.#time()}[${this.WARNING}] `;
+        str = str.replace(/\n/g, this.padding);
+        this.#to_stdout(prefix + str);
+    }
+
+    static error(...args: any[]): void {
+        let str = this.#stringify(args);
+        const prefix = `${this.#time()}[${this.ERROR}] `;
+        str = str.replace(/\n/g, this.padding);
+        this.#to_stdout(prefix + str);
+        this.#to_stderr(prefix + str);
+    }
+
+    static inspect(arg: any): void {
+        let str = typeof arg === 'string' ? arg : util.inspect(arg, {colors: true, depth: 4});
+        const prefix = `${this.#time()}[${this.INSPECT}] `;
+        str = str.replace(/\n/g, this.padding);
+        this.#to_stdout(prefix + str);
+    }
+}

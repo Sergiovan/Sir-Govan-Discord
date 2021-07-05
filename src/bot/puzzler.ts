@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 
-import {  randomCode, randomEnum } from '../utils';
+import {  randomCode, randomEnum, Logger } from '../utils';
 
 import { Persist } from '../data/persist';
 
@@ -83,7 +83,7 @@ export class Puzzler {
 
     getClue(force: boolean = false): string | null {
         if (!this.canGetClue() && !force) {
-            console.log("No clue");
+            Logger.debug("No clue");
             return null;
         }
 
@@ -105,7 +105,7 @@ export class Puzzler {
 
         if (this.clue_list.length === 0) {
             this.puzzle_stopped = true;
-            console.dir(this);
+            Logger.inspect(this);
             throw new Error('Puzzle stopped while calling getClue(), catastrophic error happened');
         }
 

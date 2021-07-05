@@ -6,8 +6,7 @@ import * as util from 'util';
 import { Bot } from './bot';
 
 import { botparams, argType, emojis } from '../defines';
-import { arg, parseArgs, randomBigInt, rb_ } from '../utils';
-import { setFlagsFromString } from 'v8';
+import { arg, parseArgs, randomBigInt, rb_, Logger } from '../utils';
 
 export type CommandFunc = (msg: D.Message) => void;
 
@@ -24,7 +23,7 @@ export const cmds: { [key: string]: CommandFunc } = {
     /** Debug command to check the status of the bot */
     status(this: Bot, msg: D.Message) {
         if (msg.author.id === botparams.owner) {
-            console.log(util.inspect(this, true, 5, true));
+            Logger.inspect(util.inspect(this, true, 3, true));
         }
     },
 
@@ -92,7 +91,7 @@ export const cmds: { [key: string]: CommandFunc } = {
         if (server.no_context_role) {
             let rolename = msg.guild.roles.resolve(server.no_context_role)?.name;
             if (!rolename) {
-                console.log(`The no context role ${server.no_context_role} doesn't exist in ${server.id}`.red);
+                Logger.warning(`The no context role ${server.no_context_role} doesn't exist in ${server.id}`);
                 return;
             }
             let self = this;
@@ -100,7 +99,7 @@ export const cmds: { [key: string]: CommandFunc } = {
                 let index = -1;
                 let total = 0;
                 if (err) {
-                    console.log(`Error detected: ${err}`);
+                    Logger.error(`Error detected: ${err}`);
                 } else {
                     let lines = data.trim().split('\n');
                     index = lines.indexOf(rolename!);
@@ -136,11 +135,11 @@ export const cmds: { [key: string]: CommandFunc } = {
                 if (channel.isText() && server.allowed_channels_listen.includes(channel_id)) { // The message given is in a channel the bot can listen to
                     try {
                         let msg = await channel.messages.fetch(messageID as D.Snowflake);
-                        if (msg.reactions.resolve(emojis.pushpin.asReaction)?.me) {
+                        if (msg.reactions.resolve(emojis.pushpin.toString())?.me) {
                             thischannel.send(rb_(self.text.pinAlreadyPinned, "That message is already pinned"));
                             return;
                         }
-                        msg.react(emojis.pushpin.asReaction);
+                        msg.react(emojis.pushpin.toString());
                         await self.pin(msg, true);
                         success = true;
                         break;
@@ -218,7 +217,7 @@ export const aliases: { [key: string]: CommandFunc } = {
 export const beta_cmds: { [key: string]: CommandFunc} = {
     /** Gives debug info for the message that calls this command */
     debug(this: Bot, msg: D.Message) {
-        console.log(util.inspect(msg, true, 5, true));
+        Logger.inspect(util.inspect(msg, true, 3, true));
     },
 
     /** Alias of die, effectively only kills beta bot */

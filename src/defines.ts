@@ -54,17 +54,9 @@ export class Emoji {
         this.animated = animated;
     }
 
-    get asReaction(): string {
+    toString(): string {
         if (this.id) {
-            return `${this.id}`;
-        } else {
-            return this.name;
-        }
-    }
-
-    get asContent(): string {
-        if (this.id) {
-            return `${this.animated ? 'a:' : ''}${this.name}:${this.id}`
+            return `<${this.animated ? 'a:' : ''}${this.name}:${this.id}>`
         } else {
             return this.name;
         }
