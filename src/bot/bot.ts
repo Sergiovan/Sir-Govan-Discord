@@ -478,6 +478,26 @@ export class Bot {
             }
             promises.push(guild.me.setNickname(new_nick));
         }
+        // LISTENING: Listening to
+        // WATCHING: Watching
+        // PLAYING: Playing
+        // STREAMING: Playing (But the profile says "Live on xxx")
+        // COMPETING: Competing in
+        const doing = rb_(this.text.status_type, '') as 'LISTENING' | 'WATCHING' | 'PLAYING' | 'STREAMING' | 'COMPETING' | '';
+        if (doing !== '') {
+            const texts = {
+                LISTENING: this.text.status_listening,
+                WATCHING: this.text.status_watching,
+                PLAYING: this.text.status_playing,
+                STREAMING: this.text.status_watching,
+                COMPETING: this.text.status_competing
+            };
+
+            this.client.user!.setActivity(rb_(texts[doing], 'something'), {type: doing})
+        } else {
+            this.client.user!.setActivity();
+        }
+        // this.client.user!.setActivity('testing', {type: 'COMPETING'});
         return promises;
     }
 
@@ -514,7 +534,6 @@ export class Bot {
         }
 
         // Do not pin messages where I've already reacted
-        // TODO This doesn't work...
         if ((msg.reactions.resolve(emojis.pushpin.toString())?.me) || this.message_locked(msg)) {
             return; // If this messages has been pinned or is locked for pinning, cease
         }

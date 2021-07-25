@@ -8,6 +8,10 @@ One in 100 messages that are less than 261 characters are put in the #no-context
 ### Hall of fame
 If any one message gets 3 📌 reactions from people who are not the author, it enters the hall of fame for posterity. 
 
+### The twitterverse
+Reacting with 🔁 or 🔂 on a message sends it to the Infinitely Tall Cylinder Earth version of twitter and returns a picture of your message as a tweet there.
+🔂 only takes your text, and 🔁 also takes other people's messages as extra tweets below yours.
+
 ## Commands
 ### !pin {message}
 Puts a message in the hall of fame. But it'll be marked. Cheaters beware, democracy is strong.
