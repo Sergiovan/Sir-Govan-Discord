@@ -234,9 +234,21 @@ export const cmds: { [key: string]: CommandFunc } = {
             nickname: kd(arg(argType.rest, '', true), (s: string) => s.length <= 32, (s: string) => s), // null means clear
             allowed_channels_commands: kd(arg(argType.channel), undefined, (c: D.Snowflake) => guild?.channels.cache.get(c)?.name),
             disallowed_channels_listen: kd(arg(argType.channel), undefined, (c: D.Snowflake) => guild?.channels.cache.get(c)?.name),
+            pin_amount: kd(arg(argType.number, 3, true), (n: number) => n > 0), // null means default
             hof_channel: kd(arg(argType.channel, undefined, true), undefined, (c: D.TextChannel) => c.name), // null means clear
-            hof_amount: kd(arg(argType.number, 3, true), (n: number) => n > 0), // null means default
             hof_emoji: kd(
+                arg(argType.emoji, emojis.pushpin, true), 
+                (e: Emoji) => e.id === null || (guild?.emojis.cache.has(e.id as D.Snowflake) ?? false),
+                (e: Emoji) => `${e}`
+            ), // null means default
+            vague_channel: kd(arg(argType.channel, undefined, true), undefined, (c: D.TextChannel) => c.name), // null means clear
+            vague_emoji: kd(
+                arg(argType.emoji, emojis.pushpin, true), 
+                (e: Emoji) => e.id === null || (guild?.emojis.cache.has(e.id as D.Snowflake) ?? false),
+                (e: Emoji) => `${e}`
+            ), // null means default
+            word_wrong_channel: kd(arg(argType.channel, undefined, true), undefined, (c: D.TextChannel) => c.name), // null means clear
+            word_wrong_emoji: kd(
                 arg(argType.emoji, emojis.pushpin, true), 
                 (e: Emoji) => e.id === null || (guild?.emojis.cache.has(e.id as D.Snowflake) ?? false),
                 (e: Emoji) => `${e}`

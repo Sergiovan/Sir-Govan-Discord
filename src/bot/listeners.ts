@@ -163,6 +163,16 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                                 server.hof_emoji.toString() === emojis.pushpin.toString() ? emojis.reddit_gold : server.hof_emoji);
                 break;
             }
+            case server.vague_emoji.toString(): {
+                const m = msg;
+                this.maybe_pin(m, server.vague_emoji, server.vague_channel, server.vague_emoji);
+                break;
+            }
+            case server.word_wrong_emoji.toString(): {
+                const m = msg;
+                this.maybe_pin(m, server.word_wrong_emoji, server.word_wrong_channel, server.word_wrong_emoji);
+                break;
+            }
             // Retweeting
             case emojis.repeat_one.toString(): // fallthrough
             case emojis.repeat.toString(): {

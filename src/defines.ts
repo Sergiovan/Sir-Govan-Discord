@@ -9,10 +9,17 @@ export interface JsonableServer {
     allowed_channels_commands: Array<D.Snowflake>;
     disallowed_channels_listen: Array<D.Snowflake>;
     
+    pin_amount: number;
+    
     hof_channel: D.Snowflake | null;
-    hof_amount: number;
     hof_emoji: JsonableEmoji;
     
+    vague_channel: D.Snowflake | null;
+    vague_emoji: JsonableEmoji;
+
+    word_wrong_channel: D.Snowflake | null;
+    word_wrong_emoji: JsonableEmoji;
+
     no_context_channel: D.Snowflake | null;
     no_context_role: D.Snowflake | null;
 
@@ -29,10 +36,17 @@ export class Server implements ServerHelper {
     allowed_channels_commands: Set<D.Snowflake>;
     disallowed_channels_listen: Set<D.Snowflake>;
     
+    pin_amount: number;
+
     hof_channel: D.TextChannel | null;
-    hof_amount: number;
     hof_emoji: Emoji;
     
+    vague_channel: D.TextChannel | null;
+    vague_emoji: Emoji;
+
+    word_wrong_channel: D.TextChannel | null;
+    word_wrong_emoji: Emoji;
+
     no_context_channel: D.TextChannel | null;
     no_context_role: D.Role | null;
 
@@ -47,10 +61,17 @@ export class Server implements ServerHelper {
         this.allowed_channels_commands = new Set(jsonable.allowed_channels_commands || []);
         this.disallowed_channels_listen = new Set(jsonable.disallowed_channels_listen || []);
         
+        this.pin_amount = jsonable.pin_amount || 3; // Default pin amount is 3
+
         this.hof_channel = (jsonable.hof_channel && guild?.channels.cache.get(jsonable.hof_channel) as D.TextChannel) ?? null;
-        this.hof_amount = jsonable.hof_amount || 3; // Default pin amount is 3
         this.hof_emoji = jsonable.hof_emoji ? new Emoji(jsonable.hof_emoji) : emojis.pushpin;
         
+        this.vague_channel = (jsonable.vague_channel && guild?.channels.cache.get(jsonable.vague_channel) as D.TextChannel) ?? null;
+        this.vague_emoji = jsonable.vague_emoji ? new Emoji(jsonable.vague_emoji) : emojis.no_mouth;
+
+        this.word_wrong_channel = (jsonable.word_wrong_channel && guild?.channels.cache.get(jsonable.word_wrong_channel) as D.TextChannel) ?? null;
+        this.word_wrong_emoji = jsonable.word_wrong_emoji ? new Emoji(jsonable.word_wrong_emoji) : emojis.weary;
+
         this.no_context_channel = (jsonable.no_context_channel && guild?.channels.cache.get(jsonable.no_context_channel) as D.TextChannel) ?? null;
         this.no_context_role = (jsonable.no_context_role && guild?.roles.cache.get(jsonable.no_context_role)) ?? null;
 
@@ -66,9 +87,16 @@ export class Server implements ServerHelper {
             allowed_channels_commands: Array.from(this.allowed_channels_commands),
             disallowed_channels_listen: Array.from(this.disallowed_channels_listen),
 
+            pin_amount: this.pin_amount,
+
             hof_channel: this.hof_channel?.id ?? null,
-            hof_amount: this.hof_amount,
             hof_emoji: this.hof_emoji,
+
+            vague_channel: this.vague_channel?.id ?? null,
+            vague_emoji: this.vague_emoji,
+
+            word_wrong_channel: this.word_wrong_channel?.id ?? null,
+            word_wrong_emoji: this.word_wrong_emoji,
 
             no_context_channel: this.no_context_channel?.id ?? null,
             no_context_role: this.no_context_role?.id ?? null,
@@ -126,84 +154,6 @@ export class Emoji implements JsonableEmoji {
     }
 }
 
-// getServer: (msg: Eris.Message) => Server | undefined
-
-// type BotParams = {
-//     servers: {
-//         ids: {
-//             [key: string]: Server
-//         },
-//         getServer: (msg: D.Message) => Server | undefined
-//     },
-//     owner: D.Snowflake
-// };
-
-// export const botparams: BotParams = {
-//     servers: {
-//         ids: {
-//             '120581475912384513': new Server('120581475912384513', { // The comfort zone
-//                 beta: true,
-//                 allowed_channels: [
-//                     '216992217988857857',  // #807_73571n6
-//                 ],  
-//                 allowed_channels_listen: [
-//                     '120581475912384513',  // #meme-hell
-//                     '216992217988857857' // #807_73571n6
-//                 ],
-//                 pin_channel: '216992217988857857', // #807_73571n6
-//                 no_context_channel: '422797217456324609', // #no-context
-//                 no_context_role: '424933828826497024',
-//                 puzzle_channel: '216992217988857857', // #807_73571n6
-//             }),
-//             '140942235670675456': new Server('140942235670675456', { // The club
-//                 beta: false,
-//                 nickname: 'Admin bot',
-//                 allowed_channels: [
-//                     '271748090090749952',   // #config-chat
-//                     '222466032290234368'	// #bot-chat
-//                 ],  
-//                 allowed_channels_listen: [
-//                     '140942235670675456',  // #main-chat 
-//                     '415173193133981718'   // #drawing-discussion
-//                 ],
-//                 pin_channel: '422796631235362841',  // #hall-of-fame
-//                 no_context_channel: '422796552935964682',  // #no-context
-//                 no_context_role: '424949624348868608',
-//                 puzzle_channel: '271748090090749952', // #config-chat
-//             }),
-//             '785872130029256743': new Server('785872130029256743', { // mmk server
-//                 beta: false,
-//                 nickname: "Sosa's husband",
-//                 allowed_channels: [
-//                     // Empty, only listen
-//                 ],
-//                 allowed_channels_listen: [
-//                     '785872439812816936', // talky talky
-//                     '785873031494369311', // bee tee es
-//                     '785894960243146752', // anym
-//                     '814794847277023232', // tunes
-//                     '785873644525584394', // simp
-//                     '785872130029256747', // welcum // Note: I did not come up with these names, ok?
-//                     '824345444649140224', // it's called art baby look it up
-//                     '831961057194016778', // cum is a meal replacement
-//                     '847251232796311552', // gaymers playing genshin
-//                     '838014715519041556', // tinder men suck
-//                     '858006470238142474', // astro sluts
-//                     '835566308782768199', // dee pee ar
-//                 ],
-//                 pin_channel: '822930237418504312',
-//             })
-//         },
-//         getServer(msg: D.Message): Server | undefined {
-//             if(!msg.guild) {
-//                 return undefined;
-//             }
-//             return this.ids[msg.guild.id];
-//         }
-//     },
-//     owner: '120881455663415296' // Sergiovan#0831
-// };
-
 export const emojis = {
     pushpin: new Emoji({name: '📌'}),
     reddit_gold: new Emoji({name: 'redditgold', id: '263774481233870848'}),
@@ -213,6 +163,9 @@ export const emojis = {
     devil: new Emoji({name: '😈'}),
     repeat: new Emoji({name: '🔁'}),
     repeat_one: new Emoji({name: '🔂'}),
+    japanese_ogre: new Emoji({name: '👹'}),
+    weary: new Emoji({name: '😩'}),
+    no_mouth: new Emoji({name: '😶'}),
 };
 
 export enum argType {

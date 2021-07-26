@@ -640,6 +640,7 @@ export class Bot {
     async maybe_pin(msg: D.Message, emoji: Emoji, to?: D.TextChannel | null, pinmoji: Emoji = emoji) {
         const server = this.get_server(msg);
         if (!server || !to || !this.can_talk(to)) {
+            Logger.error(`Cannot pin to ${to}`);
             return;
         }
 
@@ -657,7 +658,7 @@ export class Bot {
         if (!reactionaries) return; // ???
 
         // At least `server.pin_amount` pins that are not the author or bots
-        if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.hof_amount){
+        if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.pin_amount){
             //We pin that shit!
             this.lock_message(msg); // TODO huuuuu
             await msg.react(emoji.toString());
@@ -1094,10 +1095,10 @@ export class Bot {
         }
 
         // TODO Variable msgcontent length and chance?
-        if (msg.cleanContent && msg.cleanContent.length <= 280) {
+        if (msg.content && msg.content.length <= 280) {
             // Post the message to the no-context channel
             channel.send({
-                content: msg.cleanContent,
+                content: msg.content,
                 files: msg.attachments.array()
             });
             this.transferXp(xp.secondsOfXp(60 * 60), null, msg.author, xpTransferReason.NoContext);
