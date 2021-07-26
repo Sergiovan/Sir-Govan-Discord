@@ -10,7 +10,7 @@ import { BotUser } from './bot_user';
 import { cmds, aliases, beta_cmds } from './commands';
 import { listeners, fixed_listeners, ListenerFunction } from './listeners';
 
-import { botparams, emojis, Emoji, Server, xpTransferReason } from '../defines';
+import { emojis, Emoji, JsonableServer, Server, xpTransferReason } from '../defines';
 import { randFromFile, RarityBag, rb_, Logger } from '../utils';
 
 import { Persist } from '../data/persist';
@@ -37,7 +37,7 @@ export class Bot {
     puzzler: Puzzler = new Puzzler; // Puzzle stuff
     db: DBWrapper; // Database for advanced persistent storage
 
-    users: {[key: string]: BotUser} = {}; // A map from User ID to internal user representation
+    users: {[key: string]: BotUser | undefined} = {}; // A map from User ID to internal user representation
 
     commands: Command[] = []; // A list of all the commands available
     beta: boolean; // If the bot is running in beta mode
@@ -47,6 +47,10 @@ export class Bot {
     message_mutex: Set<string> = new Set(); // Message lock
     
     text: { [key: string]: RarityBag } = {}; // Text instance, for random chance texts
+
+    servers: { [key: string]: Server } = {};
+    ownerID: D.Snowflake = '120881455663415296'; // Sergiovan#0831
+    #server_loaded: boolean = false;
 
     constructor(token: string, beta: boolean) {
         this.token = token;
@@ -165,7 +169,104 @@ export class Bot {
     async save() {
         return Promise.all([
             this.puzzler.save(this.storage),
+            this.save_servers()
         ]);
+    }
+
+    load_servers() {
+        let self = this;
+        return this.storage.get('servers', {}).then((serv: { [key: string]: JsonableServer }) => {
+            for (let id in serv) {
+                this.servers[id] = new Server(this.client, id as D.Snowflake, serv[id]);
+            }
+            self.#server_loaded = true;
+        });
+    }
+
+    save_servers() {
+        if (this.#server_loaded) {
+            const servers: { [key: string]: JsonableServer } = {};
+            for (let id in this.servers) {
+                servers[id] = this.servers[id].as_jsonable();
+            }
+            
+            return this.storage.set('servers', servers);
+        }
+    }
+
+    get_server(o: D.Message | D.GuildChannel | D.ThreadChannel | D.Guild | D.GuildMember) {
+        let ret: Server | undefined;
+        if (o instanceof D.Message) {
+            ret = o.guild?.id ? this.servers[o.guild.id] : undefined;
+        } else if (o instanceof D.Guild) {
+            ret = this.servers[o.id];
+        } else {
+            ret = this.servers[o.guild.id];
+        }
+
+        if (!ret) return ret;
+        if (ret._beta !== this.beta) return null;
+        return ret;
+    }
+
+    #channelize(on: D.Message | D.GuildChannel | D.ThreadChannel) {
+        let channel: D.GuildChannel | D.ThreadChannel;
+        
+        if (on instanceof D.Message) {
+            if (on.channel instanceof D.DMChannel) {
+                return true;
+            } else if (on.channel instanceof D.NewsChannel) {
+                return false;
+            }
+            channel = on.channel;
+        } else if (!on.isText()) { 
+            return false;
+        } else {
+            channel = on;
+        }
+        if (channel instanceof D.ThreadChannel) {
+            if (!channel.parent || channel.parent instanceof D.NewsChannel) {
+                return false;
+            }
+            channel = channel.parent;
+        }
+        return channel;
+    }
+
+    // Bot can listen to commands and reply
+    can_command(on: D.Message | D.GuildChannel | D.ThreadChannel): boolean {
+        let channel = this.#channelize(on);
+        if (channel === true || channel === false) return channel;
+        
+        const server = this.get_server(on);
+        if (!server) return false;
+        const perms = channel.permissionsFor(channel.guild.me!);
+        const f = D.Permissions.FLAGS;
+        return perms.has(f.VIEW_CHANNEL | f.SEND_MESSAGES) && server.allowed_commands(channel);
+    }
+
+    // Bot can send messages and listen
+    can_talk(on: D.Message | D.GuildChannel | D.ThreadChannel): boolean {
+        let channel = this.#channelize(on);
+        if (channel === true || channel === false) return channel;
+
+        const server = this.get_server(on);
+        if (!server) return false;
+        const perms = channel.permissionsFor(channel.guild.me!);
+        const f = D.Permissions.FLAGS;
+        return perms.has(f.VIEW_CHANNEL | f.SEND_MESSAGES);
+    }
+
+    // Bot can listen
+    can_listen(on: D.Message | D.GuildChannel | D.ThreadChannel): boolean {
+        let channel = this.#channelize(on);
+        if (channel === true || channel === false) return channel;
+
+        const server = this.get_server(on);
+        if (!server) return false;
+        const perms = channel.permissionsFor(channel.guild.me!);
+        const f = D.Permissions.FLAGS;
+        return perms.has(f.VIEW_CHANNEL | f.READ_MESSAGE_HISTORY) && server.allowed_listen(channel);
     }
 
     /** Goes through all cleanup code
@@ -215,9 +316,9 @@ export class Bot {
 
         // For each member in every server
         for (let [guild_id, guild] of this.client.guilds.cache) {
-            const server = botparams.servers.ids[guild_id];
+            const server = this.servers[guild_id];
 
-            if (server && server.beta === this.beta) {
+            if (server && server._beta === this.beta) {
                 for (let [member_id, member] of guild.members.cache) {
                     if (seen.has(member_id)) { // We've seen this user when going through the db
                         const db_user = new_users[member_id];
@@ -239,6 +340,16 @@ export class Bot {
     /** Add a user to the internal cache */
     add_user(user: DBUserProxy) {
         this.users[user.id] = new BotUser(user);
+    }
+
+    async get_or_add_user(user: D.User) {
+        const usr = this.users[user.id];
+        if (usr) {
+            return usr;
+        } else {
+            const db_user = await this.db.addUser(user, 1, user.bot ? 1 : 0);
+            return this.users[user.id] = new BotUser(db_user);
+        }
     }
 
     /** Check if a certain message is locked 
@@ -329,7 +440,7 @@ export class Bot {
      */
     async postClue(channel: D.Snowflake, forced: boolean = false) {
         let chn = this.client.channels.resolve(channel);
-        if (!chn?.isText()) {
+        if (!chn || !chn.isText()) {
             Logger.error(`Tried to post clue in invalid channel ${channel}`);
             return;
         }
@@ -383,7 +494,7 @@ export class Bot {
 
             const puzzle = await this.db.getPuzzle(id);
             if (puzzle && this.users[user.id]) {
-                puzzle.winner = this.users[user.id].db_user.rowid;
+                puzzle.winner = (await this.get_or_add_user(user)).db_user.rowid;
                 puzzle.ended_time = new Date();
                 puzzle.commit();
             }
@@ -418,14 +529,14 @@ export class Bot {
     transferXp(amount: number, from: D.User, to: D.User | null, reason: xpTransferReason): boolean;
     transferXp(amount: number, from: D.User | null, to: D.User | null, reason: xpTransferReason) {
         if (from) {
-            if (!this.users[from.id].remove_xp(amount)) {
+            if (!this.users[from.id]!.remove_xp(amount)) {
                 return false; // If we cannot remove this amount of xp from the donor, the whole thing is cancelled
             }
-            this.users[from.id].commit()
+            this.users[from.id]!.commit()
         }
         if (to) {
-            this.users[to.id].add_xp(amount);
-            this.users[to.id].commit();
+            this.users[to.id]!.add_xp(amount);
+            this.users[to.id]!.commit();
         }
         this.db.transferXP(from, to, amount, reason as number);
         return true;
@@ -433,7 +544,8 @@ export class Bot {
 
     /** Transfer passive xp to a user when they talk */
     async tickUser(user: D.User) {
-        const bot_user = this.users[user.id];
+        const bot_user = await this.get_or_add_user(user);
+
         if ((bot_user.last_spoke + xp.passive_timeout * 1000) < Date.now()) {
             bot_user.last_spoke = Date.now();
             this.transferXp(xp.secondsOfXp(xp.passive_timeout), null, user, xpTransferReason.Passive);
@@ -468,16 +580,18 @@ export class Bot {
     async randomize_self() {
         let promises = [];
         for (let [guild_id, guild] of this.client.guilds.cache) {
-            const server = botparams.servers.ids[guild_id];
-            if (!server || this.beta !== server.beta) {
+            const server = this.servers[guild_id];
+            if (!server || this.beta !== server._beta) {
                 continue;
             }
             const new_nick = rb_(this.text.nickname, server.nickname || 'Sir Govan') + (this.beta ? ' (β)' : '');
             if (!guild.me) {
                 continue;
             }
+            Logger.debug(`Setting nickname to "${new_nick}" in ${guild.name}`);
             promises.push(guild.me.setNickname(new_nick));
         }
+
         // LISTENING: Listening to
         // WATCHING: Watching
         // PLAYING: Playing
@@ -493,12 +607,12 @@ export class Bot {
                 COMPETING: this.text.status_competing
             };
 
-            this.client.user!.setActivity(rb_(texts[doing], 'something'), {type: doing})
+            this.client.user!.setActivity(rb_(texts[doing], 'something'), {type: doing});
         } else {
             this.client.user!.setActivity();
         }
         // this.client.user!.setActivity('testing', {type: 'COMPETING'});
-        return promises;
+        return Promise.all(promises);
     }
 
     /** Writes a message on the same channel as `msg`
@@ -523,30 +637,31 @@ export class Bot {
     }
 
     /** Attempts to pin a message */
-    async maybe_pin(msg: D.Message, emoji: Emoji) {
-        const server = botparams.servers.getServer(msg);
-        if (!server || server.beta !== this.beta || !server.pin_channel) {
+    async maybe_pin(msg: D.Message, emoji: Emoji, to?: D.TextChannel | null, pinmoji: Emoji = emoji) {
+        const server = this.get_server(msg);
+        if (!server || !to || !this.can_talk(to)) {
             return;
         }
 
-        if (msg.author.bot) { // Do not pin bot messages
+        if (msg.author.id === this.client.user!.id) { // Do not pin bot messages
             return;
         }
 
         // Do not pin messages where I've already reacted
-        if ((msg.reactions.resolve(emojis.pushpin.toString())?.me) || this.message_locked(msg)) {
+        const reactions = msg.reactions.resolve(emoji.to_reaction_resolvable());
+        if (!reactions || reactions.me || this.message_locked(msg)) {
             return; // If this messages has been pinned or is locked for pinning, cease
         }
 
-        let reactionaries = await msg.reactions.resolve(emoji.toString())?.users.fetch();
+        let reactionaries = await reactions.users.fetch();
         if (!reactionaries) return; // ???
 
         // At least `server.pin_amount` pins that are not the author or bots
-        if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.pin_amount){
+        if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.hof_amount){
             //We pin that shit!
             this.lock_message(msg); // TODO huuuuu
-            await msg.react(emojis.pushpin.toString());
-            this.pin(msg);
+            await msg.react(emoji.toString());
+            this.pin(msg, to, pinmoji);
         }
     }
 
@@ -691,8 +806,8 @@ export class Bot {
             return ret;
         }
 
-        const server = botparams.servers.getServer(msg);
-        if (!server || server.beta !== this.beta || !server.pin_channel) {
+        const server = this.get_server(msg);
+        if (!server || server._beta !== this.beta || !server.hof_channel) {
             return;
         }
 
@@ -762,7 +877,7 @@ export class Bot {
 
         let verified = author_member !== null && // Member exists and 
                         (!server.no_context_role ||   // Either this server has no context role or 
-                          author_member.roles.cache.has(server.no_context_role)); // This member has no context role
+                          author_member.roles.cache.has(server.no_context_role.id)); // This member has no context role
 
         let tweet: TweetData = {
             theme: rb_(this.text.tweetTheme, 'dim', 2) as TweetTheme,
@@ -838,7 +953,7 @@ export class Bot {
 
                 let verified = author_member !== null && // Member exists and 
                     (!server.no_context_role ||   // Either this server has no context role or 
-                        author_member.roles.cache.has(server.no_context_role)); // This member has no context role
+                        author_member.roles.cache.has(server.no_context_role.id)); // This member has no context role
 
                 let extra_tweet: TweetMoreData = {
                     avatar: author.displayAvatarURL(),
@@ -875,19 +990,26 @@ export class Bot {
      * 
      * If `forced` is true the forced pin emoji is used  
      */
-    async pin(msg: D.Message, forced: boolean = false) {
-        const server = botparams.servers.getServer(msg);
-        if (!server || server.beta !== this.beta || !server.pin_channel) {
+    async pin(msg: D.Message, to: D.TextChannel, emoji: Emoji) {
+        const server = this.get_server(msg);
+        if (!server || server._beta !== this.beta || !this.can_talk(to)) {
             return false;
         }
-        const pinchannel = await msg.guild?.channels.fetch(server.pin_channel);
+        const pinchannel = to;
         if (!pinchannel || !pinchannel.isText()) {
-            Logger.error(`Attempted to pin ${msg.id} in channel ${server.pin_channel}`);
+            Logger.error(`Attempted to pin ${msg.id} in channel ${server.hof_channel}`);
             return;
         }
-        const icon = forced ? 
-            'https://emojipedia-us.s3.amazonaws.com/thumbs/120/twitter/131/double-exclamation-mark_203c.png' : 
-            'https://cdn.discordapp.com/emojis/263774481233870848.png';
+
+        function emoji_image(e: Emoji): string {
+            const img = twemoji.parse(e.toString());
+            const url = /src=\"(.*?)\"/.exec(img)?.[1];
+            return url ?? 'https://twemoji.maxcdn.com/v/latest/72x72/2049.png';
+        }
+
+        const icon = emoji.id ? 
+        `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}` :
+        emoji_image(emoji); 
         const r = Math.floor(Math.random() * 0x10) * 0x10;
         const g = Math.floor(Math.random() * 0x10) * 0x10;
         const b = Math.floor(Math.random() * 0x10) * 0x10;
@@ -961,13 +1083,13 @@ export class Bot {
 
     /** Attempts to add a message to the no-context channel */
     async maybe_remove_context(msg: D.Message) {
-        const server = botparams.servers.getServer(msg);
-        if (!msg.guild || !server || server.beta !== this.beta || !server.no_context_channel) {
+        const server = this.get_server(msg);
+        if (!msg.guild || !server || server._beta !== this.beta || !server.no_context_channel) {
             return false;
         }
-        const channel = await this.client.channels.fetch(server.no_context_channel);
+        const channel = server.no_context_channel;
 
-        if (!channel?.isText()) {
+        if (!this.can_talk(channel)) {
             return false;
         }
 
@@ -980,7 +1102,7 @@ export class Bot {
             });
             this.transferXp(xp.secondsOfXp(60 * 60), null, msg.author, xpTransferReason.NoContext);
             if (server.no_context_role) {
-                let role = msg.guild.roles.cache.get(server.no_context_role)!;
+                let role = server.no_context_role;
                 // Shuffle the no-context role
                 for (let [_, member] of msg.guild.members.cache) {
                     if (member.id === msg.author.id) {
@@ -994,8 +1116,8 @@ export class Bot {
                 });
 
                 // TODO If variable chance, variable chance here too?
-                if (server.puzzle_channel && Math.random() * 4 < 1.0) {
-                    this.postClue(server.puzzle_channel);
+                if (server._puzzle_channel && Math.random() * 4 < 1.0) {
+                    this.postClue(server._puzzle_channel.id);
                 }
             }
         }
@@ -1019,21 +1141,22 @@ export class Bot {
             await this.run_cleanup(true);
 
             // Reset nickname
-            for (let [guild_id, guild] of this.client.guilds.cache) {
-                const server = botparams.servers.ids[guild_id];
-                if (!server || this.beta !== server.beta) {
-                    continue;
+            const self = this;
+            await Promise.all(this.client.guilds.cache.map((guild, guild_id) => {
+                const server = self.servers[guild_id];
+                if (!server || this.beta !== server._beta) {
+                    return null;
                 }
 
                 if (server.nickname) {
-                    await guild.me?.setNickname(server.nickname);
+                    return guild.me?.setNickname(server.nickname);
                 } else {
-                    await guild.me?.setNickname(null);
+                    return guild.me?.setNickname(null);
                 }
-            }
+            }));
 
         } catch (e) {
-            Logger.error('Error while quitting: ', e);
+            Logger.error('Error while quitting: ', e.stack);
         } finally {
             // Do not reconnect
             this.client.destroy();

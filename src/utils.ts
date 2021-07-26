@@ -1,4 +1,4 @@
-import { GuildMember, User, TextChannel, Role, Message, Snowflake } from 'discord.js';
+import { Guild, GuildMember, User, TextChannel, Role, Message, Snowflake } from 'discord.js';
 
 import 'colors';
 
@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
-import { argType } from './defines';
+import { argType, Emoji, regexes } from './defines';
 
 // Yoinked from https://github.com/Morglod/ts-tuple-hacks/blob/master/index.ts
 // Nabs the length of a tuple as a literal type
@@ -20,39 +20,59 @@ export type TupleTail<T extends unknown[]> = T extends [unknown, ...infer U] ? (
 interface StringArg {
     type: argType.string;
     value: string | null;
+    nullable: boolean;
 }
 
 interface NumberArg {
     type: argType.number;
     value: number | null;
+    nullable: boolean;
 }
 
 interface UserArg {
     type: argType.user;
     value: string | null;
+    nullable: boolean;
 }
 
 interface ChannelArg {
     type: argType.channel;
     value: string | null;
+    nullable: boolean;
 }
 
 interface RoleArg {
     type: argType.role;
     value: string | null;
+    nullable: boolean;
 }
 
 interface BigIntArg {
     type: argType.bigint;
     value: bigint | null;
+    nullable: boolean;
+}
+
+interface BooleanArg {
+    type: argType.boolean;
+    value: boolean | null;
+    nullable: boolean;
+}
+
+interface EmojiArg {
+    type: argType.emoji,
+    value: Emoji | null,
+    nullable: boolean
 }
 
 interface RestArg {
     type: argType.rest;
     value: string | null;
+    nullable: boolean;
 }
 
-type Arg = StringArg | NumberArg | UserArg | ChannelArg | RoleArg | BigIntArg | RestArg;
+export type Arg = StringArg | NumberArg | UserArg | ChannelArg | 
+                  RoleArg | BigIntArg | BooleanArg | EmojiArg | RestArg;
 
 // Decodes argument type to the object it's encoding
 type DeArg<T extends Arg> = 
@@ -62,7 +82,9 @@ type DeArg<T extends Arg> =
     T extends ChannelArg ? TextChannel :
     T extends RoleArg ? Role : 
     T extends BigIntArg ? bigint :
-    T extends RestArg ? string : never) | undefined;
+    T extends BooleanArg ? boolean : 
+    T extends EmojiArg ? Emoji :
+    T extends RestArg ? string : never) | null | undefined;
 
 // Ho boy. Decodes all arguments in an array, given:
 type DeArgsHelper<H extends Arg, T> = 
@@ -78,33 +100,52 @@ type DeArgs<T extends Arg[]> =
     [DeArg<T[0]>] : // Single argument, do simple decoding
     DeArgsHelper<T[0], TupleTail<T>>; // Multiple arguments, go mad
 
-export function arg (type: argType.string, value?: string | null): StringArg;
-export function arg (type: argType.number, value?: number | null): NumberArg;
-export function arg (type: argType.user, value?: string | null): UserArg;
-export function arg (type: argType.channel, value?: string | null): ChannelArg;
-export function arg (type: argType.role, value?: string | null): RoleArg;
-export function arg (type: argType.bigint, value?: bigint | null): BigIntArg;
-export function arg (type: argType.rest, value?: string | null): RestArg;
+export function arg (type: argType.string, value?: string | null, nullable?: boolean): StringArg;
+export function arg (type: argType.number, value?: number | null, nullable?: boolean): NumberArg;
+export function arg (type: argType.user, value?: string | null, nullable?: boolean): UserArg;
+export function arg (type: argType.channel, value?: string | null, nullable?: boolean): ChannelArg;
+export function arg (type: argType.role, value?: string | null, nullable?: boolean): RoleArg;
+export function arg (type: argType.bigint, value?: bigint | null, nullable?: boolean): BigIntArg;
+export function arg (type: argType.boolean, value? : boolean | null, nullable?: boolean): BooleanArg;
+export function arg (type: argType.emoji, value? : Emoji | null, nullable?: boolean): EmojiArg;
+export function arg (type: argType.rest, value?: string | null, nullable?: boolean): RestArg;
 
-export function arg(type: argType, value: any = null): Arg {
+export function arg(type: argType, value: any = null, nullable: boolean = false): Arg {
     return {
         type: type,
-        value: value
+        value: value,
+        nullable: nullable
     };
 }
 
-export function parseArgs<T extends Arg[]>(msg: Message, ...args: T): [...DeArgs<T>]{
+export function parseArgs<T extends Arg[]>(msg: Message, ...args: T): [...DeArgs<T>] {
+    const first_space = msg.content.indexOf(' ');
+    return parseArgsHelper(first_space === -1 ? '' : msg.content.slice(first_space+1).trimStart(), msg.guild, ...args);
+}
+
+// TODO Get a more powerful parser for Discord Commands
+export function parseArgsHelper<T extends Arg[]>(text: string, guild: Guild | null, ...args: T): [...DeArgs<T>] {
     type Return = [...DeArgs<T>];
 
     const ret: [...any[]] = []; 
-    const words = msg.content.replace(/ +/g, ' ').split(' ');
-    let word = 1;
+    const words = text.replace(/ +/g, ' ').split(' ');
+    let word = 0; 
     // Labels... whack
     loop: for (let arg of args) {
-        let inspected = words[word];
+        let inspected = words[word] || undefined;
+        if (arg.nullable && inspected === 'null') {
+            ret.push(arg.value ?? null);
+            word++;
+            continue;
+        }
+        let def = arg.value ?? undefined;
         switch (arg.type) {
             case argType.string:
-                ret.push(inspected || arg.value);
+                if (inspected || def) {
+                    ret.push(inspected || def)
+                } else {
+                    break loop;
+                }
                 break;
             case argType.number:
                 if (inspected && Number.isFinite(+inspected) && !Number.isNaN(+inspected)) {
@@ -112,16 +153,15 @@ export function parseArgs<T extends Arg[]>(msg: Message, ...args: T): [...DeArgs
                 } else {
                     if (arg.value) {
                         ret.push(arg.value);
-                        word--;
                     } else {
                         break loop;
                     }
                 }
                 break;
             case argType.user: {
-                const regex_res = /<@!?([0-9]+?)>/.exec(inspected);
-                if (regex_res && regex_res[1]) {
-                    let member = (msg.channel as TextChannel).guild.members.resolve(regex_res[1] as Snowflake);
+                const regex_res = regexes.discord_user.exec(inspected || arg.value || '');
+                if (guild && regex_res && regex_res[1]) {
+                    let member = guild.members.resolve(regex_res[1] as Snowflake);
                     if (member) {
                         ret.push(member);
                         break;
@@ -130,10 +170,10 @@ export function parseArgs<T extends Arg[]>(msg: Message, ...args: T): [...DeArgs
                 break loop;
             }
             case argType.channel: {
-                const regex_res = /<#([0-9]+?)>/.exec(inspected);
-                if (regex_res && regex_res[1]) {
-                    let channel = (msg.channel as TextChannel).guild.channels.resolve(regex_res[1] as Snowflake);
-                    if (channel) {
+                const regex_res = regexes.discord_channel.exec(inspected || arg.value || '');
+                if (guild && regex_res && regex_res[1]) {
+                    let channel = guild.channels.resolve(regex_res[1] as Snowflake);
+                    if (channel && channel.isText()) {
                         ret.push(channel);
                         break;
                     }
@@ -141,9 +181,9 @@ export function parseArgs<T extends Arg[]>(msg: Message, ...args: T): [...DeArgs
                 break loop;
             }
             case argType.role: {
-                const regex_res = /<@\&([0-9]+?)>/.exec(inspected);
-                if (regex_res && regex_res[1]) {
-                    let role = (msg.channel as TextChannel).guild.roles.resolve(regex_res[1] as Snowflake);
+                const regex_res = regexes.discord_role.exec(inspected || arg.value || '');
+                if (guild && regex_res && regex_res[1]) {
+                    let role = guild.roles.resolve(regex_res[1] as Snowflake);
                     if (role) {
                         ret.push(role);
                         break;
@@ -154,7 +194,8 @@ export function parseArgs<T extends Arg[]>(msg: Message, ...args: T): [...DeArgs
             case argType.bigint: {
                 let num: BigInt;
                 try {
-                    num = BigInt(inspected);
+                    // For some fucking reason empty string parses to 0n????? Seriously???
+                    num = BigInt(inspected || 'a');
                 } catch (e) {
                     if (arg.value) {
                         num = arg.value;
@@ -163,6 +204,39 @@ export function parseArgs<T extends Arg[]>(msg: Message, ...args: T): [...DeArgs
                     }
                 }
                 ret.push(num);
+                break;
+            }
+            case argType.boolean: {
+                switch (inspected) {
+                    case 'true': ret.push(true); break;
+                    case 'false': ret.push(false); break;
+                    default: 
+                        if (arg.value) {
+                            ret.push(arg.value);
+                        } else {
+                            break loop;
+                        }
+                        break;
+                }
+                break;
+            }
+            case argType.emoji: {
+                let regex_res = regexes.emoji.exec(inspected || '');
+                if (regex_res && regex_res[1]) {
+                    ret.push(new Emoji({name: regex_res[1]}));
+                    break;
+                }
+                regex_res = regexes.discord_emojis.exec(inspected || '');
+                Logger.inspect(regex_res);
+                if (regex_res && regex_res[2] && regex_res[3]) {
+                    ret.push(new Emoji({name: regex_res[2], id: regex_res[3], animated: regex_res[1] !== ''}));
+                    break;
+                }
+                if (arg.value) {
+                    ret.push(arg.value);
+                } else {
+                    break loop;
+                }
                 break;
             }
             case argType.rest:
@@ -389,7 +463,7 @@ export class Logger {
     }
 
     static #stringify(args: any[]): string {
-        return args.map(o => o['toString'] ? o.toString() as string : o as string).join(', ');
+        return args.map(o => o && o['toString'] ? o.toString() as string : o as string).join(', ');
     }
     
     static #to_stdout(str: string): void {

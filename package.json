@@ -20,7 +20,7 @@
   "scripts": {
     "compile": "tsc",
     "watch": "tsc -p tsconfig.json -w",
-    "test": "node dist/src/main.js --beta"
+    "test": "node dist/src/main.js --beta 2> /dev/null"
   },
   "repository": {
     "type": "git",

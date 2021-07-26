@@ -3,7 +3,7 @@ import * as D from 'discord.js';
 
 import { Bot } from './bot';
 
-import { botparams, Emoji, emojis } from '../defines';
+import { Emoji, emojis } from '../defines';
 import * as f from '../utils';
 import { Logger } from '../utils';
 
@@ -19,7 +19,7 @@ export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<k
         Logger.debug("Ready?");
         const self = this;
 
-        this.owner = await this.client.users.fetch(botparams.owner);
+        this.owner = await this.client.users.fetch(this.ownerID);
 
         await this.update_users();
         this.setListeners(); // Listen only after users are done updating
@@ -31,13 +31,11 @@ export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<k
             self.client.setTimeout(rerandomize, milliseconds);
         };
 
-        rerandomize();
-
         process.removeAllListeners('uncaughtException');
         process.removeAllListeners('SIGINT');
 
-        process.on('uncaughtException', function(err) {
-            Logger.error(err);
+        process.on('uncaughtException', function(err: Error) {
+            Logger.error(err.stack);
             Logger.debug("Bruh");
             self.die();
         });
@@ -50,6 +48,14 @@ export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<k
                 self.die();
             }
         });
+
+        try {
+            await this.load_servers();
+        } catch (err) {
+            Logger.error(`Could not load servers: ${err}`);
+        }
+
+        rerandomize();
 
         Logger.debug("Ready!");
     },
@@ -74,7 +80,6 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 channel_name = 'me';
             }
 
-            // TODO Better logging
             const author: string = message_mine ? 'me' : msg.author.tag;
             Logger.info(`${author.cyan} @ ${channel_name.cyan}: ${msg.cleanContent}`);
 
@@ -95,18 +100,16 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                     this.checkAnswer(word, msg.author);
                 }
             }
-
-
         } else {
             // Not DMs, tread as you wish
-            const server = botparams.servers.getServer(msg);
+            const server = this.get_server(msg);
             if (!server) {
                 return;
             }
-            if (server.beta !== this.beta) {
-                return;
-            }
-            if (!server.allowed(msg) && !server.allowedListen(msg)) {
+
+            const can_command = this.can_command(msg);
+            const can_listen = this.can_listen(msg);
+            if (!can_command && !can_listen) {
                 return;
             }
 
@@ -117,7 +120,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 return;
             }
             
-            if (server.allowedListen(msg) && !msg.author.bot) {
+            if (can_listen && !msg.author.bot) {
                 if ((Math.random() * 100) < 1.0 && server.no_context_channel) {
                     this.maybe_remove_context(msg);
                 } else {
@@ -125,7 +128,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 }
             }
 
-            if (server.allowed(msg)) {
+            if (can_command) {
                 if (this.parse(msg)) {
                     return;
                 }
@@ -135,16 +138,12 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
 
     async [E.MESSAGE_REACTION_ADD](this: Bot, reaction: D.MessageReaction, user: D.User | D.PartialUser) {
         const msg = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
-        const server = botparams.servers.getServer(msg);
+        const server = this.get_server(msg);
         if (!msg.guild || !server) {
             return;
         }
 
-        if (server.beta !== this.beta) {
-            return;
-        }
-
-        if (!server.allowed(msg) && !server.allowedListen(msg)) {
+        if (!this.can_listen(msg)) {
             return;
         }
 
@@ -156,90 +155,91 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
 
         Logger.debug(`${user.tag} added ${emoji} to message ${msg.id}`);
 
-        if (server.allowed(msg) || server.allowedListen(msg)) {
-            switch (emoji.toString()) {
-                // Retweeting
-                case emojis.repeat_one.toString(): // fallthrough
-                case emojis.repeat.toString(): {
-                    const m = msg;
-                    const u = await msg.guild.members.fetch(user.id);
-                    if (!m || !u) {
-                        return;
-                    }
-                    this.maybe_retweet(m, u, emoji.name === emojis.repeat.toString());
-                    break;
-                }
+        switch (emoji.toString()) {
+            // Pinning
+            case server.hof_emoji.toString(): {
+                const m = msg;
+                this.maybe_pin(m, server.hof_emoji, server.hof_channel, 
+                                server.hof_emoji.toString() === emojis.pushpin.toString() ? emojis.reddit_gold : server.hof_emoji);
+                break;
             }
-        }
-        if (server.allowedListen(msg)) {
-            switch (emoji.toString()) {
-                // Pinning
-                case emojis.pushpin.toString(): {
-                    const m = msg;
-                    this.maybe_pin(m, emojis.pushpin);
-                    break;
+            // Retweeting
+            case emojis.repeat_one.toString(): // fallthrough
+            case emojis.repeat.toString(): {
+                if (!this.can_talk(msg)) {
+                    return;
                 }
+                const m = msg;
+                const u = await msg.guild.members.fetch(user.id);
+                if (!m || !u) {
+                    return;
+                }
+                this.maybe_retweet(m, u, emoji.name === emojis.repeat.toString());
+                break;
             }
-        }
-        if (server.allowed(msg)) {
-            if (emoji.toString() === emojis.devil.toString()) {
+            case emojis.devil.toString(): {
                 const m = msg;
                 const u = user.partial ? await user.fetch() : user;
                 if (!u || !m) {
                     return;
                 }
                 this.maybe_steal(m, u);
+                break;
             }
         }
     },
 
     [E.GUILD_MEMBER_ADD](this: Bot, member: D.GuildMember) {
-        const server = botparams.servers.ids[member.guild.id];
+        const server = this.servers[member.guild.id];
         
-        if (!server || server.beta !== this.beta) {
+        if (!server) {
             return;
         }
 
-        if (this.users[member.id]) {
-            this.users[member.id].update_member(member);
-            this.users[member.id].commit();
+        const usr = this.users[member.id]; 
+        if (usr) {
+            usr.update_member(member);
+            usr.commit();
         } else {
             this.db.addUser(member.user, 1, member.user.bot ? 1 : 0, member.nickname).then((u) => this.add_user(u));
         }
     },
 
     [E.GUILD_MEMBER_REMOVE](this: Bot, member: D.GuildMember | D.PartialGuildMember) {
-        const server = botparams.servers.ids[member.guild.id];
+        const server = this.servers[member.guild.id];
         
-        if (!server || server.beta !== this.beta) {
+        if (!server) {
             return;
         }
 
-        if (this.users[member.id]) {
-            this.users[member.id].db_user.is_member = 0;
-            this.users[member.id].commit();
+        const usr = this.users[member.id];
+        if (usr) {
+            usr.db_user.is_member = 0;
+            usr.commit();
         }
     },
 
     [E.GUILD_MEMBER_UPDATE](this: Bot, old_member: D.GuildMember | D.PartialGuildMember, member: D.GuildMember) {
-        const server = botparams.servers.ids[member.guild.id];
+        const server = this.servers[member.guild.id];
         
-        if (!server || server.beta !== this.beta) {
+        if (!server) {
             return;
         }
 
-        if (this.users[member.id]) {
-            this.users[member.id].update_member(member);
-            this.users[member.id].commit();
+        const usr = this.users[member.id];
+        if (usr) {
+            usr.update_member(member);
+            usr.commit();
         } else {
             this.db.addUser(member.user, 1, member.user.bot ? 1 : 0, member.nickname).then((u) => this.add_user(u));
         }
     },
 
     [E.USER_UPDATE](this: Bot, old_user: D.User | D.PartialUser, user: D.User) {
-        if (this.users[user.id]) {
-            this.users[user.id].update_user(user);
-            this.users[user.id].commit();
+        const usr = this.users[user.id];
+        if (usr) {
+            usr.update_user(user);
+            usr.commit();
         } else {
             this.db.addUser(user, 1, user.bot ? 1 : 0).then((u) => this.add_user(u));
         }
