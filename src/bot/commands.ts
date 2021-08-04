@@ -253,6 +253,7 @@ export const cmds: { [key: string]: CommandFunc } = {
                 (e: Emoji) => e.id === null || (guild?.emojis.cache.has(e.id as D.Snowflake) ?? false),
                 (e: Emoji) => `${e}`
             ), // null means default
+            anything_pin_channel: kd(arg(argType.channel, undefined, true), undefined, (c: D.TextChannel) => c.name), // null means clear
             no_context_channel: kd(arg(argType.channel, undefined, true), undefined, (c: D.TextChannel) => c.name), // null means clear
             no_context_role: kd(arg(argType.role, undefined, true), undefined, (r: D.Role) => r.name), // null means clear
             _puzzle_channel: kd(admin_powers ? arg(argType.channel, undefined, true) : undefined, undefined, (c: D.TextChannel) => c.name), // null means clear

@@ -196,6 +196,15 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 this.maybe_steal(m, u);
                 break;
             }
+            default: { // Chaos
+                if (!server.anything_pin_channel) {
+                    break;
+                }
+                const m = msg;
+                const e = new Emoji({name: emoji.name ?? emoji.identifier, id: emoji.id, animated: emoji.animated ?? false});
+                this.maybe_pin(m, e, server.anything_pin_channel, e);
+                break;
+            }
         }
     },
 

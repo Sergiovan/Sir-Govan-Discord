@@ -20,6 +20,8 @@ export interface JsonableServer {
     word_wrong_channel: D.Snowflake | null;
     word_wrong_emoji: JsonableEmoji;
 
+    anything_pin_channel: D.Snowflake | null;
+
     no_context_channel: D.Snowflake | null;
     no_context_role: D.Snowflake | null;
 
@@ -47,6 +49,8 @@ export class Server implements ServerHelper {
     word_wrong_channel: D.TextChannel | null;
     word_wrong_emoji: Emoji;
 
+    anything_pin_channel: D.TextChannel | null;
+
     no_context_channel: D.TextChannel | null;
     no_context_role: D.Role | null;
 
@@ -71,6 +75,8 @@ export class Server implements ServerHelper {
 
         this.word_wrong_channel = (jsonable.word_wrong_channel && guild?.channels.cache.get(jsonable.word_wrong_channel) as D.TextChannel) ?? null;
         this.word_wrong_emoji = jsonable.word_wrong_emoji ? new Emoji(jsonable.word_wrong_emoji) : emojis.weary;
+
+        this.anything_pin_channel = (jsonable.anything_pin_channel && guild?.channels.cache.get(jsonable.anything_pin_channel) as D.TextChannel) ?? null;
 
         this.no_context_channel = (jsonable.no_context_channel && guild?.channels.cache.get(jsonable.no_context_channel) as D.TextChannel) ?? null;
         this.no_context_role = (jsonable.no_context_role && guild?.roles.cache.get(jsonable.no_context_role)) ?? null;
@@ -97,6 +103,8 @@ export class Server implements ServerHelper {
 
             word_wrong_channel: this.word_wrong_channel?.id ?? null,
             word_wrong_emoji: this.word_wrong_emoji,
+
+            anything_pin_channel: this.anything_pin_channel?.id ?? null,
 
             no_context_channel: this.no_context_channel?.id ?? null,
             no_context_role: this.no_context_role?.id ?? null,
