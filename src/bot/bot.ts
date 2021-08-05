@@ -470,6 +470,7 @@ export class Bot {
             msg = await msg.edit(text);
             await this.db.addClue(this.puzzler.puzzle_id, msg);
             await msg.react(emojis.devil.toString());
+            msg.reactions.resolve(emojis.devil.to_reaction_resolvable())!.me = true;
         }, 2500);
     }
 
@@ -662,6 +663,10 @@ export class Bot {
             //We pin that shit!
             this.lock_message(msg); // TODO huuuuu
             await msg.react(emoji.toString());
+            Logger.debug("Pinned something!");
+            Logger.debug(msg.reactions.resolve(emoji.to_reaction_resolvable())?.me);
+            reactions.me = true; // We're doing this because sometimes it doesn't get registered properly?
+            Logger.debug(msg.reactions.resolve(emoji.to_reaction_resolvable())?.me);
             this.pin(msg, to, pinmoji);
         }
     }
@@ -817,12 +822,14 @@ export class Bot {
         const emoji = add_extras ? emojis.repeat.toString() : emojis.repeat_one.toString();
 
         // TODO Message locking... huuuu...
-        if (msg.reactions.resolve(emoji)?.me || this.message_locked(msg)) {
+        const reactions = msg.reactions.resolve(emoji);
+        if (!reactions || reactions?.me || this.message_locked(msg)) {
             return; // If this messages has been pinned or is locked for pinning, cease
         }
 
         this.lock_message(msg);
         await msg.react(emoji);
+        reactions.me = true;
         this.add_cleanup_task(() => {
             msg.reactions.resolve(emoji)?.users.remove(self.client.user!.id);
         }, 1000 * 60 * 30);
