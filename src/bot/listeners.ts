@@ -11,7 +11,7 @@ let in_sigint = false; // Booo, npm, boooo
 export type ListenerFunction = (this: Bot, ...args: any[]) => void;
 
 const E = D.Constants.Events;
-type ClientListener<K extends keyof D.ClientEvents> = (this: Bot, ...args: D.ClientEvents[K]) => Awaited<void>;
+type ClientListener<K extends keyof D.ClientEvents> = (this: Bot, ...args: D.ClientEvents[K]) => void;
 
 /** Holds all listeners that will never be changed or updated while the bot*/
 export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} = {
@@ -28,7 +28,7 @@ export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<k
             Logger.debug("Randomizing self");
             self.randomize_self();
             let milliseconds = 60 * 60 * 1000 + (Math.random() * (23 * 60 * 60 * 1000)); 
-            self.client.setTimeout(rerandomize, milliseconds);
+            self.randomize_timeout = setTimeout(rerandomize, milliseconds);
         };
 
         process.removeAllListeners('uncaughtException');
@@ -70,10 +70,11 @@ export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<k
 };
 
 export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} = {
-    [E.MESSAGE_CREATE](this: Bot, msg: D.Message) {
-        if (msg.channel instanceof D.DMChannel) {
+    async [E.MESSAGE_CREATE](this: Bot, msg: D.Message) {
+        if (msg.channel.type === "DM") {
             // DMs, tread carefully
-            const channel_user = msg.channel.recipient;
+            const chn = msg.channel.partial ? await msg.channel.fetch() : msg.channel
+            const channel_user = chn.recipient;
             let channel_name = `${channel_user.tag}`;
             const message_mine = msg.author.id === this.client.user!.id;
             if (!message_mine) {
@@ -136,8 +137,15 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         }
     },
 
-    async [E.MESSAGE_REACTION_ADD](this: Bot, reaction: D.MessageReaction, user: D.User | D.PartialUser) {
-        const msg = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
+    async [E.MESSAGE_REACTION_ADD](this: Bot, reaction: D.MessageReaction | D.PartialMessageReaction, user: D.User | D.PartialUser) {
+        try {
+            reaction = reaction.partial ? await reaction.fetch() : reaction;
+        } catch (error) {
+            Logger.warning(`Message was removed before reaction could be processed: ${error}`);
+            return;
+        }
+
+        const msg = await reaction.message.fetch(); // TODO Remove when bug is fixed in discord.js
         const server = this.get_server(msg);
         if (!msg.guild || !server) {
             return;
@@ -152,8 +160,8 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         }
 
         const emoji = reaction.emoji; 
-
-        Logger.debug(`${user.tag} added ${emoji} to message ${msg.id}`);
+        
+        reaction.users.fetch();
 
         switch (emoji.toString()) {
             // Pinning

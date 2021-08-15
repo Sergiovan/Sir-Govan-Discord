@@ -45,7 +45,10 @@ export class Bot {
     cleanup_interval?: NodeJS.Timeout; // Interval for cleanup functions
     cleanup_list: CleanupCode[] = []; // List of to-be-cleaned-up actions
     message_mutex: Set<string> = new Set(); // Message lock
-    
+    only_once_buffer: Map<D.Snowflake, {[x: string]: {timeout: NodeJS.Timeout, func: () => any} | undefined}> = new Map();
+    randomize_timeout: NodeJS.Timeout | null = null; // Interval for randomizing
+    puzzle_start_timeout: NodeJS.Timeout | null = null; // Interval for puzzle starting
+
     text: { [key: string]: RarityBag } = {}; // Text instance, for random chance texts
 
     servers: { [key: string]: Server } = {};
@@ -213,9 +216,9 @@ export class Bot {
         let channel: D.GuildChannel | D.ThreadChannel;
         
         if (on instanceof D.Message) {
-            if (on.channel instanceof D.DMChannel) {
+            if (on.channel.type === "DM") {
                 return true;
-            } else if (on.channel instanceof D.NewsChannel) {
+            } else if (on.channel.type === "GUILD_NEWS") {
                 return false;
             }
             channel = on.channel;
@@ -225,7 +228,7 @@ export class Bot {
             channel = on;
         }
         if (channel instanceof D.ThreadChannel) {
-            if (!channel.parent || channel.parent instanceof D.NewsChannel) {
+            if (!channel.parent || channel.parent.type === "GUILD_NEWS") {
                 return false;
             }
             channel = channel.parent;
@@ -382,6 +385,27 @@ export class Bot {
         }
     }
 
+    /** Makes something run only once on a delay, to avoid duplication in the timeout given. The timeout
+     *  should be bigger than the amount of time duplicates can be called upon */
+    only_once(id: D.Snowflake, task_type: string, func: () => any, timeout: number = 1000) {
+        if (!this.only_once_buffer.has(id)) {
+            this.only_once_buffer.set(id, {});
+        }
+        const tasks = this.only_once_buffer.get(id)!;
+        if (tasks[task_type]) {
+            clearTimeout(tasks[task_type]!.timeout);
+            delete tasks[task_type];
+        }
+
+        tasks[task_type] = {
+            timeout: setTimeout(async () => {
+                await func();
+                delete tasks[task_type]; // Self cleaning
+            }, timeout),
+            func: func
+        };
+    }
+
     /** Parses a message to run a command */
     parse(msg: D.Message) {
         // TODO Commands...
@@ -491,7 +515,7 @@ export class Bot {
             await this.tellTheBoss(`${user.username} (${user.id}) got it!`);
 
             // Start a new puzzle in an hour
-            this.client.setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
+            this.puzzle_start_timeout = setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
 
             const puzzle = await this.db.getPuzzle(id);
             if (puzzle && this.users[user.id]) {
@@ -651,7 +675,7 @@ export class Bot {
 
         // Do not pin messages where I've already reacted
         const reactions = msg.reactions.resolve(emoji.to_reaction_resolvable());
-        if (!reactions || reactions.me || this.message_locked(msg)) {
+        if (!reactions || reactions.me) {
             return; // If this messages has been pinned or is locked for pinning, cease
         }
 
@@ -661,13 +685,9 @@ export class Bot {
         // At least `server.pin_amount` pins that are not the author or bots
         if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.pin_amount){
             //We pin that shit!
-            this.lock_message(msg); // TODO huuuuu
             await msg.react(emoji.toString());
-            Logger.debug("Pinned something!");
-            Logger.debug(msg.reactions.resolve(emoji.to_reaction_resolvable())?.me);
             reactions.me = true; // We're doing this because sometimes it doesn't get registered properly?
-            Logger.debug(msg.reactions.resolve(emoji.to_reaction_resolvable())?.me);
-            this.pin(msg, to, pinmoji);
+            await this.pin(msg, to, pinmoji);
         }
     }
 
@@ -813,25 +833,28 @@ export class Bot {
         }
 
         const server = this.get_server(msg);
-        if (!server || server._beta !== this.beta || !server.hof_channel) {
+        if (!server || !server.hof_channel) {
             return;
         }
 
-        if (msg.channel instanceof D.DMChannel || msg.channel instanceof D.NewsChannel) return; // No DMs or... news... channels?
+        if (msg.channel.type === "DM" || msg.channel.type === "GUILD_NEWS") return; // No DMs or... news... channels?
 
-        const emoji = add_extras ? emojis.repeat.toString() : emojis.repeat_one.toString();
+        const emoji = add_extras ? emojis.repeat : emojis.repeat_one;
 
-        // TODO Message locking... huuuu...
-        const reactions = msg.reactions.resolve(emoji);
-        if (!reactions || reactions?.me || this.message_locked(msg)) {
+        const reactions = msg.reactions.resolve(emoji.to_reaction_resolvable());
+        
+        if (!reactions || reactions?.me) {
             return; // If this messages has been pinned or is locked for pinning, cease
         }
+        
+        await msg.react(emoji.toString());
+        
+        let reactionaries = await reactions.users.fetch();
+        if (!reactionaries) return; // ???
 
-        this.lock_message(msg);
-        await msg.react(emoji);
-        reactions.me = true;
-        this.add_cleanup_task(() => {
-            msg.reactions.resolve(emoji)?.users.remove(self.client.user!.id);
+        // From this point we're safe, as long as we call only_once
+        this.add_cleanup_task(async () => {
+            await reactions.users.remove(self.client.user!.id);
         }, 1000 * 60 * 30);
 
         const channel = msg.channel;
@@ -847,7 +870,9 @@ export class Bot {
             'Oct', 'Nov', 'Dec'
         ];
 
-        let context = (await (msg.channel.messages.fetch({after: msg.id, limit: 50}))).array().reverse();
+        let msgs_coll = await msg.channel.messages.fetch({after: msg.id, limit: 50});
+
+        let context = Array.from(msgs_coll.values()).reverse(); // TODO does this alaways work?
 
         context.unshift(msg);
 
@@ -982,15 +1007,16 @@ export class Bot {
         }
 
         let img = await createImage(tweet);
-
-        await msg.channel.send({
-            reply: {
-                messageReference: msg
-            },
-            files: [{
-                name: 'tweet.png', // TODO Funky funny hella names
-                attachment: img 
-            }]
+        this.only_once(msg.id, add_extras ? 'retweet_full' : 'retweet', async () => {
+            await msg.channel.send({
+                reply: {
+                    messageReference: msg
+                },
+                files: [{
+                    name: 'tweet.png', // TODO Funky funny hella names
+                    attachment: img 
+                }]
+            });
         });
     }
 
@@ -1006,7 +1032,7 @@ export class Bot {
         const pinchannel = to;
         if (!pinchannel || !pinchannel.isText()) {
             Logger.error(`Attempted to pin ${msg.id} in channel ${server.hof_channel}`);
-            return;
+            return false;
         }
 
         function emoji_image(e: Emoji): string {
@@ -1043,7 +1069,7 @@ export class Bot {
         const url = `https://canary.discordapp.com/channels/${guild_id}/${channel_id}/${message_id}`;
         let desc = `[Click to teleport](${url})`;
         if(msg.attachments?.size){
-            const attachment = msg.attachments.array()[0];
+            const attachment = Array.from(msg.attachments.values())[0];
             const embedtype: 'video' | 'image' = /\.(webm|mp4)$/g.test(attachment.name ?? '') ? 'video' : 'image';
             embed[embedtype] = {
                 url: attachment.url
@@ -1068,7 +1094,9 @@ export class Bot {
                 "value": desc
             }];
         }
-        pinchannel.send({ embeds: [embed] });
+        this.only_once(msg.id, `pin_with_${emoji.toString()}`, () => {
+            pinchannel.send({ embeds: [embed] });
+        });
         return true;
     }
 
@@ -1106,7 +1134,7 @@ export class Bot {
             // Post the message to the no-context channel
             channel.send({
                 content: msg.content,
-                files: msg.attachments.array()
+                files: Array.from(msg.attachments.values())
             });
             this.transferXp(xp.secondsOfXp(60 * 60), null, msg.author, xpTransferReason.NoContext);
             if (server.no_context_role) {
@@ -1144,10 +1172,29 @@ export class Bot {
                 clearInterval(this.cleanup_interval); // Removes cleanup_interval TODO Is this correct?
             }
 
-            await this.save(); 
-
             await this.run_cleanup(true);
+            
+            // Do once what is to be done once
+            for (let [id, tasks] of this.only_once_buffer) {
+                for (let type in tasks) {
+                    if (tasks[type]) {
+                        clearTimeout(tasks[type]!.timeout);
+                        tasks[type]!.func();
+                        delete tasks[type];
+                    }
+                }
+            }
 
+            if (this.randomize_timeout) {
+                clearTimeout(this.randomize_timeout);
+            }
+
+            if (this.puzzle_start_timeout) {
+                clearTimeout(this.puzzle_start_timeout);
+            }
+            
+            await this.save(); 
+            
             // Reset nickname
             const self = this;
             await Promise.all(this.client.guilds.cache.map((guild, guild_id) => {

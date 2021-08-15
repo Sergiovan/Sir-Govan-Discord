@@ -67,21 +67,21 @@ export class Server implements ServerHelper {
         
         this.pin_amount = jsonable.pin_amount || 3; // Default pin amount is 3
 
-        this.hof_channel = (jsonable.hof_channel && guild?.channels.cache.get(jsonable.hof_channel) as D.TextChannel) ?? null;
+        this.hof_channel = (typeof jsonable.hof_channel === 'string' && guild?.channels.cache.get(jsonable.hof_channel) as D.TextChannel) || null;
         this.hof_emoji = jsonable.hof_emoji ? new Emoji(jsonable.hof_emoji) : emojis.pushpin;
         
-        this.vague_channel = (jsonable.vague_channel && guild?.channels.cache.get(jsonable.vague_channel) as D.TextChannel) ?? null;
+        this.vague_channel = (typeof jsonable.vague_channel === 'string' && guild?.channels.cache.get(jsonable.vague_channel) as D.TextChannel) || null;
         this.vague_emoji = jsonable.vague_emoji ? new Emoji(jsonable.vague_emoji) : emojis.no_mouth;
 
-        this.word_wrong_channel = (jsonable.word_wrong_channel && guild?.channels.cache.get(jsonable.word_wrong_channel) as D.TextChannel) ?? null;
+        this.word_wrong_channel = (typeof jsonable.word_wrong_channel === 'string' && guild?.channels.cache.get(jsonable.word_wrong_channel) as D.TextChannel) || null;
         this.word_wrong_emoji = jsonable.word_wrong_emoji ? new Emoji(jsonable.word_wrong_emoji) : emojis.weary;
 
-        this.anything_pin_channel = (jsonable.anything_pin_channel && guild?.channels.cache.get(jsonable.anything_pin_channel) as D.TextChannel) ?? null;
+        this.anything_pin_channel = (typeof jsonable.anything_pin_channel === 'string' && guild?.channels.cache.get(jsonable.anything_pin_channel) as D.TextChannel) || null;
 
-        this.no_context_channel = (jsonable.no_context_channel && guild?.channels.cache.get(jsonable.no_context_channel) as D.TextChannel) ?? null;
-        this.no_context_role = (jsonable.no_context_role && guild?.roles.cache.get(jsonable.no_context_role)) ?? null;
+        this.no_context_channel = (typeof jsonable.no_context_channel === 'string' && guild?.channels.cache.get(jsonable.no_context_channel) as D.TextChannel) || null;
+        this.no_context_role = (typeof jsonable.no_context_role === 'string' && guild?.roles.cache.get(jsonable.no_context_role)) || null;
 
-        this._puzzle_channel = (jsonable._puzzle_channel && guild?.channels.cache.get(jsonable._puzzle_channel) as D.TextChannel) ?? null;
+        this._puzzle_channel = (typeof jsonable._puzzle_channel === 'string' && guild?.channels.cache.get(jsonable._puzzle_channel) as D.TextChannel) || null;
     }
 
     as_jsonable(): JsonableServer {

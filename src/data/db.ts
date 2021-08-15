@@ -76,11 +76,11 @@ export class DB {
     }
 
     async insert<T extends DBName>(table: T, value: KnexApproved<DBRecord<T>>) {
-        return await this.table(table).insert(value).select('rowid', '*');
+        return await this.table(table).insert(value as any).select('rowid', '*');
     }
 
     async update<T extends DBName>(table: T, where: Partial<DBRecord<T>>, update: KnexApproved<DBRecord<T>>) {
-        return await this.table(table).where(where).update(update);
+        return await this.table(table).where(where).update(update as any);
     }
 
     async delete<T extends DBName>(table: T, where: Partial<DBRecord<T>>) {

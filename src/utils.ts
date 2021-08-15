@@ -17,6 +17,10 @@ export type TupleHead<T extends unknown[]> = T extends [infer U, ...any[]] ? U :
 // Grabs the tail of a tuple. For 1-element tuples it returns `never` instead of `[]`
 export type TupleTail<T extends unknown[]> = T extends [unknown, ...infer U] ? (U extends [] ? never : U) : never;
 
+export type Return<T extends Function> = T extends (...x: any[]) => infer U ? U : never;
+
+export type CallResult<T extends Function, Args extends any[]> = T extends (...x: Args) => infer U ? U : never;
+
 interface StringArg {
     type: argType.string;
     value: string | null;

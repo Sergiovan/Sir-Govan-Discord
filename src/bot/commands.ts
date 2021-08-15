@@ -212,7 +212,7 @@ export const cmds: { [key: string]: CommandFunc } = {
         let [serverid, subcmd, rest] = parseArgs(msg, arg(argType.string), arg(argType.string), arg(argType.rest));
         let guild: D.Guild | undefined | null;
         
-        if (msg.channel.type !== "dm") {
+        if (msg.channel.type !== "DM") {
             guild = msg.guild;
             rest = `${subcmd} ${rest}`;
             subcmd = serverid;
