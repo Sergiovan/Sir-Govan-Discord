@@ -204,6 +204,18 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 this.maybe_steal(m, u);
                 break;
             }
+            case server.titlecard_emoji?.toString(): {
+                const m = msg;
+                const u = await msg.guild.members.fetch(user.id);
+                if (!u || !m) {
+                    return;
+                }
+                if (m.author.id !== u.id) {
+                    return; // Only on your own messages
+                }
+                this.maybe_titlecard(m, u);
+                break;
+            }
             default: { // Chaos
                 if (!server.anything_pin_channel) {
                     break;

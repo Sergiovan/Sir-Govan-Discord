@@ -17,7 +17,9 @@ import { Persist } from '../data/persist';
 import { DBWrapper, DBUserProxy } from '../data/db_wrapper';
 
 import { xp } from '../secrets/secrets';
-import { createImage, TweetData, TweetMoreData, TweetTheme } from '../twitter';
+import { createImage, TweetData, TweetMoreData, TweetTheme } from './twitter';
+import { join } from 'path';
+import { make_titlecard } from './titlecard';
 
 /** Pair containing command name and command function */
 type Command = [string, CommandFunc];
@@ -1018,6 +1020,91 @@ export class Bot {
                 }]
             });
         });
+    }
+
+    async maybe_titlecard(msg: D.Message, creator: D.GuildMember) {
+        // TODO Put these in utils
+
+        function clean_content(text: string) {
+            text = encode(text);
+
+            text = text.replace(/\n/g, '<br>');
+            text = text.replace(/\x00/g, ' ');
+
+            return text;
+        }
+
+        function emojify(text: string) {
+            text = twemoji.parse(text, {
+                callback: function(icon, options: any, variant) {
+                    switch ( icon ) {
+                        case 'a9':      // © copyright
+                        case 'ae':      // ® registered trademark
+                        case '2122':    // ™ trademark
+                            return false;
+                    }
+                    return ''.concat(options.base, options.size, '/', icon, options.ext);
+                }
+            });
+            text = text.replace(/&lt;a?\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
+            return text;
+        }
+        
+        function fix_name(text: string) {
+            text = text.replace(/-/g, ' ');
+            text = text.charAt(0).toUpperCase() + text.slice(1);
+
+            text = emojify(text);
+            return text;
+        }
+
+        const server = this.get_server(msg);
+        if (!server || !msg.content.length || msg.embeds.length || msg.attachments.size) {
+            return; // No empty messages or messages with embeds or attachments
+        }
+
+        if (msg.channel.type === "DM" || msg.channel.type === "GUILD_NEWS") return; // No DMs or... news... channels?
+
+        const emoji = server.titlecard_emoji;
+        if (!emoji) {
+            return; // Cannot happen but makes ts happy
+        }
+
+        const reactions = msg.reactions.resolve(emoji.to_reaction_resolvable());
+
+        if (!reactions || reactions?.me) {
+            return; // If this messages has been pinned or is locked for pinning, cease
+        }
+
+        await msg.react(emoji.toString());
+        const resm = await msg.channel.send("Processing...");
+
+        let episode_title = this.clean_content(msg.content, msg.channel);
+        episode_title = episode_title.replace(/\s+$/g, '');
+        episode_title = clean_content(episode_title);
+        episode_title = emojify(episode_title);
+        episode_title = `"${episode_title}"`;
+
+        const song_file = join('media', 'tempsens.ogg');
+        let show_name: string;
+        if (Math.random() < 0.1) { 
+            show_name = rb_(this.text.titlecardShowEntire, "It's Always Sunny in Philadelphia");
+        } else {
+            show_name = rb_(this.text.titlecardShowPrefix, "It's Always Sunny in");
+            show_name += " ";
+            show_name += fix_name(Math.random() < 0.2 ? msg.channel.name : msg.channel.guild.name);
+        }
+
+        const vid = await make_titlecard(episode_title, show_name, song_file); // TODO Funky filenames
+
+        resm.edit({
+            content: null,
+            files: [{
+                attachment: vid,
+                name: 'iasip.mp4' // TODO Funky stuff yee
+            }]
+        });
+
     }
 
     /** Pins a message to the hall of fame channel of a server 

@@ -26,6 +26,8 @@ export interface JsonableServer {
     no_context_role: D.Snowflake | null;
 
     _puzzle_channel: D.Snowflake | null;
+
+    titlecard_emoji: JsonableEmoji | null;
 }
 
 type ServerHelper = {[T in keyof JsonableServer]: any};
@@ -56,6 +58,8 @@ export class Server implements ServerHelper {
 
     _puzzle_channel: D.TextChannel | null;
 
+    titlecard_emoji: Emoji | null;
+
     constructor(client: D.Client, id: D.Snowflake, jsonable: Partial<JsonableServer>) {
         this.id = id;
         const guild = client.guilds.cache.get(id);
@@ -82,6 +86,8 @@ export class Server implements ServerHelper {
         this.no_context_role = (typeof jsonable.no_context_role === 'string' && guild?.roles.cache.get(jsonable.no_context_role)) || null;
 
         this._puzzle_channel = (typeof jsonable._puzzle_channel === 'string' && guild?.channels.cache.get(jsonable._puzzle_channel) as D.TextChannel) || null;
+    
+        this.titlecard_emoji = jsonable.titlecard_emoji ? new Emoji(jsonable.titlecard_emoji) : null;
     }
 
     as_jsonable(): JsonableServer {
@@ -109,7 +115,9 @@ export class Server implements ServerHelper {
             no_context_channel: this.no_context_channel?.id ?? null,
             no_context_role: this.no_context_role?.id ?? null,
 
-            _puzzle_channel: this._puzzle_channel?.id ?? null
+            _puzzle_channel: this._puzzle_channel?.id ?? null,
+
+            titlecard_emoji: this.titlecard_emoji ?? null
         }
     }
 
@@ -174,6 +182,7 @@ export const emojis = {
     japanese_ogre: new Emoji({name: '👹'}),
     weary: new Emoji({name: '😩'}),
     no_mouth: new Emoji({name: '😶'}),
+    violin: new Emoji({name: '🎻'}),
 };
 
 export enum argType {

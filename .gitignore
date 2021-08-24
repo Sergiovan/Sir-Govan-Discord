@@ -10,3 +10,5 @@ dist/
 secrets.ts
 text.ts
 push_text.sh
+ffmpeg-concat-files.txt
+media/*.ogg
