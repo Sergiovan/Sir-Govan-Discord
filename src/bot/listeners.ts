@@ -210,9 +210,6 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 if (!u || !m) {
                     return;
                 }
-                if (m.author.id !== u.id) {
-                    return; // Only on your own messages
-                }
                 this.maybe_titlecard(m, u);
                 break;
             }

@@ -1077,7 +1077,7 @@ export class Bot {
         }
 
         await msg.react(emoji.toString());
-        const resm = await msg.channel.send("Processing...");
+        // const resm = await msg.channel.send("Processing...");
 
         let episode_title = this.clean_content(msg.content, msg.channel);
         episode_title = episode_title.replace(/\s+$/g, '');
@@ -1097,14 +1097,15 @@ export class Bot {
 
         const vid = await make_titlecard(episode_title, show_name, song_file); // TODO Funky filenames
 
-        resm.edit({
-            content: null,
-            files: [{
-                attachment: vid,
-                name: 'iasip.mp4' // TODO Funky stuff yee
-            }]
+        this.only_once(msg.id, 'titlecard', async ()=>{
+            await msg.channel.send({
+                content: null,
+                files: [{
+                    attachment: vid,
+                    name: 'iasip.mp4' // TODO Funky stuff yee
+                }]
+            });
         });
-
     }
 
     /** Pins a message to the hall of fame channel of a server 
