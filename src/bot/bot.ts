@@ -11,7 +11,7 @@ import { cmds, aliases, beta_cmds } from './commands';
 import { listeners, fixed_listeners, ListenerFunction } from './listeners';
 
 import { emojis, Emoji, JsonableServer, Server, xpTransferReason } from '../defines';
-import { randFromFile, RarityBag, rb_, Logger } from '../utils';
+import { randFromFile, RarityBag, rb_, Logger, Mutex } from '../utils';
 
 import { Persist } from '../data/persist';
 import { DBWrapper, DBUserProxy } from '../data/db_wrapper';
@@ -46,8 +46,9 @@ export class Bot {
     
     cleanup_interval?: NodeJS.Timeout; // Interval for cleanup functions
     cleanup_list: CleanupCode[] = []; // List of to-be-cleaned-up actions
-    message_mutex: Set<string> = new Set(); // Message lock
-    only_once_buffer: Map<D.Snowflake, {[x: string]: {timeout: NodeJS.Timeout, func: () => any} | undefined}> = new Map();
+
+    channel_mutexes: {[key: D.Snowflake]: Mutex } = {}; // Mutexes for reacting and such. Only one per channel
+
     randomize_timeout: NodeJS.Timeout | null = null; // Interval for randomizing
     puzzle_start_timeout: NodeJS.Timeout | null = null; // Interval for puzzle starting
 
@@ -357,21 +358,18 @@ export class Bot {
         }
     }
 
-    /** Check if a certain message is locked 
-     * 
-     * Notice, this method of locking/unlocking only works because 
-     * this app is single-threaded...
-    */
-    message_locked(msg: D.Message) {
-        // TODO This mechanism has to be rethought
-        return this.message_mutex.has(msg.id);
-    }
-    
-    /** Lock a message, unlock after a minute */
-    lock_message(msg: D.Message, ms: number = 1000 * 60) {
-        // TODO Change this mechanism
-        this.message_mutex.add(msg.id);
-        this.add_cleanup_task(() => this.message_mutex.delete(msg.id), ms);
+    /**
+     * Performs a task (runs a function) with an async-mutex and returns the result. Each channel
+     * has its own mutex, as cross-channel activities don't require mutexes (yet)
+     */
+    async locked_task<T>(ch: D.Channel, task: ((() => T) | (() => PromiseLike<T>))) {
+        // It's fine to do this because this will always be synchronous
+        if (!this.channel_mutexes[ch.id]) {
+            this.channel_mutexes[ch.id] = new Mutex();
+        }
+        const mut = this.channel_mutexes[ch.id];
+
+        return await mut.dispatch(task);
     }
 
     /** Adds a cleanup task to the list, to be done after `delay_ms` */
@@ -385,27 +383,6 @@ export class Bot {
             Logger.debug('Forced task through');
             task();
         }
-    }
-
-    /** Makes something run only once on a delay, to avoid duplication in the timeout given. The timeout
-     *  should be bigger than the amount of time duplicates can be called upon */
-    only_once(id: D.Snowflake, task_type: string, func: () => any, timeout: number = 1000) {
-        if (!this.only_once_buffer.has(id)) {
-            this.only_once_buffer.set(id, {});
-        }
-        const tasks = this.only_once_buffer.get(id)!;
-        if (tasks[task_type]) {
-            clearTimeout(tasks[task_type]!.timeout);
-            delete tasks[task_type];
-        }
-
-        tasks[task_type] = {
-            timeout: setTimeout(async () => {
-                await func();
-                delete tasks[task_type]; // Self cleaning
-            }, timeout),
-            func: func
-        };
     }
 
     /** Parses a message to run a command */
@@ -476,7 +453,7 @@ export class Bot {
 
         try {
             clue = this.puzzler.getClue(forced);
-        } catch (e) {
+        } catch (e: any) {
             this.tellTheBoss(e.message);
             Logger.error(e.message);
             return;
@@ -675,22 +652,29 @@ export class Bot {
             return;
         }
 
-        // Do not pin messages where I've already reacted
-        const reactions = msg.reactions.resolve(emoji.to_reaction_resolvable());
-        if (!reactions || reactions.me) {
-            return; // If this messages has been pinned or is locked for pinning, cease
-        }
+        const res = await this.locked_task(msg.channel as D.Channel, async() => {
+            msg = await msg.fetch();
+            
+            // Do not pin messages where I've already reacted
+            const recs = msg.reactions.resolve(emoji.to_reaction_resolvable());
+            if (!recs || recs.me) {
+                return false; // If this messages has been pinned or is locked for pinning, cease
+            }
 
-        let reactionaries = await reactions.users.fetch();
-        if (!reactionaries) return; // ???
+            let reactionaries = await recs.users.fetch();
+            if (!reactionaries) return false; // ???
 
-        // At least `server.pin_amount` pins that are not the author or bots
-        if(reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.pin_amount){
-            //We pin that shit!
-            await msg.react(emoji.toString());
-            reactions.me = true; // We're doing this because sometimes it doesn't get registered properly?
-            await this.pin(msg, to, pinmoji);
-        }
+            if (reactionaries.filter((user) => user.id !== msg.author.id && !user.bot).size >= server.pin_amount) {
+                await msg.react(emoji.toString());
+                return true;
+            } else {
+                return false;
+            }
+        });
+
+        if (!res) return;
+            
+        await this.pin(msg, to, pinmoji);
     }
 
     /** Attempts to retweet a message */
@@ -843,14 +827,24 @@ export class Bot {
 
         const emoji = add_extras ? emojis.repeat : emojis.repeat_one;
 
-        const reactions = msg.reactions.resolve(emoji.to_reaction_resolvable());
-        
-        if (!reactions || reactions?.me) {
-            return; // If this messages has been pinned or is locked for pinning, cease
-        }
-        
-        await msg.react(emoji.toString());
-        
+        let reactions: D.MessageReaction;
+
+        let res = await this.locked_task(msg.channel, async () => {
+            msg = await msg.fetch();
+            let recs = msg.reactions.resolve(emoji.to_reaction_resolvable());
+            
+            if (!recs || recs?.me) {
+                return false; // If this messages has been pinned or is locked for pinning, cease
+            }
+            
+            reactions = recs;
+            await msg.react(emoji.toString());
+            return true;
+        });
+
+        // No res means the reaction was already there 
+        if (!res || !reactions!) return;
+
         let reactionaries = await reactions.users.fetch();
         if (!reactionaries) return; // ???
 
@@ -1009,16 +1003,14 @@ export class Bot {
         }
 
         let img = await createImage(tweet);
-        this.only_once(msg.id, add_extras ? 'retweet_full' : 'retweet', async () => {
-            await msg.channel.send({
-                reply: {
-                    messageReference: msg
-                },
-                files: [{
-                    name: 'tweet.png', // TODO Funky funny hella names
-                    attachment: img 
-                }]
-            });
+        await msg.channel.send({
+            reply: {
+                messageReference: msg
+            },
+            files: [{
+                name: 'tweet.png', // TODO Funky funny hella names
+                attachment: img 
+            }]
         });
     }
 
@@ -1070,14 +1062,21 @@ export class Bot {
             return; // Cannot happen but makes ts happy
         }
 
-        const reactions = msg.reactions.resolve(emoji.to_reaction_resolvable());
+        let reactions: D.MessageReaction;
+        const res = await this.locked_task(msg.channel, async () => {
+            msg = await msg.fetch(); // Update message
+            const recs = msg.reactions.resolve(emoji.to_reaction_resolvable());
 
-        if (!reactions || reactions?.me) {
-            return; // If this messages has been pinned or is locked for pinning, cease
-        }
+            if (!recs || recs?.me) {
+                return false; // If this messages has been pinned or is locked for pinning, cease
+            }
 
-        await msg.react(emoji.toString());
-        // const resm = await msg.channel.send("Processing...");
+            reactions = recs;
+            await msg.react(emoji.toString());
+            return true;
+        });
+
+        if (!res || !reactions!) return;
 
         let episode_title = this.clean_content(msg.content, msg.channel);
         episode_title = episode_title.replace(/\s+$/g, '');
@@ -1097,14 +1096,12 @@ export class Bot {
 
         const vid = await make_titlecard(episode_title, show_name, song_file); // TODO Funky filenames
 
-        this.only_once(msg.id, 'titlecard', async ()=>{
-            await msg.channel.send({
-                content: null,
-                files: [{
-                    attachment: vid,
-                    name: 'iasip.mp4' // TODO Funky stuff yee
-                }]
-            });
+        await msg.channel.send({
+            content: null,
+            files: [{
+                attachment: vid,
+                name: 'iasip.mp4' // TODO Funky stuff yee
+            }]
         });
     }
 
@@ -1182,20 +1179,16 @@ export class Bot {
                 "value": desc
             }];
         }
-        this.only_once(msg.id, `pin_with_${emoji.toString()}`, () => {
-            pinchannel.send({ embeds: [embed] });
-        });
+        pinchannel.send({ embeds: [embed] });
         return true;
     }
 
     /** Attempts to steal a puzzle clue */
     async maybe_steal(msg: D.Message, user: D.User) {
-        // TODO Change stealing with fancy buttons
-        if (!msg.reactions.resolve(emojis.devil.toString())?.me || this.message_locked(msg)) {
+        if (!msg.reactions.resolve(emojis.devil.toString())?.me) {
             return;
         }
 
-        this.lock_message(msg);
         const content = msg.content;
         await msg.reactions.resolve(emojis.devil.toString())?.users.remove(this.client.user!.id);
         await msg.edit(`${rb_(this.text.puzzleSteal, 'Stolen')} by ${user.username}`);
@@ -1261,17 +1254,6 @@ export class Bot {
             }
 
             await this.run_cleanup(true);
-            
-            // Do once what is to be done once
-            for (let [id, tasks] of this.only_once_buffer) {
-                for (let type in tasks) {
-                    if (tasks[type]) {
-                        clearTimeout(tasks[type]!.timeout);
-                        tasks[type]!.func();
-                        delete tasks[type];
-                    }
-                }
-            }
 
             if (this.randomize_timeout) {
                 clearTimeout(this.randomize_timeout);
@@ -1298,7 +1280,7 @@ export class Bot {
                 }
             }));
 
-        } catch (e) {
+        } catch (e: any) {
             Logger.error('Error while quitting: ', e.stack);
         } finally {
             // Do not reconnect

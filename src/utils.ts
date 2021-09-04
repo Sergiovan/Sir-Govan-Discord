@@ -443,6 +443,65 @@ export class RarityBag {
 
 export const rb_ = RarityBag.pickOrDefault;
 
+/**
+ * async-await mutex class taken from 
+ * https://spin.atomicobject.com/2018/09/10/javascript-concurrency/ 
+ */
+export class Mutex {
+    // Empty promise
+    #mutex = Promise.resolve();
+
+    /**
+     * This is a really fucking complicated function, so I'll take some time to explain it.
+     * 
+     * NOTES:
+     * The promise constructor takes 2 parameters, a resolve function, and a reject function.
+     * 
+     *  
+     * First, we make a promise that does not resolve immediately. This is `ret`.
+     * The resolve function of `ret` is stored in `begin`, because the promise constructor is called immediately.
+     * This means calling `begin()` will resolve `ret`
+     * Next, we chain `#mutex` to itself by making it return a new Promise.
+     * This promise takes as input the resolve function of `ret`. 
+     * Because of how promises are constructed, as soon as this constructor is called `ret` will resolve, and
+     * it will have the resolve function of the `#mutex` chain promise as value.
+     * That means `ret` will resolve to a function, which when called will resolve `#mutex`
+     * 
+     * THIS MEANS that the first call to `lock` will resolve immediately, since `#mutex` starts resolved, but
+     * any subsequent calls need to wait until the previous call is over, which is notified by calling the 
+     * return value of `lock`. Fucking hell
+     */
+
+    lock(): PromiseLike<() => void> {
+        // A function taking a function returning void as a parameter, that returns void
+        // Used to store resolver function of returned promise
+        let begin: (unlock: () => void) => void = (unlock) => {};
+
+        // Res takes a function returning void
+        let ret: Promise<() => void> = new Promise((res, rej) => {
+            begin = res; // This is done before the function passed to then() is called
+            // Calling begin() will resolves #mutex
+        });
+
+        this.#mutex = this.#mutex.then(() => {
+            // By the time this is called "begin" is the res function of the returned promise
+            return new Promise(begin); // This fulfills ret and passes the fullfil function of itself
+        });
+
+        return ret;
+    }
+
+    async dispatch<T>(fn: (() => T) | (() => PromiseLike<T>)): Promise<T> {
+        const unlock = await this.lock();
+        
+        try {
+            return await Promise.resolve(fn());
+        } finally {
+            unlock();
+        }
+    }
+}
+
 export class Logger {
     static readonly INFO    = 'INFO   '.cyan;
     static readonly DEBUG   = 'DEBUG  '.green;
