@@ -1,14 +1,37 @@
+# IDEs
 .idea/
 .vscode/
+
+# Data
 data/nocontext.txt
 data/node-persist/
 data/db/*.db
 data/db/*.db.bak
 data/db/last
+
+# Node
 node_modules/
+
+# Typescript
 dist/
+
+# Secrets
 secrets.ts
 text.ts
+
+# Scripts
 push_text.sh
-ffmpeg-concat-files.txt
+
+# Media
 media/*.ogg
+
+# html
+html/
+!html/*.hbs
+
+# tests
+test/
+
+# Temp output
+ffmpeg-concat-files.txt
+logs*/
