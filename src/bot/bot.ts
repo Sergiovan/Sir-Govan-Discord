@@ -827,29 +827,25 @@ export class Bot {
 
         const emoji = add_extras ? emojis.repeat : emojis.repeat_one;
 
-        let reactions: D.MessageReaction;
-
         let res = await this.locked_task(msg.channel, async () => {
             msg = await msg.fetch();
             let recs = msg.reactions.resolve(emoji.to_reaction_resolvable());
             
-            if (!recs || recs?.me) {
+            if (recs?.me) {
                 return false; // If this messages has been pinned or is locked for pinning, cease
             }
             
-            reactions = recs;
             await msg.react(emoji.toString());
             return true;
         });
 
         // No res means the reaction was already there 
-        if (!res || !reactions!) return;
-
-        let reactionaries = await reactions.users.fetch();
-        if (!reactionaries) return; // ???
+        if (!res) return;
 
         // From this point we're safe, as long as we call only_once
         this.add_cleanup_task(async () => {
+            const reactions = await msg.reactions.resolve(emoji.to_reaction_resolvable());
+            if (!reactions) return;
             await reactions.users.remove(self.client.user!.id);
         }, 1000 * 60 * 30);
 

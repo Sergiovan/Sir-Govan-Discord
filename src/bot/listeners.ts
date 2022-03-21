@@ -232,13 +232,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
             return;
         }
 
-        const usr = this.users[member.id]; 
-        if (usr) {
-            usr.update_member(member);
-            usr.commit();
-        } else {
-            this.db.addUser(member.user, 1, member.user.bot ? 1 : 0, member.nickname).then((u) => this.add_user(u));
-        }
+        this.update_users();
     },
 
     [E.GUILD_MEMBER_REMOVE](this: Bot, member: D.GuildMember | D.PartialGuildMember) {
@@ -248,11 +242,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
             return;
         }
 
-        const usr = this.users[member.id];
-        if (usr) {
-            usr.db_user.is_member = 0;
-            usr.commit();
-        }
+        this.update_users();
     },
 
     [E.GUILD_MEMBER_UPDATE](this: Bot, old_member: D.GuildMember | D.PartialGuildMember, member: D.GuildMember) {
@@ -262,13 +252,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
             return;
         }
 
-        const usr = this.users[member.id];
-        if (usr) {
-            usr.update_member(member);
-            usr.commit();
-        } else {
-            this.db.addUser(member.user, 1, member.user.bot ? 1 : 0, member.nickname).then((u) => this.add_user(u));
-        }
+        this.update_users();
     },
 
     [E.USER_UPDATE](this: Bot, old_user: D.User | D.PartialUser, user: D.User) {
