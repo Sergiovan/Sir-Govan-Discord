@@ -1,5 +1,5 @@
 import { Snowflake } from 'discord.js';
-import Knex from 'knex';
+import { knex, Knex } from 'knex';
 
 interface Table {
     rowid: number;
@@ -66,10 +66,10 @@ export class DB {
     conn: Knex;
 
     constructor(db_file: string) {
-        this.conn = Knex({
-            client: 'sqlite3',
+        this.conn = knex({
+            client: 'better-sqlite3',
             connection: {
-                filename: db_file
+                filename: db_file,
             },
             useNullAsDefault: true
         });

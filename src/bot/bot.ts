@@ -2,7 +2,7 @@ import * as D from 'discord.js';
 import * as util from 'util';
 
 import { encode } from 'html-entities';
-import * as twemoji from 'twemoji';
+import twemoji from 'twemoji';
 
 import { CommandFunc } from './commands';
 import { Puzzler } from './puzzler';
@@ -198,6 +198,7 @@ export class Bot {
             
             return this.storage.set('servers', servers);
         }
+        return Promise.resolve(true);
     }
 
     get_server(o: D.Message | D.GuildChannel | D.ThreadChannel | D.Guild | D.GuildMember) {
@@ -720,16 +721,16 @@ export class Bot {
 
         function emojify(text: string) {
             text = twemoji.parse(text, {
-                callback: function(icon, options: any, variant) {
+                callback: function(icon: string, options: TwemojiOptions) {
                     switch ( icon ) {
                         case 'a9':      // © copyright
                         case 'ae':      // ® registered trademark
                         case '2122':    // ™ trademark
                             return false;
                     }
-                    return ''.concat(options.base, options.size, '/', icon, options.ext);
+                    return `${options.base}${options.size}/${icon}${options.ext}`;
                 }
-            });
+            }) as any as string; // TODO Remove once twemoji 14.0.1 is gone
             text = text.replace(/&lt;a?\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
             return text;
         }
@@ -1024,16 +1025,16 @@ export class Bot {
 
         function emojify(text: string) {
             text = twemoji.parse(text, {
-                callback: function(icon, options: any, variant) {
+                callback: function(icon: string, options: TwemojiOptions) {
                     switch ( icon ) {
                         case 'a9':      // © copyright
                         case 'ae':      // ® registered trademark
                         case '2122':    // ™ trademark
                             return false;
                     }
-                    return ''.concat(options.base, options.size, '/', icon, options.ext);
+                    return `${options.base}${options.size}/${icon}${options.ext}`;
                 }
-            });
+            }) as any as string; // TODO Remove once twemoji 14.0.1 is gone
             text = text.replace(/&lt;a?\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
             return text;
         }
@@ -1117,7 +1118,7 @@ export class Bot {
         }
 
         function emoji_image(e: Emoji): string {
-            const img = twemoji.parse(e.toString());
+            const img = twemoji.parse(e.toString()) as any as string; // TODO Remove once twemoji 14.0.1 is gone
             const url = /src=\"(.*?)\"/.exec(img)?.[1];
             return url ?? 'https://twemoji.maxcdn.com/v/latest/72x72/2049.png';
         }
@@ -1233,7 +1234,10 @@ export class Bot {
                     this.postClue(server._puzzle_channel.id);
                 }
             }
+            return true;
         }
+
+        return false;
     }
 
     /** Connects the client */

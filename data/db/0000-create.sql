@@ -1,4 +1,5 @@
 CREATE TABLE "main"."users" (
+    "rowid" INTEGER PRIMARY KEY ASC, -- MAIN KEY
     "id" VARCHAR(24) NOT NULL UNIQUE, -- DISCORD SNOWFLAKE
     "name" TEXT NOT NULL, -- DISCORD NAME
     "discriminator" TEXT NOT NULL, -- DISCORD DISCRIMINATOR
@@ -12,6 +13,7 @@ CREATE TABLE "main"."users" (
 );
 
 CREATE TABLE "main"."puzzles" (
+    "rowid" INTEGER PRIMARY KEY ASC, -- MAIN KEY
     "id" VARCHAR(24) NOT NULL, -- PUZZLE ID HEX
     "answer" TEXT NOT NULL, -- PUZZLE ANSWER
     "type" INTEGER NOT NULL, -- PUZZLE TYPE
@@ -21,6 +23,7 @@ CREATE TABLE "main"."puzzles" (
 );
 
 CREATE TABLE "main"."clues" (
+    "rowid" INTEGER PRIMARY KEY ASC, -- MAIN KEY
     "puzzle_id" INTEGER NOT NULL REFERENCES puzzles(rowid),
     "message_id" VARCHAR(24) NOT NULL, -- DISCORD MESSAGE SNOWFLAKE
     "content" TEXT NOT NULL, -- CLUE CONTENT
@@ -28,12 +31,14 @@ CREATE TABLE "main"."clues" (
 );
 
 CREATE TABLE "main"."clue_steals" (
+    "rowid" INTEGER PRIMARY KEY ASC, -- MAIN KEY
     "clue_id" INTEGER NOT NULL REFERENCES clues(rowid),
     "user_id" INTEGER NOT NULL REFERENCES users(rowid),
     "steal_time" TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 CREATE TABLE "main"."xp_transactions" (
+    "rowid" INTEGER PRIMARY KEY ASC, -- MAIN KEY
     "user_sender" INTEGER REFERENCES users(rowid), -- NULL IS SIR GOVAN
     "user_receiver" INTEGER REFERENCES users(rowid), -- NULL IS SIR GOVAN
     "amount" INTEGER NOT NULL,
