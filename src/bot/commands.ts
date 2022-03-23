@@ -40,6 +40,10 @@ export const cmds: { [key: string]: CommandFunc } = {
     /** Rolls an n-sided dice */
     roll(this: Bot, msg: D.Message) {
         let [num] = parseArgs(msg, arg(argType.bigint, 20n));
+        if (num as bigint <= 0) {
+            this.reply(msg, "Dice need to have 1 or more sides, otherwise I don't know where the North is", this.text.roll_no_sides);
+            return;
+        }
         let number = `${randomBigInt(num as bigint, 1n)}`.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1,"); // Good god https://stackoverflow.com/a/25377176
         this.reply(msg, `${number}${rb_(this.text.roll, "")}`);
     },
