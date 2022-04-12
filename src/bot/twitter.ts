@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-import nodeHtmlToImage from 'node-html-to-image';
+import { Screenshotter } from './screenshots';
 
 export type TweetTheme = "dim" | "light" | "dark";
 
@@ -40,19 +40,12 @@ export type TweetData = {
     moreTweets: TweetMoreData[];
 };
 
+let html: string | null = null;
+
 export async function createImage(data: TweetData) {
-    const html = readFileSync('./html/tweet.hbs', "utf8"); 
+    if (html === null) {
+        html = readFileSync('./html/tweet.hbs', "utf8"); 
+    }
     
-    return await nodeHtmlToImage({
-        html: html,
-        content: data,
-        transparent: true,
-        puppeteerArgs: {
-            defaultViewport: {
-                width: 510,
-                height: 10
-            }
-        },
-        encoding: "binary"
-    }) as Buffer;
+    return (await (await Screenshotter.get()).screenshot(html, [data], true, 'load', {width: 510, height: 10}))[0];
 }

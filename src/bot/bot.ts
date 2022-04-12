@@ -20,6 +20,7 @@ import { xp } from '../secrets/secrets';
 import { createImage, TweetData, TweetMoreData, TweetTheme } from './twitter';
 import { join } from 'path';
 import { make_titlecard } from './titlecard';
+import { Screenshotter } from './screenshots';
 
 /** Pair containing command name and command function */
 type Command = [string, CommandFunc];
@@ -1286,6 +1287,7 @@ export class Bot {
             // Do not reconnect
             this.client.destroy();
             this.db.close();
+            await Screenshotter.deinit();
         }
     }
 }
