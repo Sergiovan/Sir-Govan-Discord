@@ -3,6 +3,46 @@ import nodeHtmlToImage from 'node-html-to-image';
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 
+const minimal_args = [
+    '--autoplay-policy=user-gesture-required',
+    '--disable-background-networking',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-breakpad',
+    '--disable-client-side-phishing-detection',
+    '--disable-component-update',
+    '--disable-default-apps',
+    '--disable-dev-shm-usage',
+    '--disable-domain-reliability',
+    '--disable-extensions',
+    '--disable-features=AudioServiceOutOfProcess',
+    '--disable-hang-monitor',
+    '--disable-ipc-flooding-protection',
+    '--disable-notifications',
+    '--disable-offer-store-unmasked-wallet-cards',
+    '--disable-popup-blocking',
+    '--disable-print-preview',
+    '--disable-prompt-on-repost',
+    '--disable-renderer-backgrounding',
+    '--disable-setuid-sandbox',
+    '--disable-speech-api',
+    '--disable-sync',
+    '--hide-scrollbars',
+    '--ignore-gpu-blacklist',
+    '--metrics-recording-only',
+    '--mute-audio',
+    '--no-default-browser-check',
+    '--no-first-run',
+    '--no-pings',
+    '--no-sandbox',
+    '--no-zygote',
+    '--headless',
+    '--disable-gpu',
+    '--password-store=basic',
+    '--use-gl=swiftshader',
+    '--use-mock-keychain',
+  ];
+
 export async function make_titlecard(episode_name: string, show_name: string, song_file: string, titlecard_name: string = 'titlecard') {
     const folder = mkdtempSync('/tmp/titlecard');
     let res: Buffer;
@@ -26,7 +66,9 @@ export async function make_titlecard(episode_name: string, show_name: string, so
                 defaultViewport: {
                     width: 1920,
                     height: 1080
-                }
+                },
+                args: minimal_args,
+                userDataDir: '/tmp/pupeteer'
             },
             content: [{
                 text: episode_name,
@@ -38,32 +80,43 @@ export async function make_titlecard(episode_name: string, show_name: string, so
             }],
         });
 
+        // libx264
+
         await new Promise((res, rej) => Ffmpeg()
             .on('end', (val) => res(val))
-            .on('error', (err) => { console.error(err); return rej(err); })
+            .on('error', (err, stdout, stderr) => { 
+                console.error(err, stdout, stderr); 
+                return rej(err); 
+            }) 
             .input(episode_image).inputFormat('image2').loop()
-            .videoCodec('libx264').duration(3)
+            .videoCodec('libx264').outputOption('-pix_fmt yuv420p').fps(1/3).duration(3)
             .saveToFile(episode_video));
 
         await new Promise((res, rej) => Ffmpeg()
             .on('end', (val) => res(val))
-            .on('error', (err) => { console.error(err); return rej(err); })
+            .on('error', (err, stdout, stderr) => { 
+                console.error(err, stdout, stderr); 
+                return rej(err); 
+            }) 
             .input(title_image).inputFormat('image2').loop()
-            .videoCodec('libx264').duration(4)
+            .videoCodec('libx264').outputOption('-pix_fmt yuv420p').fps(1/4).duration(4)
             .saveToFile(title_video));
 
         writeFileSync(output_files_file, output_files);
 
         await new Promise((res, rej) => Ffmpeg()
             .on('end', (val) => res(val))
-            .on('error', (err) => { console.error(err); return rej(err); })    
+            .on('error', (err, stdout, stderr) => { 
+                console.error(err, stdout, stderr); 
+                return rej(err); 
+            }) 
             .input(output_files_file).inputFormat('concat').inputOption('-safe 0')
             .input(song_file)
             .outputOptions([
                 '-c:v libx264', '-crf 23', '-profile:v baseline', '-level 3.0', '-pix_fmt yuv420p',
                 '-c:a aac', '-ac 2', '-b:a 128k',
                 '-movflags faststart',
-            ]).saveToFile(final_output));
+            ]).fps(1).saveToFile(final_output));
 
         res = readFileSync(final_output);
 
