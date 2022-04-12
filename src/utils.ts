@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 
 import { argType, Emoji, regexes } from './defines';
+import { performance } from 'perf_hooks';
 
 // Yoinked from https://github.com/Morglod/ts-tuple-hacks/blob/master/index.ts
 // Nabs the length of a tuple as a literal type
@@ -508,9 +509,11 @@ export class Logger {
     static readonly WARNING = 'WARNING'.yellow;
     static readonly ERROR   = 'ERROR  '.red;
     static readonly INSPECT = 'INSPECT'.white;
+    static readonly TIME    = 'TIME   '.magenta;
     static readonly padding_len = 14 + 2 + 7 + 1;
     static readonly padding = '\n' + ' '.repeat(Logger.padding_len);
     static #previous_day: number = -1;
+    static #labels: {[key: string]: number} = {};
 
     static #time(): string {
         const now = new Date();
@@ -564,6 +567,28 @@ export class Logger {
         str = str.replace(/\n/g, this.padding);
         this.#to_stdout(prefix + str);
         this.#to_stderr(prefix + str);
+    }
+
+    static time_start(label: string): void {
+        const now = performance.now();
+        this.#labels[label] = now;
+    }
+
+    static time_get(label: string): number {
+        const now = performance.now();
+        return now - (this.#labels[label] ?? now);
+    }
+
+    static time_end(label: string): void {
+        const now = performance.now();
+        if (!(label in this.#labels)) {
+            return;
+        }
+        const diff = now - this.#labels[label];
+        
+        const prefix = `${this.#time()}[${this.TIME}] `;
+        this.#to_stdout(prefix + `${label}: ${diff.toFixed(3)}ms`);
+        delete this.#labels[label];
     }
 
     static inspect(arg: any): void {

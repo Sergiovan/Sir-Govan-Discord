@@ -844,6 +844,8 @@ export class Bot {
         // No res means the reaction was already there 
         if (!res) return;
 
+        Logger.time_start('twitter_setup');
+
         // From this point we're safe, as long as we call only_once
         this.add_cleanup_task(async () => {
             const reactions = await msg.reactions.resolve(emoji.to_reaction_resolvable());
@@ -1000,7 +1002,12 @@ export class Bot {
             }
         }
 
+        Logger.time_end('twitter_setup');
+
+        Logger.time_start('twitter_render');
         let img = await createImage(tweet);
+        Logger.time_end('twitter_render');
+
         await msg.channel.send({
             reply: {
                 messageReference: msg
