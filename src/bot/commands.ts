@@ -95,6 +95,7 @@ export const cmds: { [key: string]: CommandFunc } = {
         }
         if (server.no_context_role) {
             let rolename = msg.guild.roles.resolve(server.no_context_role)?.name;
+            Logger.inspect(msg.guild.roles.cache);
             if (!rolename) {
                 Logger.warning(`The no context role ${server.no_context_role} doesn't exist in ${server.id}`);
                 return;
@@ -107,7 +108,7 @@ export const cmds: { [key: string]: CommandFunc } = {
                     Logger.error(`Error detected: ${err}`);
                 } else {
                     let lines = data.trim().split('\n');
-                    index = lines.indexOf(rolename!);
+                    index = lines.lastIndexOf(rolename!);
                     total = lines.length;
                 }
                 // TODO Textify shiny reply
