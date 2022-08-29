@@ -536,6 +536,23 @@ export class Bot {
         return ch?.send(what);
     }
 
+    get_member_role(member: D.GuildMember) {
+        let guild = member.guild;
+
+        let user_roles = member.roles.cache.filter(role => !!role.color);
+        user_roles.sort((a, b) => b.position - a.position);
+
+        // Edit the first unique role
+        for (let [role_id, role] of user_roles) {
+            if (guild.members.cache.find((usr) => usr.id !== member.id && usr.roles.cache.has(role_id))) {
+                continue;
+            }
+            return role;
+        }
+        
+        return null;
+    }
+
     /** Attempts to pin a message */
     async maybe_pin(msg: D.Message, emoji: Emoji, to?: D.TextChannel | null, pinmoji: Emoji = emoji) {
         const server = this.get_server(msg);

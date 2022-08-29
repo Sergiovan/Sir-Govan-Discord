@@ -5,7 +5,7 @@ import * as util from 'util';
 
 import { Bot } from './bot';
 
-import { argType, Emoji, emojis, Server } from '../defines';
+import { argType, Emoji, emojis, regexes, Server } from '../defines';
 import { arg, Arg, parseArgs, randomBigInt, rb_, Logger, parseArgsHelper } from '../utils';
 
 export type CommandFunc = (msg: D.Message) => void;
@@ -50,6 +50,9 @@ export const cmds: { [key: string]: CommandFunc } = {
 
     /** Changes a user's unique role color */
     color(this: Bot, msg: D.Message) {
+        let server = this.get_server(msg);
+        if (!msg.guild || !server) return;
+
         let [color] = parseArgs(msg, arg(argType.string, `${Math.floor(Math.random() * 0x1000000)}`));
         if (!color) {
             this.reply(msg, "Missing color parameter. Please provide me with a hex number", this.text.colorNoColor);
@@ -60,21 +63,15 @@ export const cmds: { [key: string]: CommandFunc } = {
             if (!msg.member) {
                 return; // Not in a server
             }
+
             let member = msg.member;
-            let guild = (msg.channel as D.TextChannel).guild;
+            let role = this.get_member_role(member);
 
-            let user_roles = member.roles.cache.filter(role => !!role.color);
-            user_roles.sort((a, b) => b.position - a.position);
-
-            // Edit the first unique role
-            for (let [role_id, role] of user_roles) {
-                if (guild.members.cache.find((usr) => usr.id !== member.id && usr.roles.cache.has(role_id))) {
-                    continue;
-                }
+            if (role) {
                 role.setColor(number);
-                return;
+            } else {
+                this.reply(msg, "It seems like you have no valid role to color");
             }
-            this.reply(msg, "It seems like you have no valid role to color");
         } else if (Number.isNaN(number)) {
             this.reply(msg, "That's not a valid color hex. Give me a valid hex, like #C0FFEE or #A156F2", this.text.colorNaN);
         } else if (!Number.isFinite(number)) {
@@ -85,6 +82,82 @@ export const cmds: { [key: string]: CommandFunc } = {
             this.reply(msg, "I'm unsure your monitor can even render that. Your hex is too high. " +
                 "Give me a valid hex, like #00AE8F, or #F2F0A1", this.text.colorError);
         }
+    },
+
+    /** Changes your role icon, if possible */
+    async icon(this: Bot, msg: D.Message) {
+        let server = this.get_server(msg);
+        if (!msg.guild || !msg.member || !server) return;
+
+        let [icon] = parseArgs(msg, arg(argType.string, null, true));
+
+        if (msg.guild.premiumTier === D.GuildPremiumTier.None || msg.guild.premiumTier === D.GuildPremiumTier.Tier1) {
+            this.reply(msg, "This server cannot actually change role icons, sorry!");
+            return;
+        }
+
+        let member = msg.member;
+        let role = this.get_member_role(member);
+
+        if (!role) {
+            this.reply(msg, "It seems you don't have a valid role to get an icon on");
+            return;
+        }
+
+        if (!icon) {
+            try {
+                role.setIcon(null);
+                this.reply(msg, "Your icon has been removed!");
+            } catch (err) {
+                Logger.inspect(err);
+                this.reply(msg, "Something went wrong! Go bug my master to see");
+            }
+        } else {
+            try {
+                let emoji = regexes.discord_emojis.exec(icon);
+                if (emoji && emoji[3]) {
+
+                    let emoji_obj = role.guild.emojis.resolve(emoji[3]);
+
+                    if (!emoji_obj || emoji_obj.guild.id !== msg.guild.id) {
+                        this.reply(msg, "The emoji needs to be from this server");
+                        return;
+                    }
+                    await role.setIcon(emoji[3]); // Emoji snowflake
+                    this.reply(msg, `Your icon has been set: ${icon}!`);
+                } else if (icon.startsWith('http://') || icon.startsWith('https://')) {
+                    await role.setIcon(icon); // url?
+                    this.reply(msg, "Your icon has been set!");
+                } else {
+                    this.reply(msg, "You must provide a valid image url or discord emoji!");
+                }
+            } catch (err: any) {
+                Logger.inspect(err);
+                Logger.inspect(err.cause);
+                for (let prop in err) {
+                    Logger.debug(prop);
+                    Logger.inspect(err[prop])
+                }
+                switch (err?.rawError?.errors?.icon?._errors[0]?.code ?? err?.cause?.code ?? err.code) {
+                    case 'ERR_INVALID_URL':
+                        this.reply(msg, "That's not a valid url, my jolly friend");
+                        break;
+                    case 'ENOTFOUND':
+                        this.reply(msg, "I cannot find anything at that location...");
+                        break;
+                    case 'IMAGE_INVALID':
+                        this.reply(msg, "That's not an image, is it");
+                        break;
+                    case 'BINARY_TYPE_MAX_SIZE':
+                        this.reply(msg, "This image is too powerful for Discord to handle. Try finding something smaller");
+                        break;
+                    default:
+                        this.reply(msg, "Well, I don't even know what happened there. Go bother my master about it");
+                        break;
+                }
+            }
+        }
+
     },
 
     /** Gives the current no-context role in use */
@@ -230,7 +303,6 @@ export const cmds: { [key: string]: CommandFunc } = {
             anything_pin_channel: kd(arg(argType.channel, undefined, true), undefined, (c: D.TextChannel) => c.name), // null means clear
             no_context_channel: kd(arg(argType.channel, undefined, true), undefined, (c: D.TextChannel) => c.name), // null means clear
             no_context_role: kd(arg(argType.role, undefined, true), undefined, (r: D.Role) => r.name), // null means clear
-            _puzzle_channel: kd(admin_powers ? arg(argType.channel, undefined, true) : undefined, undefined, (c: D.TextChannel) => c.name), // null means clear
             titlecard_emoji: kd(
                 arg(argType.emoji, undefined, true), 
                 (e: Emoji | null) => e === null || e.id === null || (guild?.emojis.cache.has(e.id as D.Snowflake) ?? false),
@@ -468,6 +540,9 @@ export const beta_cmds: { [key: string]: CommandFunc} = {
     decontext(this: Bot, msg: D.Message) {
         this.maybe_remove_context(msg);
     },
+
+    /** Alias of servers, effectively only for beta bot */
+    __servers: cmds.servers,
 
     /** Alias of die, effectively only kills beta bot */
     __die: cmds.die,
