@@ -128,14 +128,14 @@ export class Server implements ServerHelper {
     /**
      * If the channel can be sent a command to
      */
-    allowed_commands(channel: D.Channel): boolean {
+    allowed_commands(channel: D.GuildChannel): boolean {
         return this.allowed_channels_commands.has(channel.id);
     }
 
     /**
      * If the bot can listen to events on this channel
      */
-    allowed_listen(channel: D.Channel): boolean {
+    allowed_listen(channel: D.GuildChannel): boolean {
         return !this.disallowed_channels_listen.has(channel.id);
     }
 }

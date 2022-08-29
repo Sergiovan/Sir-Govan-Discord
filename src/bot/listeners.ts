@@ -10,12 +10,12 @@ import { Logger } from '../utils';
 let in_sigint = false; // Booo, npm, boooo
 export type ListenerFunction = (this: Bot, ...args: any[]) => void;
 
-const E = D.Constants.Events;
+const E = D.Events;
 type ClientListener<K extends keyof D.ClientEvents> = (this: Bot, ...args: D.ClientEvents[K]) => void;
 
 /** Holds all listeners that will never be changed or updated while the bot*/
 export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} = {
-    async [E.CLIENT_READY](this: Bot) {
+    async [E.ClientReady](this: Bot) {
         Logger.debug("Ready?");
         const self = this;
 
@@ -60,7 +60,7 @@ export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<k
         Logger.debug("Ready!");
     },
 
-    [E.ERROR](this: Bot, err: Error) {
+    [E.Error](this: Bot, err: Error) {
         Logger.error(err);
 
         this.client.destroy();
@@ -70,11 +70,11 @@ export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<k
 };
 
 export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} = {
-    async [E.MESSAGE_CREATE](this: Bot, msg: D.Message) {
-        if (msg.channel.type === "DM") {
+    async [E.MessageCreate](this: Bot, msg: D.Message) {
+        if (msg.channel.type === D.ChannelType.DM) {
             // DMs, tread carefully
             const chn = msg.channel.partial ? await msg.channel.fetch() : msg.channel
-            const channel_user = chn.recipient;
+            const channel_user = chn.recipient ?? {tag: 'Nobody'};
             let channel_name = `${channel_user.tag}`;
             const message_mine = msg.author.id === this.client.user!.id;
             if (!message_mine) {
@@ -129,7 +129,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         }
     },
 
-    async [E.MESSAGE_REACTION_ADD](this: Bot, reaction: D.MessageReaction | D.PartialMessageReaction, user: D.User | D.PartialUser) {
+    async [E.MessageReactionAdd](this: Bot, reaction: D.MessageReaction | D.PartialMessageReaction, user: D.User | D.PartialUser) {
         try {
             reaction = reaction.partial ? await reaction.fetch() : reaction;
         } catch (error) {
@@ -217,7 +217,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         }
     },
 
-    [E.GUILD_MEMBER_ADD](this: Bot, member: D.GuildMember) {
+    [E.GuildMemberAdd](this: Bot, member: D.GuildMember) {
         const server = this.servers[member.guild.id];
         
         if (!server) {
@@ -227,7 +227,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         this.update_users();
     },
 
-    [E.GUILD_MEMBER_REMOVE](this: Bot, member: D.GuildMember | D.PartialGuildMember) {
+    [E.GuildMemberRemove](this: Bot, member: D.GuildMember | D.PartialGuildMember) {
         const server = this.servers[member.guild.id];
         
         if (!server) {
@@ -237,7 +237,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         this.update_users();
     },
 
-    [E.GUILD_MEMBER_UPDATE](this: Bot, old_member: D.GuildMember | D.PartialGuildMember, member: D.GuildMember) {
+    [E.GuildMemberUpdate](this: Bot, old_member: D.GuildMember | D.PartialGuildMember, member: D.GuildMember) {
         const server = this.servers[member.guild.id];
         
         if (!server) {
@@ -247,7 +247,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         this.update_users();
     },
 
-    [E.USER_UPDATE](this: Bot, old_user: D.User | D.PartialUser, user: D.User) {
+    [E.UserUpdate](this: Bot, old_user: D.User | D.PartialUser, user: D.User) {
         const usr = this.users[user.id];
         if (usr) {
             usr.update_user(user);

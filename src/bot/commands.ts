@@ -138,7 +138,7 @@ export const cmds: { [key: string]: CommandFunc } = {
         if (messageID) {
             let success = false;
             for (let [channel_id, channel] of msg.guild.channels.cache) {
-                if (channel.isText() && !server.disallowed_channels_listen.has(channel_id)) {
+                if (channel.isTextBased() && !server.disallowed_channels_listen.has(channel_id)) {
                     try {
                         let msg = await channel.messages.fetch(messageID as D.Snowflake);
                         if (msg.reactions.resolve(emojis.pushpin.toString())?.me) {
@@ -150,7 +150,7 @@ export const cmds: { [key: string]: CommandFunc } = {
                         success = true;
                         break;
                     } catch (err) {
-                        
+                        // Logger.inspect(err);
                     }
                 }
             }
@@ -179,14 +179,14 @@ export const cmds: { [key: string]: CommandFunc } = {
         const self = this;
 
         if (!admin_powers && 
-            (!msg.guild || !msg.guild.members.cache.get(msg.author.id)?.permissions.has(D.Permissions.FLAGS.ADMINISTRATOR))) {
+            (!msg.guild || !msg.guild.members.cache.get(msg.author.id)?.permissions.has(D.PermissionFlagsBits.Administrator))) {
             return;
         }
         
         let [serverid, subcmd, rest] = parseArgs(msg, arg(argType.string), arg(argType.string), arg(argType.rest));
         let guild: D.Guild | undefined | null;
         
-        if (msg.channel.type !== "DM") {
+        if (msg.channel.type !== D.ChannelType.DM) {
             guild = msg.guild;
             rest = `${subcmd} ${rest}`;
             subcmd = serverid;
@@ -342,7 +342,7 @@ export const cmds: { [key: string]: CommandFunc } = {
                     let info: string[] = [];
                     info.push(`Info for ${guild.name}`);
                     for (let [channel_id, channel] of guild.channels.cache) {
-                        if (!channel.isText()) continue;
+                        if (!channel.isTextBased()) continue;
 
                         info.push(`<#${channel_id}>${channel.isThread() ? ` (Thread of <#${channel.parent?.id}>)` : ''}: Listen: \`${this.can_listen(channel) ? '`Y`' : '`N`'}\`. ` +
                                   `Commands: \`${this.can_command(channel) ? '`Y`' : '`N`'}\`. ` +
@@ -462,6 +462,11 @@ export const beta_cmds: { [key: string]: CommandFunc} = {
     /** Gives debug info for the message that calls this command */
     debug(this: Bot, msg: D.Message) {
         Logger.inspect(util.inspect(msg, true, 3, true));
+    },
+
+    /** Sends a message to the no-context realm */
+    decontext(this: Bot, msg: D.Message) {
+        this.maybe_remove_context(msg);
     },
 
     /** Alias of die, effectively only kills beta bot */

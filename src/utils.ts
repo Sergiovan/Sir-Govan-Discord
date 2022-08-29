@@ -178,7 +178,7 @@ export function parseArgsHelper<T extends Arg[]>(text: string, guild: Guild | nu
                 const regex_res = regexes.discord_channel.exec(inspected || arg.value || '');
                 if (guild && regex_res && regex_res[1]) {
                     let channel = guild.channels.resolve(regex_res[1] as Snowflake);
-                    if (channel && channel.isText()) {
+                    if (channel && channel.isTextBased()) {
                         ret.push(channel);
                         break;
                     }

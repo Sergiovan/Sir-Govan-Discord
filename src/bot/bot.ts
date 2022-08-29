@@ -60,22 +60,24 @@ export class Bot {
     constructor(token: string, beta: boolean) {
         this.token = token;
 
-        const Flags = D.Intents.FLAGS;
+        const Flags = D.GatewayIntentBits;
+        const Partials = D.Partials;
         this.client = new D.Client({
             intents: [
-                Flags.GUILDS,
-                Flags.GUILD_MEMBERS,
-                Flags.GUILD_VOICE_STATES,
-                Flags.GUILD_PRESENCES,
-                Flags.GUILD_MESSAGES,
-                Flags.GUILD_MESSAGE_REACTIONS,
-                Flags.DIRECT_MESSAGES,
-                Flags.DIRECT_MESSAGE_REACTIONS
+                Flags.Guilds,
+                Flags.GuildMembers,
+                Flags.GuildVoiceStates,
+                Flags.GuildPresences,
+                Flags.GuildMessages,
+                Flags.GuildMessageReactions,
+                Flags.DirectMessages,
+                Flags.DirectMessageReactions,
+                Flags.MessageContent,
             ],
             partials: [
-                'MESSAGE',
-                'CHANNEL',
-                'REACTION'
+                Partials.Message,
+                Partials.Channel,
+                Partials.Reaction
             ]
         });
 
@@ -214,19 +216,19 @@ export class Bot {
         let channel: D.GuildChannel | D.ThreadChannel;
         
         if (on instanceof D.Message) {
-            if (on.channel.type === "DM") {
+            if (on.channel.type === D.ChannelType.DM) {
                 return true;
-            } else if (on.channel.type === "GUILD_NEWS") {
+            } else if (on.channel.type === D.ChannelType.GuildNews) {
                 return false;
             }
             channel = on.channel;
-        } else if (!on.isText()) { 
+        } else if (!on.isTextBased()) { 
             return false;
         } else {
             channel = on;
         }
         if (channel instanceof D.ThreadChannel) {
-            if (!channel.parent || channel.parent.type === "GUILD_NEWS") {
+            if (!channel.parent || channel.parent.type === D.ChannelType.GuildNews) {
                 return false;
             }
             channel = channel.parent;
@@ -241,9 +243,9 @@ export class Bot {
         
         const server = this.get_server(on);
         if (!server) return false;
-        const perms = channel.permissionsFor(channel.guild.me!);
-        const f = D.Permissions.FLAGS;
-        return perms.has(f.VIEW_CHANNEL | f.SEND_MESSAGES) && server.allowed_commands(channel);
+        const perms = channel.permissionsFor(channel.guild.members.me!);
+        const f = D.PermissionFlagsBits;
+        return perms.has(f.ViewChannel | f.SendMessages) && server.allowed_commands(channel);
     }
 
     // Bot can send messages and listen
@@ -253,9 +255,9 @@ export class Bot {
 
         const server = this.get_server(on);
         if (!server) return false;
-        const perms = channel.permissionsFor(channel.guild.me!);
-        const f = D.Permissions.FLAGS;
-        return perms.has(f.VIEW_CHANNEL | f.SEND_MESSAGES);
+        const perms = channel.permissionsFor(channel.guild.members.me!);
+        const f = D.PermissionFlagsBits;
+        return perms.has(f.ViewChannel | f.SendMessages);
     }
 
     // Bot can listen
@@ -265,9 +267,9 @@ export class Bot {
 
         const server = this.get_server(on);
         if (!server) return false;
-        const perms = channel.permissionsFor(channel.guild.me!);
-        const f = D.Permissions.FLAGS;
-        return perms.has(f.VIEW_CHANNEL | f.READ_MESSAGE_HISTORY) && server.allowed_listen(channel);
+        const perms = channel.permissionsFor(channel.guild.members.me!);
+        const f = D.PermissionFlagsBits;
+        return perms.has(f.ViewChannel | f.ReadMessageHistory) && server.allowed_listen(channel);
     }
 
     /** Goes through all cleanup code
@@ -452,7 +454,7 @@ export class Bot {
     /** Returns a cleaned string from a message content. Spaces in names are replaced with \0
      * and need to be returned to ' '
     */
-    clean_content(msg: D.Message | string, channel: D.TextChannel | D.ThreadChannel): string {
+    clean_content(msg: D.Message | string, channel: D.TextChannel | D.ThreadChannel | D.VoiceChannel): string {
         let text = typeof msg === 'string' ? msg : msg.content;
         let self = this;
 
@@ -482,11 +484,11 @@ export class Bot {
                 continue;
             }
             const new_nick = rb_(this.text.nickname, server.nickname || 'Sir Govan') + (this.beta ? ' (β)' : '');
-            if (!guild.me) {
+            if (!guild.members.me) {
                 continue;
             }
             Logger.debug(`Setting nickname to "${new_nick}" in ${guild.name}`);
-            promises.push(guild.me.setNickname(new_nick));
+            promises.push(guild.members.me.setNickname(new_nick));
         }
 
         // LISTENING: Listening to
@@ -494,17 +496,18 @@ export class Bot {
         // PLAYING: Playing
         // STREAMING: Playing (But the profile says "Live on xxx")
         // COMPETING: Competing in
-        const doing = rb_(this.text.status_type, '') as 'LISTENING' | 'WATCHING' | 'PLAYING' | 'STREAMING' | 'COMPETING' | '';
+        const doing = rb_(this.text.status_type, '') as 'Listening' | 'Watching' | 'Playing' | 'Streaming' | 'Competing' | '';
         if (doing !== '') {
+            let activity = D.ActivityType[doing];
             const texts = {
-                LISTENING: this.text.status_listening,
-                WATCHING: this.text.status_watching,
-                PLAYING: this.text.status_playing,
-                STREAMING: this.text.status_watching,
-                COMPETING: this.text.status_competing
+                Listening: this.text.status_listening,
+                Watching: this.text.status_watching,
+                Playing: this.text.status_playing,
+                Streaming: this.text.status_watching,
+                Competing: this.text.status_competing
             };
 
-            this.client.user!.setActivity(rb_(texts[doing], 'something'), {type: doing});
+            this.client.user!.setActivity(rb_(texts[doing], 'something'), {type: activity});
         } else {
             this.client.user!.setActivity();
         }
@@ -716,7 +719,7 @@ export class Bot {
             return;
         }
 
-        if (msg.channel.type === "DM" || msg.channel.type === "GUILD_NEWS") return; // No DMs or... news... channels?
+        if (msg.channel.type === D.ChannelType.DM || msg.channel.type === D.ChannelType.GuildNews) return; // No DMs or... news... channels?
 
         const emoji = add_extras ? emojis.repeat : emojis.repeat_one;
 
@@ -757,7 +760,7 @@ export class Bot {
 
         let msgs_coll = await msg.channel.messages.fetch({after: msg.id, limit: 50});
 
-        let context = Array.from(msgs_coll.values()).reverse(); // TODO does this alaways work?
+        let context: D.Message<boolean>[] = Array.from(msgs_coll.values()).reverse(); // TODO does this alaways work?
 
         context.unshift(msg);
 
@@ -945,7 +948,7 @@ export class Bot {
             return; // No empty messages or messages with embeds or attachments
         }
 
-        if (msg.channel.type === "DM" || msg.channel.type === "GUILD_NEWS") return; // No DMs or... news... channels?
+        if (msg.channel.type === D.ChannelType.DM || msg.channel.type === D.ChannelType.GuildNews) return; // No DMs or... news... channels?
 
         const emoji = server.titlecard_emoji;
         if (!emoji) {
@@ -1005,7 +1008,7 @@ export class Bot {
             return false;
         }
         const pinchannel = to;
-        if (!pinchannel || !pinchannel.isText()) {
+        if (!pinchannel || !pinchannel.isTextBased()) {
             Logger.error(`Attempted to pin ${msg.id} in channel ${server.hof_channel}`);
             return false;
         }
@@ -1022,52 +1025,50 @@ export class Bot {
         const r = Math.floor(Math.random() * 0x10) * 0x10;
         const g = Math.floor(Math.random() * 0x10) * 0x10;
         const b = Math.floor(Math.random() * 0x10) * 0x10;
-        const embed: D.MessageEmbedOptions = {
-            color: r << 16 | g << 8 | b, // Randomized color :D
-            author: {
+        const embed = new D.EmbedBuilder()
+            .setColor(r << 16 | g << 8 | b)
+            .setAuthor({
                 name: `${msg.author.username}`,
-                iconURL: msg.author.displayAvatarURL({format: 'png', size: 128})
-            },
-            // thumbnail: {
-            //     url: msg.author.dynamicAvatarURL("png", 128)
-            // },
-            description: `${msg.content}`,
-            timestamp: msg.createdTimestamp,
-            footer: {
+                iconURL: msg.author.displayAvatarURL({size: 128})
+            })
+            .setDescription(msg.content || null)
+            .setTimestamp(msg.createdTimestamp)
+            .setFooter({
                 text: `${msg.id} - ${msg.channel.id}`,
                 iconURL: icon
-            }
-        };
-        const guild_id = server.id;
-        const channel_id = msg.channel.id;
-        const message_id = msg.id;
-        const url = `https://canary.discordapp.com/channels/${guild_id}/${channel_id}/${message_id}`;
+            });
+        const url = msg.url;
         let desc = `[Click to teleport](${url})`;
-        if(msg.attachments?.size){
+        if (msg.attachments?.size) {
             const attachment = Array.from(msg.attachments.values())[0];
             const embedtype: 'video' | 'image' = /\.(webm|mp4)$/g.test(attachment.name ?? '') ? 'video' : 'image';
-            embed[embedtype] = {
-                url: attachment.url
-            };
+            switch (embedtype) {
+                case 'video':
+                    break;
+                case 'image':
+                    embed.setImage(attachment.url)
+                    break;
+            }
             
             if (embedtype === 'video') {
                 desc = `[Click to go to video](${url})`;
             }
         } else if (msg.embeds && msg.embeds.length) {
             let nembed = msg.embeds[0];
-            if (nembed.video) { 
-                embed.video = nembed.video; 
+            if (nembed.video) {
                 desc = `[Click to go to video](${url})`;
             }
-            if (nembed.image) { embed.image = nembed.image; }
+            if (nembed.image) { 
+                embed.setImage(nembed.image.proxyURL || ''); 
+            }
         }
-        if(!embed.description) {
-            embed.description = desc;
+        if(!msg.content) {
+            embed.setDescription(desc);
         } else {
-            embed.fields = [{
+            embed.addFields([{
                 "name": "\u200b",
                 "value": desc
-            }];
+            }]);
         }
         pinchannel.send({ embeds: [embed] });
         return true;
@@ -1162,9 +1163,9 @@ export class Bot {
                 }
 
                 if (server.nickname) {
-                    return guild.me?.setNickname(server.nickname);
+                    return guild.members.me?.setNickname(server.nickname);
                 } else {
-                    return guild.me?.setNickname(null);
+                    return guild.members.me?.setNickname(null);
                 }
             }));
 
