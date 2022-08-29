@@ -92,15 +92,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
             if (this.parse(msg)) {
                 return;
             }
-
-            const sanitized = msg.cleanContent?.replace(/["'`]/g, '');
             
-            if (sanitized) {
-                const words = sanitized.split(' ');
-                for (let word of words) {
-                    this.checkAnswer(word, msg.author);
-                }
-            }
         } else {
             // Not DMs, tread as you wish
             const server = this.get_server(msg);

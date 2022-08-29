@@ -162,37 +162,6 @@ export const cmds: { [key: string]: CommandFunc } = {
         }
     },
 
-    /** Gives help and info relating to the puzzle */
-    puzzle(this: Bot, msg: D.Message) {
-        this.reply(msg, this.puzzleHelp());
-    },
-
-    /** Pauses the puzzle, meaning no new clues will drop */
-    puzzle_pause(this: Bot, msg: D.Message) {
-        if (msg.author.id === this.ownerID) {
-            if (this.puzzler.togglePaused()) {
-                msg.channel.send(`Puzzle has been stopped`);
-            } else {
-                msg.channel.send(`Puzzle has been resumed`);
-            }
-        }
-    },
-
-    /** Checks if the argument is the solution to the puzzle without actually using it */
-    check(this: Bot, msg: D.Message) {
-        let [answer] = parseArgs(msg, arg(argType.string));
-        if (answer) {
-            if (this.puzzler.checkAnswer(answer as string)) {
-                this.reply(msg, "Correct!", this.text.checkCorrect);
-            } else {
-                this.reply(msg, "Incorrect", this.text.checkIncorrect);
-            }
-        } else {
-            this.reply(msg, "Missing answer to check", this.text.checkMissingAnswer);
-        }
-
-    },
-
     /** Reloads the text instanct of the bot. Useful if the text is changed while the bot is still running */
     async reload_text(this: Bot, msg: D.Message) {
         if (msg.author.id === this.ownerID) {
@@ -497,13 +466,4 @@ export const beta_cmds: { [key: string]: CommandFunc} = {
 
     /** Alias of die, effectively only kills beta bot */
     __die: cmds.die,
-
-    /** Forces a clue to be posted */
-    post_clue(this: Bot, msg: D.Message) {
-        let server = this.get_server(msg);
-        if (!server || msg.author.id !== this.ownerID || !server._puzzle_channel || !this.can_talk(server._puzzle_channel)) {
-            return;
-        }
-        this.postClue(server._puzzle_channel.id, true);
-    }
 }

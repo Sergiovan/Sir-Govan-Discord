@@ -5,7 +5,6 @@ import { encode } from 'html-entities';
 import twemoji from 'twemoji';
 
 import { CommandFunc } from './commands';
-import { Puzzler } from './puzzler';
 import { BotUser } from './bot_user';
 import { cmds, aliases, beta_cmds } from './commands';
 import { listeners, fixed_listeners, ListenerFunction } from './listeners';
@@ -37,7 +36,6 @@ export class Bot {
     token: string; // Login token
     owner?: D.User; // Me, Sergiovan. How exciting
     storage: Persist; // Basic persistent storage
-    puzzler: Puzzler = new Puzzler; // Puzzle stuff
     db: DBWrapper; // Database for advanced persistent storage
 
     users: {[key: string]: BotUser | undefined} = {}; // A map from User ID to internal user representation
@@ -97,8 +95,6 @@ export class Bot {
         this.storage.init().then(() => {
             this.load().catch(function(e) {
                 Logger.error('Could not load data from file: ', e);
-            }).finally(async function() { 
-                self.startClues(); // After it's loaded we start the puzzle
             });
         });
     }
@@ -167,15 +163,12 @@ export class Bot {
 
     /** Loads all basic permanent storage */
     async load() {
-        return Promise.all([
-            this.puzzler.load(this.storage)
-        ]);
+        return;
     }
 
     /** Saves all basic permanent storage */
     async save() {
         return Promise.all([
-            this.puzzler.save(this.storage),
             this.save_servers()
         ]);
     }
@@ -420,108 +413,6 @@ export class Bot {
             Logger.error('Could not reload text');
             return [false, e];
         };
-    }
-
-    /** Begin the puzzle */
-    async startClues() {
-        const text = `${this.beta ? 'Beta message! ' : ''}${this.puzzler.startClues()}`;
-        this.tellTheBoss(text); // This will not do anything if we're not connected by this point
-
-        // Loads the latest from the database, or creates a new one
-        const pzl = await this.db.getPuzzle(this.puzzler.puzzle_id);
-        if (!pzl) {
-            this.db.addPuzzle({
-                id: this.puzzler.puzzle_id,
-                answer: this.puzzler.answer,
-                type: this.puzzler.puzzle_type as number,
-                started_time: new Date()
-            });
-        }
-    }
-
-    /** Posts a single clue from the puzzle to a channel
-     * 
-     * If `forced` is true the clue is forced
-     */
-    async postClue(channel: D.Snowflake, forced: boolean = false) {
-        let chn = this.client.channels.resolve(channel);
-        if (!chn || !chn.isText()) {
-            Logger.error(`Tried to post clue in invalid channel ${channel}`);
-            return;
-        }
-        
-        Logger.debug('Posting clue');
-        let clue: string | null;
-
-        try {
-            clue = this.puzzler.getClue(forced);
-        } catch (e: any) {
-            this.tellTheBoss(e.message);
-            Logger.error(e.message);
-            return;
-        }
-
-        if (clue === null) {
-            return; // Can happen if it's not time yet
-        }
-
-        let msg = await chn.send(rb_(this.text.puzzleGenerating, 'Generating clue...'));
-
-        const text = `#${this.puzzler.clue_count}: \`${clue}\`. Puzzle ID is \`${this.puzzler.puzzle_id}\``;
-        Logger.debug(`Clue: ${text}`);
-
-        // TODO Funky buttons?
-        setTimeout(async () => {
-            msg = await msg.edit(text);
-            await this.db.addClue(this.puzzler.puzzle_id, msg);
-            await msg.react(emojis.devil.toString());
-            msg.reactions.resolve(emojis.devil.to_reaction_resolvable())!.me = true;
-        }, 2500);
-    }
-
-    /** Verifies that `answer` is the answer to the current puzzle */
-    async checkAnswer(answer: string, user: D.User) {
-        // I cannot accidentally ruin the puzzle... Haha oops
-        if (!this.owner || (user.id === this.owner.id && !this.beta)) {
-            return;
-        }
-
-        // If the answer is correct
-        if (this.puzzler.checkAnswer(answer)) {
-            const id = this.puzzler.puzzle_id;
-            this.puzzler.endPuzzle();
-            const dm = user.dmChannel ?? await user.createDM();
-            dm.send(rb_(this.text.answerCorrect, 'You got it!'));
-
-            await this.tellTheBoss(`${user.username} (${user.id}) got it!`);
-
-            // Start a new puzzle in an hour
-            this.puzzle_start_timeout = setTimeout(this.startClues.bind(this), 1000 * 60 * 60 * 24);
-
-            const puzzle = await this.db.getPuzzle(id);
-            if (puzzle && this.users[user.id]) {
-                puzzle.winner = (await this.get_or_add_user(user)).db_user.rowid;
-                puzzle.ended_time = new Date();
-                puzzle.commit();
-            }
-        }
-    }
-
-    /** Get a help string from the puzzle */
-    puzzleHelp(): string {
-        const [puzzle_active, puzzle_stopped, help] = this.puzzler.getHelp();
-        if (!puzzle_active) { // No puzzle
-            return rb_(this.text.puzzleNothing, 'Nothing going on at the moment');
-        } else {
-            if (puzzle_stopped) { // Puzzle, but currently not going
-                return rb_(this.text.puzzleStopped, 'Puzzling has been temporarily stopped');
-            } else { // Actual clue
-                return `${rb_(this.text.puzzleGoal, 'Complete the passphrase and tell it to me for prizes')}. ` + 
-                       `The clue is: ||${help}||\n` + 
-                       `${this.puzzler.clue_count} ${rb_(this.text.puzzleSoFar, 'clues have appeared so far')}\n` + 
-                       `Puzzle ID is \`${this.puzzler.puzzle_id}\``;
-            }
-        }
     }
 
     /** Transfer `amount` xp between two users. 
@@ -1230,11 +1121,6 @@ export class Bot {
                 randFromFile('nocontext.txt', 'No context', function(name) {
                     role.edit({name: name});
                 });
-
-                // TODO If variable chance, variable chance here too?
-                if (server._puzzle_channel && Math.random() * 4 < 1.0) {
-                    this.postClue(server._puzzle_channel.id);
-                }
             }
             return true;
         }
