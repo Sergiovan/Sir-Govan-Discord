@@ -549,7 +549,7 @@ export class Bot {
             }
             return role;
         }
-        
+
         return null;
     }
 
@@ -1076,8 +1076,10 @@ export class Bot {
                 desc = `[Click to go to video](${url})`;
             }
             if (nembed.image) { 
-                embed.setImage(nembed.image.proxyURL || ''); 
+                embed.setImage(nembed.image.proxyURL || '');
             }
+        } else if (msg.stickers.size) {
+            embed.setImage(msg.stickers.first()!.url);
         }
         if(!msg.content) {
             embed.setDescription(desc);

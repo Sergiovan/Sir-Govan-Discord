@@ -81,8 +81,12 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 channel_name = 'me';
             }
 
+            const content = msg.cleanContent.length ? ` ${msg.cleanContent}` : '';
+            const attachments = msg.attachments.size ? ` [${msg.attachments.size} attachments]`.yellow : '';
+            const stickers = msg.stickers.size ? ` [${msg.stickers.size} stickers]`.yellow : '';
+
             const author: string = message_mine ? 'me' : msg.author.tag;
-            Logger.info(`${author.cyan} @ ${channel_name.cyan}: ${msg.cleanContent}`);
+            Logger.info(`${author.cyan} @ ${channel_name.cyan}:${content}${attachments}${stickers}`);
 
             if (message_mine) {
                 return;
@@ -106,8 +110,12 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 return;
             }
 
+            const content = msg.cleanContent.length ? ` ${msg.cleanContent}` : '';
+            const attachments = msg.attachments.size ? ` [${msg.attachments.size} attachments]`.yellow : '';
+            const stickers = msg.stickers.size ? ` [${msg.stickers.size} stickers]`.yellow : '';
+
             const author: string = msg.author.id === this.client.user!.id ? 'me' : `${msg.author.tag}`;
-            Logger.info(`${author.cyan} @ ${msg.channel.name.cyan}: ${msg.cleanContent}`);
+            Logger.info(`${author.cyan} @ ${msg.channel.name.cyan}:${content}${attachments}${stickers}`);
             
             if (msg.author.id === this.client.user!.id) {
                 return;
