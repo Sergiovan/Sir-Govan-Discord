@@ -232,7 +232,6 @@ export function parseArgsHelper<T extends Arg[]>(text: string, guild: Guild | nu
                     break;
                 }
                 regex_res = regexes.discord_emojis.exec(inspected || '');
-                Logger.inspect(regex_res);
                 if (regex_res && regex_res[2] && regex_res[3]) {
                     ret.push(new Emoji({name: regex_res[2], id: regex_res[3], animated: regex_res[1] !== ''}));
                     break;

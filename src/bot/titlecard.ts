@@ -46,7 +46,6 @@ const minimal_args = [
 let html: string | null = null;
 
 export async function make_titlecard(episode_name: string, show_name: string, song_file: string, titlecard_name: string = 'titlecard') {
-    Logger.time_start('titlecard_setup');
     const folder = mkdtempSync('/tmp/titlecard');
     let res: Buffer;
     try {
@@ -74,11 +73,7 @@ export async function make_titlecard(episode_name: string, show_name: string, so
             output: title_image
         }]);
 
-        Logger.time_end('titlecard_setup')
-
         // libx264
-
-        Logger.time_start('titlecard_render1');
         await new Promise((res, rej) => Ffmpeg()
             .on('end', (val) => res(val))
             .on('error', (err, stdout, stderr) => { 
@@ -88,9 +83,7 @@ export async function make_titlecard(episode_name: string, show_name: string, so
             .input(episode_image).inputFormat('image2').loop()
             .videoCodec('libx264').outputOption('-pix_fmt yuv420p').fps(1/3).duration(3)
             .saveToFile(episode_video));
-        Logger.time_end('titlecard_render1');
 
-        Logger.time_start('titlecard_render2');
         await new Promise((res, rej) => Ffmpeg()
             .on('end', (val) => res(val))
             .on('error', (err, stdout, stderr) => { 
@@ -100,11 +93,9 @@ export async function make_titlecard(episode_name: string, show_name: string, so
             .input(title_image).inputFormat('image2').loop()
             .videoCodec('libx264').outputOption('-pix_fmt yuv420p').fps(1/4).duration(4)
             .saveToFile(title_video));
-        Logger.time_end('titlecard_render2');
 
         writeFileSync(output_files_file, output_files);
 
-        Logger.time_start('titlecard_render3');
         await new Promise((res, rej) => Ffmpeg()
             .on('end', (val) => res(val))
             .on('error', (err, stdout, stderr) => { 
@@ -118,8 +109,6 @@ export async function make_titlecard(episode_name: string, show_name: string, so
                 '-c:a aac', '-ac 2', '-b:a 128k',
                 '-movflags faststart',
             ]).fps(1).saveToFile(final_output));
-
-        Logger.time_end('titlecard_render3');
 
         res = readFileSync(final_output);
 

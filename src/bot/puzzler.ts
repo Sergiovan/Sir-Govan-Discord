@@ -105,7 +105,6 @@ export class Puzzler {
 
         if (this.clue_list.length === 0) {
             this.puzzle_stopped = true;
-            Logger.inspect(this);
             throw new Error('Puzzle stopped while calling getClue(), catastrophic error happened');
         }
 
