@@ -132,7 +132,7 @@ export const cmds: { [key: string]: CommandFunc } = {
                     this.reply(msg, "Your icon has been set!");
                 } else {
                     try {
-                        role.setUnicodeEmoji(icon);
+                        await role.setUnicodeEmoji(icon);
                     } catch {
                         this.reply(msg, "You must provide a valid image url, discord emoji or unicode emoji!");
                     }
