@@ -31,6 +31,9 @@ Puts a message in the hall of fame. But it'll be marked. Cheaters beware, democr
 ### `!color {hex}`
 Changes your role color if any of your roles have a color. Because I can't be arsed with administration
 
+### `!icon {emoji or url}`
+Changes your role icon if in a server that allows that to happen, and if you're not trying to trick the bot
+
 ### `!role`
 Gives out the number and the name of the current randomized role. Collect them all!
 
