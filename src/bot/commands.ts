@@ -5,7 +5,7 @@ import * as util from 'util';
 
 import { Bot } from './bot';
 
-import { argType, Emoji, emojis, regexes, Server } from '../defines';
+import { argType, Emoji, emojis, emoji_url, regexes, Server } from '../defines';
 import { arg, Arg, parseArgs, randomBigInt, rb_, Logger, parseArgsHelper } from '../utils';
 
 export type CommandFunc = (msg: D.Message) => void;
@@ -120,7 +120,9 @@ export const cmds: { [key: string]: CommandFunc } = {
                     let emoji_obj = role.guild.emojis.resolve(emoji[3]);
 
                     if (!emoji_obj || emoji_obj.guild.id !== msg.guild.id) {
-                        this.reply(msg, "The emoji needs to be from this server");
+                        // this.reply(msg, "The emoji needs to be from this server");
+                        let foreign_emoji = emoji_url(emoji[3]);
+                        await role.setIcon(foreign_emoji);
                         return;
                     }
                     await role.setIcon(emoji[3]); // Emoji snowflake
@@ -129,7 +131,11 @@ export const cmds: { [key: string]: CommandFunc } = {
                     await role.setIcon(icon); // url?
                     this.reply(msg, "Your icon has been set!");
                 } else {
-                    this.reply(msg, "You must provide a valid image url or discord emoji!");
+                    try {
+                        role.setUnicodeEmoji(icon);
+                    } catch {
+                        this.reply(msg, "You must provide a valid image url, discord emoji or unicode emoji!");
+                    }
                 }
             } catch (err: any) {
                 Logger.inspect(err);
