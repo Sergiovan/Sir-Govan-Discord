@@ -9,5 +9,5 @@ export const xp: {
     levelToXp: (number) => number,
     XpToLevel: (number) => number,
     max_level: number,
-    passive_timeout: number
+    passive_timeout: number,
 };

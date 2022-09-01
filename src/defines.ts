@@ -138,6 +138,10 @@ interface JsonableEmoji {
     animated: boolean;
 }
 
+export function emoji_url(id: string) {
+    return `https://cdn.discordapp.com/emojis/${id}.webp?size=40&quality=lossless`
+}
+
 export class Emoji implements JsonableEmoji {
     name: string;
     id: string | null;

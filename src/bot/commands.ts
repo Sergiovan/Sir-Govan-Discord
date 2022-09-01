@@ -5,7 +5,7 @@ import * as util from 'util';
 
 import { Bot } from './bot';
 
-import { argType, Emoji, emojis, regexes, Server } from '../defines';
+import { argType, Emoji, emojis, emoji_url, regexes, Server } from '../defines';
 import { arg, Arg, parseArgs, randomBigInt, rb_, Logger, parseArgsHelper } from '../utils';
 
 export type CommandFunc = (msg: D.Message) => void;
@@ -106,6 +106,7 @@ export const cmds: { [key: string]: CommandFunc } = {
 
         if (!icon) {
             try {
+                await role.setUnicodeEmoji(null);
                 role.setIcon(null);
                 this.reply(msg, "Your icon has been removed!");
             } catch (err) {
@@ -120,16 +121,23 @@ export const cmds: { [key: string]: CommandFunc } = {
                     let emoji_obj = role.guild.emojis.resolve(emoji[3]);
 
                     if (!emoji_obj || emoji_obj.guild.id !== msg.guild.id) {
-                        this.reply(msg, "The emoji needs to be from this server");
+                        let foreign_emoji = emoji_url(emoji[3]);
+                        await role.setUnicodeEmoji(null);
+                        await role.setIcon(foreign_emoji);
+                        this.reply(msg, "Your icon has been set!");
                         return;
                     }
+
+                    await role.setUnicodeEmoji(null);
                     await role.setIcon(emoji[3]); // Emoji snowflake
                     this.reply(msg, `Your icon has been set: ${icon}!`);
                 } else if (icon.startsWith('http://') || icon.startsWith('https://')) {
+                    await role.setUnicodeEmoji(null);
                     await role.setIcon(icon); // url?
                     this.reply(msg, "Your icon has been set!");
                 } else {
-                    this.reply(msg, "You must provide a valid image url or discord emoji!");
+                    await role.setUnicodeEmoji(icon);
+                    this.reply(msg, `Your icon has been set: ${icon}!`);
                 }
             } catch (err: any) {
                 Logger.inspect(err);
@@ -150,6 +158,9 @@ export const cmds: { [key: string]: CommandFunc } = {
                         break;
                     case 'BINARY_TYPE_MAX_SIZE':
                         this.reply(msg, "This image is too powerful for Discord to handle. Try finding something smaller");
+                        break;
+                    case 10014: // Unknown emoji
+                        this.reply(msg, "This is a real emoji but Discord has no graphic for it yet. Sorry!");
                         break;
                     default:
                         this.reply(msg, "Well, I don't even know what happened there. Go bother my master about it");
