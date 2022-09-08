@@ -178,7 +178,8 @@ export const cmds: { [key: string]: CommandFunc } = {
             return;
         }
         if (server.no_context_role) {
-            let rolename = msg.guild.roles.resolve(server.no_context_role)?.name;
+            let rolename = msg.guild.roles.resolve(server.no_context_role.id)?.name;
+            Logger.debug(rolename);
             Logger.inspect(msg.guild.roles.cache);
             if (!rolename) {
                 Logger.warning(`The no context role ${server.no_context_role} doesn't exist in ${server.id}`);
