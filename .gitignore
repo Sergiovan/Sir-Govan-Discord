@@ -9,6 +9,8 @@ data/db/*.db
 data/db/*.db.bak
 data/db/last
 
+tournaments/
+
 # Node
 node_modules/
 
