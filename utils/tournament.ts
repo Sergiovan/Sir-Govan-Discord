@@ -220,17 +220,22 @@ async function create_battle(clnt: D.Client, tournament: string, round_nr: numbe
         const content = original_embed.content.replace(/\[Click to teleport\]\(.*?\)/, '');
 
         const embed = new D.EmbedBuilder();
-        embed.setTitle(entry.funny)
-            .setColor(original_embed.color)
-            .setURL(original_message.url)
-            .setAuthor({
-                name: original_message.author.tag, 
-                iconURL: original_message.author.avatarURL({extension: 'png', forceStatic: true}) || original_message.author.defaultAvatarURL
-            })
-            .setThumbnail(a ? a_url : b_url)
-            .setImage(original_embed.image || null)
-            .setDescription(content || null)
-            .setFooter({text: footer});
+        try {
+            embed.setTitle(entry.funny)
+                .setColor(original_embed.color)
+                .setURL(original_message.url)
+                .setAuthor({
+                    name: original_message.author.tag, 
+                    iconURL: original_message.author.avatarURL({extension: 'png', forceStatic: true}) || original_message.author.defaultAvatarURL
+                })
+                .setThumbnail(a ? a_url : b_url)
+                .setImage(original_embed.image || null)
+                .setDescription(content || null)
+                .setFooter({text: footer});
+        } catch (err) {
+            console.error(util.inspect(entry));
+            throw err;
+        }
 
         return embed;
     }
