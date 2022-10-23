@@ -286,13 +286,13 @@ async function find_round_messages(clnt: D.Client, tournament_name: string, roun
                 const res = footer_regex.exec(embed.footer.text);
                 if (!res || !res.groups) continue msg_loop;
 
-                console.log(`Candidate ${msg.id}: ${util.inspect(res.groups)}`);
+                // console.log(`Candidate ${msg.id}: Tournament "${res.groups.tournament}" round #${res.groups.round}. Battle ${res.groups.battle}, Entry ${res.groups.entry}`);
 
                 if (res.groups.tournament !== tournament_name) continue msg_loop;
                 if (res.groups.round !== `${round}`) continue msg_loop;
             }
 
-            console.log(`Found ${msg.id}`);
+            // console.log(`Found ${msg.id}`);
             found.push(msg);
             loop_found_any = true;
         }
@@ -353,6 +353,7 @@ function shuffle<T>(array: T[]) {
 // node tournaments.js prepare <channel-id> <message-first> <message-last> <tournament-name> <pin-emoji>
 // node tournaments.js post-prepare <tournament-name>
 // node tournaments.js round <tournament-name> <round>
+// node tournaments.js check <tournament-name> <round>
 // node tournaments.js count <tournament-name> <round> 
 // node tournaments.js clean <tournament-name> <round>
 // node tournaments.js winner <tournament-name> <round>
@@ -574,6 +575,45 @@ client.on('ready', async function(this: D.Client) {
             }));
 
             fs.writeFileSync(round_file, JSON.stringify(current_round, null, 2));
+
+            break;
+        }
+        case 'check': {
+            const prepare_params = params.slice(1);
+            if (prepare_params.length !== 2) {
+                console.error(`Parameters were not right: ${prepare_params}`);
+                break;
+            }
+
+            const [tournament_name, round_name] = prepare_params;
+
+            const round = Number.parseInt(round_name);
+
+            if (Number.isNaN(round)) {
+                console.error(`"${round_name}" could not be parsed to a number`);
+                break;
+            }
+
+            let entries = (await find_round_messages(self, tournament_name, round)).reverse();
+
+            let missing = 0;
+
+            await Promise.all(entries.map(async (msg, i) => {
+                const a_reactions = msg.reactions.resolve(a_emoji);
+                const b_reactions = msg.reactions.resolve(b_emoji);
+                if (!a_reactions || !a_reactions.me) {
+                    console.log(`Entry ${i} was missing an ${a_emoji} reaction`);
+                    missing++;
+                    // await msg.react(a_emoji);
+                }
+                if (!b_reactions || !b_reactions.me) {
+                    console.log(`Entry ${i} was missing a ${b_emoji} reaction`);
+                    missing++;
+                    // await msg.react(b_emoji);
+                }
+            }));
+
+            console.log(`Missed ${missing}/${entries.length * 2} reactions`);
 
             break;
         }
