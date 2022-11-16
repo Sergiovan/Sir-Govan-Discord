@@ -4,7 +4,6 @@ import * as D from 'discord.js';
 import { Bot } from './bot';
 
 import { Emoji, emojis } from '../defines';
-import * as f from '../utils';
 import { Logger } from '../utils';
 
 let in_sigint = false; // Booo, npm, boooo
@@ -21,7 +20,6 @@ export const fixed_listeners: { [key in keyof D.ClientEvents]?: ClientListener<k
 
         this.owner = await this.client.users.fetch(this.ownerID);
 
-        await this.update_users();
         this.setListeners(); // Listen only after users are done updating
 
         let rerandomize = () => {
@@ -124,8 +122,6 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
             if (can_listen && !msg.author.bot) {
                 if ((Math.random() * 100) < 1.0 && server.no_context_channel) {
                     this.maybe_remove_context(msg);
-                } else {
-                    this.tickUser(msg.author);
                 }
             }
 
@@ -231,8 +227,6 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         if (!server) {
             return;
         }
-
-        this.update_users();
     },
 
     [E.GuildMemberRemove](this: Bot, member: D.GuildMember | D.PartialGuildMember) {
@@ -241,8 +235,6 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         if (!server) {
             return;
         }
-
-        this.update_users();
     },
 
     [E.GuildMemberUpdate](this: Bot, old_member: D.GuildMember | D.PartialGuildMember, member: D.GuildMember) {
@@ -251,17 +243,9 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
         if (!server) {
             return;
         }
-
-        this.update_users();
     },
 
     [E.UserUpdate](this: Bot, old_user: D.User | D.PartialUser, user: D.User) {
-        const usr = this.users[user.id];
-        if (usr) {
-            usr.update_user(user);
-            usr.commit();
-        } else {
-            this.db.addUser(user, 1, user.bot ? 1 : 0).then((u) => this.add_user(u));
-        }
+
     }
 };

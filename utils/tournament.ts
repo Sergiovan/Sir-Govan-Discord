@@ -178,7 +178,7 @@ async function create_entry(clnt: D.Client, embed_msg: D.Message, embed_data: Di
     return ret;
 }
 
-async function create_battle(clnt: D.Client, tournament: string, round_nr: number, round: Round, battle: number, data: Preparation): Promise<D.MessageOptions> {
+async function create_battle(clnt: D.Client, tournament: string, round_nr: number, round: Round, battle: number, data: Preparation): Promise<D.MessageCreateOptions> {
     async function create_embed(entry_number: number, a: boolean) {
         const name = a ? a_emoji : b_emoji;
         const footer = `${tournament} tournament | Round ${round_nr} | Battle ${battle + 1} | Entry ${a ? 'A' : 'B'}`;

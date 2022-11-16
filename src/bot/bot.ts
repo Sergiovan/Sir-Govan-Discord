@@ -5,7 +5,6 @@ import { encode } from 'html-entities';
 import twemoji from 'twemoji';
 
 import { CommandFunc } from './commands';
-import { BotUser } from './bot_user';
 import { cmds, aliases, beta_cmds } from './commands';
 import { listeners, fixed_listeners, ListenerFunction } from './listeners';
 
@@ -13,7 +12,6 @@ import { emojis, Emoji, JsonableServer, Server, xpTransferReason } from '../defi
 import { randFromFile, RarityBag, rb_, Logger, Mutex } from '../utils';
 
 import { Persist } from '../data/persist';
-import { DBWrapper, DBUserProxy } from '../data/db_wrapper';
 
 import { xp } from '../secrets/secrets';
 import { createImage, TweetData, TweetMoreData, TweetTheme } from './twitter';
@@ -36,9 +34,6 @@ export class Bot {
     token: string; // Login token
     owner?: D.User; // Me, Sergiovan. How exciting
     storage: Persist; // Basic persistent storage
-    db: DBWrapper; // Database for advanced persistent storage
-
-    users: {[key: string]: BotUser | undefined} = {}; // A map from User ID to internal user representation
 
     commands: Command[] = []; // A list of all the commands available
     beta: boolean; // If the bot is running in beta mode
@@ -49,7 +44,6 @@ export class Bot {
     channel_mutexes: {[key: D.Snowflake]: Mutex } = {}; // Mutexes for reacting and such. Only one per channel
 
     randomize_timeout: NodeJS.Timeout | null = null; // Interval for randomizing
-    puzzle_start_timeout: NodeJS.Timeout | null = null; // Interval for puzzle starting
 
     text: { [key: string]: RarityBag } = {}; // Text instance, for random chance texts
 
@@ -82,7 +76,6 @@ export class Bot {
         });
 
         this.beta = beta;
-        this.db = new DBWrapper(db_location);
 
         const self = this;
 
@@ -297,64 +290,6 @@ export class Bot {
         }
     }
 
-    /** Updates the user database with all users the bot can see */
-    async update_users() {
-        const db_users = await this.db.getAllUsers(); // Users in the database
-        const new_users: {[key: string]: BotUser} = {}; // Users that are new
-        const seen: Set<D.Snowflake> = new Set<D.Snowflake>(); // Users we have already seen
-
-        for (let user of db_users) {
-            seen.add(user.id);
-            if (this.client.users.resolve(user.id)) { // The bot can see this user
-                user.is_member = 1;
-
-                new_users[user.id] = new BotUser(user);
-
-                user.commit();
-            } else { // The bot cannot see this user anymore, ignore it
-                user.is_member = 0;
-                user.commit();
-            }
-        }
-
-        // For each member in every server
-        for (let [guild_id, guild] of this.client.guilds.cache) {
-            const server = this.servers[guild_id];
-
-            if (server && server._beta === this.beta) {
-                for (let [member_id, member] of guild.members.cache) {
-                    if (seen.has(member_id)) { // We've seen this user when going through the db
-                        const db_user = new_users[member_id];
-                        db_user.update_member(member); // Update its member data as well
-
-                        db_user.commit();
-                    } else {
-                        // This user was not in the db, so add it now
-                        const db_user = await this.db.addUser(member.user, 1, member.user.bot ? 1 : 0 , member.nickname);
-                        new_users[member.id] = new BotUser(db_user);
-                    }
-                }
-            }     
-        }
-
-        this.users = new_users;
-    }
-
-    /** Add a user to the internal cache */
-    add_user(user: DBUserProxy) {
-        this.users[user.id] = new BotUser(user);
-    }
-
-    async get_or_add_user(user: D.User) {
-        const usr = this.users[user.id];
-        if (usr) {
-            return usr;
-        } else {
-            const db_user = await this.db.addUser(user, 1, user.bot ? 1 : 0);
-            return this.users[user.id] = new BotUser(db_user);
-        }
-    }
-
     /**
      * Performs a task (runs a function) with an async-mutex and returns the result. Each channel
      * has its own mutex, as cross-channel activities don't require mutexes (yet)
@@ -415,40 +350,6 @@ export class Bot {
             Logger.error('Could not reload text');
             return [false, e];
         };
-    }
-
-    /** Transfer `amount` xp between two users. 
-     * 
-     * If `from` is null, the xp is created from thin air
-     * 
-     * If `to` is null, the xp is destroyed
-     * */
-    transferXp(amount: number, from: D.User, to: D.User, reason: xpTransferReason): boolean;
-    transferXp(amount: number, from: D.User | null, to: D.User, reason: xpTransferReason): true;
-    transferXp(amount: number, from: D.User, to: D.User | null, reason: xpTransferReason): boolean;
-    transferXp(amount: number, from: D.User | null, to: D.User | null, reason: xpTransferReason) {
-        if (from) {
-            if (!this.users[from.id]!.remove_xp(amount)) {
-                return false; // If we cannot remove this amount of xp from the donor, the whole thing is cancelled
-            }
-            this.users[from.id]!.commit()
-        }
-        if (to) {
-            this.users[to.id]!.add_xp(amount);
-            this.users[to.id]!.commit();
-        }
-        this.db.transferXP(from, to, amount, reason as number);
-        return true;
-    }
-
-    /** Transfer passive xp to a user when they talk */
-    async tickUser(user: D.User) {
-        const bot_user = await this.get_or_add_user(user);
-
-        if ((bot_user.last_spoke + xp.passive_timeout * 1000) < Date.now()) {
-            bot_user.last_spoke = Date.now();
-            this.transferXp(xp.secondsOfXp(xp.passive_timeout), null, user, xpTransferReason.Passive);
-        }
     }
 
     /** Returns a cleaned string from a message content. Spaces in names are replaced with \0
@@ -1007,7 +908,7 @@ export class Bot {
         const vid = await make_titlecard(episode_title, show_name, song_file); // TODO Funky filenames
 
         await msg.channel.send({
-            content: null,
+            content: undefined,
             files: [{
                 attachment: vid,
                 name: 'iasip.mp4' // TODO Funky stuff yee
@@ -1104,7 +1005,6 @@ export class Bot {
         await msg.edit(`${rb_(this.text.puzzleSteal, 'Stolen')} by ${user.username}`);
 
         (await user.createDM()).send(content);
-        this.db.addClueSteal(msg, user);
         this.add_cleanup_task(() => msg.delete(), 1000 * 5 * 60);
     }
 
@@ -1127,7 +1027,6 @@ export class Bot {
                 content: msg.content,
                 files: Array.from(msg.attachments.values())
             });
-            this.transferXp(xp.secondsOfXp(60 * 60), null, msg.author, xpTransferReason.NoContext);
             if (server.no_context_role) {
                 let role = server.no_context_role;
                 // Shuffle the no-context role
@@ -1166,10 +1065,6 @@ export class Bot {
             if (this.randomize_timeout) {
                 clearTimeout(this.randomize_timeout);
             }
-
-            if (this.puzzle_start_timeout) {
-                clearTimeout(this.puzzle_start_timeout);
-            }
             
             await this.save(); 
             
@@ -1193,7 +1088,6 @@ export class Bot {
         } finally {
             // Do not reconnect
             this.client.destroy();
-            this.db.close();
             await Screenshotter.deinit();
         }
     }
