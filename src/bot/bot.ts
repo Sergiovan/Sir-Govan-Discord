@@ -421,6 +421,9 @@ export class Bot {
      * NOTE: Does not use inline replies!! 
      */
     reply(msg: D.Message, def: string, rb?: RarityBag) {
+        if (msg.channel instanceof D.StageChannel) {
+            return;
+        }
         return msg.channel.send(rb_(rb, def));
     }
 
@@ -663,6 +666,10 @@ export class Bot {
             await reactions.users.remove(self.client.user!.id);
         }, 1000 * 60 * 30);
 
+        if (msg.channel instanceof D.StageChannel) {
+            return;
+        }
+        
         const channel = msg.channel;
         const guild = channel.guild;
 
@@ -888,6 +895,7 @@ export class Bot {
         });
 
         if (!res || !reactions!) return;
+        if (msg.channel instanceof D.StageChannel) return;
 
         let episode_title = this.clean_content(msg.content, msg.channel);
         episode_title = episode_title.replace(/\s+$/g, '');

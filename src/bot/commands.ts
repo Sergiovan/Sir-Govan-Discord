@@ -176,7 +176,7 @@ export const cmds: { [key: string]: CommandFunc } = {
     /** Gives the current no-context role in use */
     role(this: Bot, msg: D.Message) {
         let server = this.get_server(msg);
-        if (!msg.guild || !server) {
+        if (!msg.guild || msg.channel instanceof D.StageChannel || !server) {
             return;
         }
         if (server.no_context_role) {
@@ -201,6 +201,9 @@ export const cmds: { [key: string]: CommandFunc } = {
                 // TODO Textify shiny reply
                 rolename += index === -1 ? "\nNote: This role does not exist anymore. It's a shiny!" : "";
                 let index_str = index === -1 ? 'NaN' : `${index+1}/${total}`;
+                if (msg.channel instanceof D.StageChannel) {
+                    return; // sigh
+                }
                 msg.channel.send(`${index_str}: ${rolename}`);
             });
         } else {
@@ -220,12 +223,15 @@ export const cmds: { [key: string]: CommandFunc } = {
             return;
         }
         let self = this;
+        if (msg.channel instanceof D.StageChannel) {
+            return;
+        }
         let thischannel = msg.channel; // This must be an allowed channel already
         let [messageID] = parseArgs(msg, arg(argType.string));
         if (messageID) {
             let success = false;
             for (let [channel_id, channel] of msg.guild.channels.cache) {
-                if (channel.isTextBased() && !server.disallowed_channels_listen.has(channel_id)) {
+                if (channel.isTextBased() && !(channel instanceof D.StageChannel) && !server.disallowed_channels_listen.has(channel_id)) {
                     try {
                         let msg = await channel.messages.fetch(messageID as D.Snowflake);
                         if (msg.reactions.resolve(emojis.pushpin.toString())?.me) {

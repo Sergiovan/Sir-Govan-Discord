@@ -160,6 +160,10 @@ async function create_entry(clnt: D.Client, embed_msg: D.Message, embed_data: Di
         throw new Error(`Channel ${original_channel.id} is just DMs, actually?`);
     }
 
+    if (original_channel instanceof D.StageChannel) {
+        throw new Error(`Channel ${original_channel.id} is a stage channel, somehow`);
+    }
+
     const original_msg = await original_channel.messages.fetch(embed_data.message);
 
     if (!original_msg) {
@@ -192,7 +196,7 @@ async function create_battle(clnt: D.Client, tournament: string, round_nr: numbe
         const entry = data.entries[entry_number];
 
         const channel = await clnt.channels.fetch(entry.channel);
-        if (!channel || !channel.isTextBased() || channel.isDMBased()) {
+        if (!channel || !channel.isTextBased() || channel.isDMBased() || channel instanceof D.StageChannel) {
             throw new Error(`Cannot find channel ${entry.channel} in battle ${name}: ${entry_number}`);
         }
 
@@ -202,7 +206,7 @@ async function create_battle(clnt: D.Client, tournament: string, round_nr: numbe
         }
 
         const original_channel = await clnt.channels.fetch(entry.original_channel);
-        if (!original_channel || !original_channel.isTextBased() || original_channel.isDMBased()) {
+        if (!original_channel || !original_channel.isTextBased() || original_channel.isDMBased() || original_channel instanceof D.StageChannel) {
             throw new Error(`Cannot find channel ${entry.original_channel} in battle ${name}: ${entry_number}`);
         }
     
@@ -257,7 +261,7 @@ async function create_battle(clnt: D.Client, tournament: string, round_nr: numbe
 async function find_round_messages(clnt: D.Client, tournament_name: string, round: number) {
     const post_channel = await clnt.channels.fetch(tournament_channel);
             
-    if (!post_channel || !post_channel.isTextBased() || post_channel.isDMBased()) {
+    if (!post_channel || !post_channel.isTextBased() || post_channel.isDMBased() || post_channel instanceof D.StageChannel) {
         console.error(`${tournament_channel} is not available`);
         return [];
     }
@@ -266,7 +270,8 @@ async function find_round_messages(clnt: D.Client, tournament_name: string, roun
 
     const footer_regex = /(?<tournament>.*) tournament \| Round (?<round>\d+) \| Battle (?<battle>\d+) \| Entry (?<entry>A|B)/;
 
-    let found: D.Message[] = [];
+    let pre_found: [D.Message, number][] = [];
+    let battle_numbers: {[key: number]: any} = {};
     let loop_found_any = true;
 
     while (loop_found_any) {
@@ -276,10 +281,14 @@ async function find_round_messages(clnt: D.Client, tournament_name: string, roun
         );
         last = msgs[msgs.length - 1].id;
 
-        msg_loop: for (let msg of msgs) {
+
+        msg_loop: 
+        for (let msg of msgs) {
             if (msg.author.id !== clnt.user!.id) continue; // Not mine
             if (!msg.embeds.length) continue; // No embeds
             
+            let battles: number[] = [];
+
             for (let embed of msg.embeds) {
                 if (!embed.footer) continue msg_loop;
 
@@ -290,15 +299,53 @@ async function find_round_messages(clnt: D.Client, tournament_name: string, roun
 
                 if (res.groups.tournament !== tournament_name) continue msg_loop;
                 if (res.groups.round !== `${round}`) continue msg_loop;
+                
+                let battle = Number.parseInt(res.groups.battle);
+                if (Number.isNaN(battle)) continue msg_loop;
+                battles.push(battle);
+            }
+
+            for (let battle of battles) {
+                if (battle !== battles[0]) continue msg_loop;
+            }
+
+            if (battle_numbers.hasOwnProperty(battles[0])) {
+                console.error(`Found battle ${battles[0]} multiple times`);
+                return [];
             }
 
             // console.log(`Found ${msg.id}`);
-            found.push(msg);
+            pre_found.push([msg, battles[0]]);
             loop_found_any = true;
         }
     }
 
-    return found;
+    // In battle order
+    return pre_found.sort((a, b) => a[1] - b[1]).map((a) => a[0]);
+}
+
+function reduce_winners(preparation: Preparation, previous_round: Round, winners: Contestant[]): Contestant[] {
+    if (winners.length <= 1) {
+        console.error(`Winner amount too low: ${winners.length}`);
+        return winners;
+    }
+    
+    const final_amount = Math.pow(2, Math.floor(Math.log2(winners.length)));
+
+    if (final_amount === winners.length) {
+        return winners;
+    }
+
+    const sorted_winners = [...winners].sort((a, b) => get_winner({A: a, B: b}, previous_round, preparation).entry === a.entry ? -1 : 1);
+
+    const death_set: {[key: number]: boolean} = {};
+
+    while (sorted_winners.length > final_amount) {
+        const dead = sorted_winners.pop()!; // Last
+        death_set[dead.entry] = true;
+    }
+
+    return winners.filter((x) => !death_set[x.entry]);
 }
 
 function get_winner(battle: Battle, previous_round: Round, preparation: Preparation) {
@@ -352,7 +399,7 @@ function shuffle<T>(array: T[]) {
 
 // node tournaments.js prepare <channel-id> <message-first> <message-last> <tournament-name> <pin-emoji>
 // node tournaments.js post-prepare <tournament-name>
-// node tournaments.js round <tournament-name> <round>
+// node tournaments.js round <tournament-name> <round> [reduce]
 // node tournaments.js check <tournament-name> <round>
 // node tournaments.js count <tournament-name> <round> 
 // node tournaments.js clean <tournament-name> <round>
@@ -479,20 +526,20 @@ client.on('ready', async function(this: D.Client) {
             break;
         }
         case 'round': {
-            const prepare_params = params.slice(1);
-            if (prepare_params.length !== 2) {
-                console.error(`Parameters were not right: ${prepare_params}`);
+            const round_params = params.slice(1);
+            if (round_params.length < 2 || round_params.length > 3) {
+                console.error(`Parameters were not right: ${round_params}`);
                 break;
             }
 
             const post_channel = await this.channels.fetch(tournament_channel);
             
-            if (!post_channel || !post_channel.isTextBased()) {
+            if (!post_channel || !post_channel.isTextBased() || post_channel instanceof D.StageChannel) {
                 console.error(`${tournament_channel} is not available`);
                 break;
             }
 
-            const [tournament_name, round_name] = prepare_params;
+            const [tournament_name, round_name, reduce] = round_params;
             
             const round = Number.parseInt(round_name);
 
@@ -500,6 +547,13 @@ client.on('ready', async function(this: D.Client) {
                 console.error(`"${round_name}" could not be parsed to a number`);
                 break;
             }
+
+            if (reduce && reduce !== 'reduce') {
+                console.error(`Invalid 3rd parameter: ${reduce}`);
+                break;
+            }
+
+            const do_reduce = reduce === 'reduce';
 
             const prepare_file = prepare_doc(tournament_name);
             const prev_round_file = round_doc(tournament_name, round - 1);
@@ -529,12 +583,18 @@ client.on('ready', async function(this: D.Client) {
                 current_round = prev_round;
             } else {
                 const totals: {[key: number]: number} = {};
-                const winners: Contestant[] = prev_round.battles.map((battle) => {
+                let winners: Contestant[] = prev_round.battles.map((battle) => {
                     const winner = get_winner(battle, prev_round, preparation);
                     totals[winner.entry] = (prev_round.totals[winner.entry] ?? 0) + winner.votes;
 
-                    return {entry: winner.entry, votes: 0};
+                    return winner;
                 });
+
+                if (do_reduce) {
+                    winners = reduce_winners(preparation, prev_round, winners);
+                }
+
+                winners.forEach((w) => w.votes = 0);
 
                 const battles: Battle[] = [];
 
@@ -555,37 +615,44 @@ client.on('ready', async function(this: D.Client) {
 
             let real_msgs: D.Message[] = [];
 
+            shuffle(msgs);
+            
             let start = await post_channel.send({
-                content: `Round __#${round}__ of the **${tournament_name}** tournament.\n` + 
-                         `${msgs.length} matches, with ${(msgs.length * 2) - (current_round.totals[-1] !== undefined ? 1 : 0)} entries.`
+                content: ":)"
             });
-
+            
             for (let msg of msgs) {
                 real_msgs.push(await post_channel.send(msg));
             }
-
+            
             let end = await post_channel.send({
                 content: `This is the end of the entries for round __#${round}__ of the **${tournament_name}** tournament.\n` + 
-                         `To go back to the start of the round hitch a ride on this url: ${start.url}`
+                `To go back to the start of the round hitch a ride on this url: ${start.url}`
             });
-
+            
             await Promise.all(real_msgs.map(async (msg) => {
                 await msg.react(a_emoji);
                 return await msg.react(b_emoji);
             }));
+
+            await start.edit({
+                content: `Round __#${round}__ of the **${tournament_name}** tournament.\n` + 
+                         `${msgs.length} matches, with ${(msgs.length * 2) - (current_round.totals[-1] !== undefined ? 1 : 0)} entries.\n\n` +
+                         `To go to the end of the round catch a ride on this url: ${end.url}`
+            });
 
             fs.writeFileSync(round_file, JSON.stringify(current_round, null, 2));
 
             break;
         }
         case 'check': {
-            const prepare_params = params.slice(1);
-            if (prepare_params.length !== 2) {
-                console.error(`Parameters were not right: ${prepare_params}`);
+            const check_params = params.slice(1);
+            if (check_params.length !== 2) {
+                console.error(`Parameters were not right: ${check_params}`);
                 break;
             }
 
-            const [tournament_name, round_name] = prepare_params;
+            const [tournament_name, round_name] = check_params;
 
             const round = Number.parseInt(round_name);
 
@@ -594,7 +661,7 @@ client.on('ready', async function(this: D.Client) {
                 break;
             }
 
-            let entries = (await find_round_messages(self, tournament_name, round)).reverse();
+            let entries = (await find_round_messages(self, tournament_name, round));
 
             let missing = 0;
 
@@ -618,13 +685,13 @@ client.on('ready', async function(this: D.Client) {
             break;
         }
         case 'count': {
-            const prepare_params = params.slice(1);
-            if (prepare_params.length !== 2) {
-                console.error(`Parameters were not right: ${prepare_params}`);
+            const count_params = params.slice(1);
+            if (count_params.length !== 2) {
+                console.error(`Parameters were not right: ${count_params}`);
                 break;
             }
 
-            const [tournament_name, round_name] = prepare_params;
+            const [tournament_name, round_name] = count_params;
 
             const round = Number.parseInt(round_name);
 
@@ -636,7 +703,7 @@ client.on('ready', async function(this: D.Client) {
             const round_file = round_doc(tournament_name, round);
             const round_data: Round = JSON.parse(fs.readFileSync(round_file, 'utf-8'));
 
-            let entries = (await find_round_messages(self, tournament_name, round)).reverse();
+            let entries = (await find_round_messages(self, tournament_name, round));
 
             entries.forEach((msg, i) => {
                 const battle = round_data.battles[i];
@@ -653,13 +720,13 @@ client.on('ready', async function(this: D.Client) {
             break;
         }
         case 'clean': {
-            const prepare_params = params.slice(1);
-            if (prepare_params.length !== 2) {
-                console.error(`Parameters were not right: ${prepare_params}`);
+            const clean_params = params.slice(1);
+            if (clean_params.length !== 2) {
+                console.error(`Parameters were not right: ${clean_params}`);
                 break;
             }
 
-            const [tournament_name, round_name] = prepare_params;
+            const [tournament_name, round_name] = clean_params;
             
             const round = Number.parseInt(round_name);
 
@@ -675,13 +742,13 @@ client.on('ready', async function(this: D.Client) {
             break;
         }
         case 'winner': {
-            const prepare_params = params.slice(1);
-            if (prepare_params.length !== 2) {
-                console.error(`Parameters were not right: ${prepare_params}`);
+            const winner_params = params.slice(1);
+            if (winner_params.length !== 2) {
+                console.error(`Parameters were not right: ${winner_params}`);
                 break;
             }
 
-            const [tournament_name, round_name] = prepare_params;
+            const [tournament_name, round_name] = winner_params;
             
             const round = Number.parseInt(round_name);
 

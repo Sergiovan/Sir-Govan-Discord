@@ -286,14 +286,14 @@ export function randomBigInt(max: bigint = 20n, min: bigint = 0n): bigint {
 }
 
 /** Gotten from https://stackoverflow.com/a/55699349 */
-export function randomEnum<T>(anEnum: T): T[keyof T] {
+export function randomEnum<T extends object>(anEnum: T): T[keyof T] {
     const enumValues = Object.keys(anEnum)
         .map(n => Number.parseInt(n))
         .filter(n => !Number.isNaN(n)) as unknown as T[keyof T][];
     const randomIndex = Math.floor(Math.random() * enumValues.length);
     const randomEnumValue = enumValues[randomIndex];
     return randomEnumValue;
-  }
+}
 
 /** Gotten from https://stackoverflow.com/a/2450976 */
 export function shuffleArray<T>(arr: Array<T>) {
