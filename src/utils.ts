@@ -328,10 +328,6 @@ export function randomCode(): string {
     return mask.slice(0, len).join('');
 }
 
-export function fullName(user: User): string {
-    return `${user.username}#${user.discriminator}`
-}
-
 export enum Rarity {
     Common = 0, // 75% - 100%
     Uncommon = 1, // 20% - 25%
