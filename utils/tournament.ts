@@ -164,17 +164,31 @@ async function create_entry(clnt: D.Client, embed_msg: D.Message, embed_data: Di
         throw new Error(`Channel ${original_channel.id} is a stage channel, somehow`);
     }
 
-    const original_msg = await original_channel.messages.fetch(embed_data.message);
+    let original_msg;
 
-    if (!original_msg) {
+    try {
+        original_msg = await original_channel.messages.fetch(embed_data.message);
+    
+        if (!original_msg) {
+            console.error(`Channel ${original_channel.name} has no message with id ${embed_data.message}. May have been deleted, continuing`);
+            return ret; // 4 pins is the default
+        }
+    } catch {
         console.error(`Channel ${original_channel.name} has no message with id ${embed_data.message}. May have been deleted, continuing`);
-        return ret; // 4 pins is the default
+        return ret;
     }
 
-    const reactions = await original_msg.reactions.resolve(emoji);
-    if (!reactions) {
+    let reactions;
+
+    try {
+        reactions = await original_msg.reactions.resolve(emoji);
+        if (!reactions) {
+            console.error(`Message ${original_msg.id} has no reactions for ${emoji}. Assuming 4`);
+            return ret;
+        }
+    } catch {
         console.error(`Message ${original_msg.id} has no reactions for ${emoji}. Assuming 4`);
-        return ret;
+            return ret;
     }
 
     ret.pins = reactions.count;
