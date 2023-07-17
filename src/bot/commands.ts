@@ -53,22 +53,47 @@ export const cmds: { [key: string]: CommandFunc } = {
         let server = this.get_server(msg);
         if (!msg.guild || !server) return;
 
-        let [color] = parseArgs(msg, arg(argType.string, `${Math.floor(Math.random() * 0x1000000)}`));
+        if (!msg.member) return; 
+
+        let [color] = parseArgs(msg, arg(argType.string));
+
         if (!color) {
-            this.reply(msg, "Missing color parameter. Please provide me with a hex number", this.text.colorNoColor);
-            return;
-        }
-        let number = Number.parseInt('0x' + (''+color).replace(/^(#|0x)/, ''));
-        if (!Number.isNaN(number) && Number.isFinite(number) && number >= 0 && number < 0x1000000) {
-            if (!msg.member) {
-                return; // Not in a server
+            // We tell you your color
+            let member = msg.member;
+            let role = this.get_member_role(member);
+
+            if (role) {
+                this.reply(msg, `Your current color is ${role.hexColor}`);
+            } else {
+                this.reply(msg, "It seems like you have no valid role to color");
             }
 
+            return;
+        }
+
+        if (color.toLowerCase() === 'random') {
+            let member = msg.member;
+            let role = this.get_member_role(member);
+
+            if (role) {
+                let new_color = Math.floor(Math.random() * 0x1000000);
+                role.setColor(new_color);
+                this.reply(msg, `Your color is now #${new_color.toString(16).toUpperCase()}`);
+            } else {
+                this.reply(msg, "It seems like you have no valid role to color");
+            }
+
+            return;
+        }
+
+        let number = Number.parseInt('0x' + (''+color).replace(/^(#|0x)/, ''));
+        if (!Number.isNaN(number) && Number.isFinite(number) && number >= 0 && number < 0x1000000) {
             let member = msg.member;
             let role = this.get_member_role(member);
 
             if (role) {
                 role.setColor(number);
+                this.reply(msg, `Your color is now #${number.toString(16).toUpperCase()}`);
             } else {
                 this.reply(msg, "It seems like you have no valid role to color");
             }

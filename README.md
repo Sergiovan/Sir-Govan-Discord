@@ -28,8 +28,8 @@ Reacting with 🎻 on a message makes it into a short titlecard video with the m
 ### `!pin {message}`
 Puts a message in the hall of fame. But it'll be marked. Cheaters beware, democracy is strong.
 
-### `!color {hex}`
-Changes your role color if any of your roles have a color. Because I can't be arsed with administration
+### `!color [hex or 'random']`
+Changes your role color if any of your roles have a color. Because I can't be arsed with administration. You can also randomize your color.
 
 ### `!icon {emoji or url}`
 Changes your role icon if in a server that allows that to happen, and if you're not trying to trick the bot
