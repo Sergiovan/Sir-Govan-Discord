@@ -18,7 +18,7 @@ const FONTS = {
 
 // Dark souls text taken from https://github.com/Sibert-Aerts/sibert-aerts.github.io/commit/47744dbce5b4665c3500345c50786a33dee964af
 
-const GRADIENTS = {
+export const GRADIENTS = {
   gay:    ['#f00', '#f80', '#fe0', '#0a0', '#26c', '#a0a'],
   trans:  ['#7bf', '#7bf', '#f9a', '#f9a', '#fff', '#fff', '#f9a', '#f9a', '#7bf', '#7bf'],
   bi:     ['#f08', '#f08', '#a6a', '#80f', '#80f'],
@@ -44,7 +44,7 @@ for (const key in GRADIENTS) {
   }
 }
 
-interface Preset {
+export interface Preset {
   main_color: RGB;
   sheen_tint: RGB;
 
@@ -180,9 +180,7 @@ async function create_caption_data(ctx: CanvasRenderingContext2D, preset: Preset
                   return false;
           }
           return `${options.base}${options.size}/${icon}${options.ext}`;
-      },
-      // ext: '.svg',
-      // folder: 'svg'
+      }
     });
     const elems: string[] = line.split(/(\<a?\:.*?\:[0-9]+\>)/g).map((str => str.split(/(\<img.*?src=".*?"\/\>)/))).flat(1);
 
@@ -201,7 +199,11 @@ async function create_caption_data(ctx: CanvasRenderingContext2D, preset: Preset
         content.push(emoji_image);
         promises.push(new Promise((res, rej) => { 
           emoji_image.onload = res;
-          setTimeout(rej, 2000);
+          setTimeout(() => {
+            const err = `Could not load image from ${src}`;
+            Logger.error(`Could not load image from ${src}`);
+            rej(`Could not load image from ${src}`);
+          }, 2000);
         }));
         emoji_image.src = src;
       } else {
@@ -209,6 +211,8 @@ async function create_caption_data(ctx: CanvasRenderingContext2D, preset: Preset
         if (charSpacing > 0) {
           const space = ' '.repeat(Math.floor(charSpacing / 5));
           part = space + part.toUpperCase().split('').join(space) + space;
+        } else {
+          part = part.toUpperCase();
         }
         content.push(part);
       }
@@ -309,7 +313,7 @@ function draw_caption(ctx: CanvasRenderingContext2D, canvas: Canvas, lines: capt
     x = x0;
   }
 
-  ctx.restore
+  ctx.restore();
 }
 
 function get_size_heuristics(text: string, preset: Preset): number {
@@ -348,7 +352,7 @@ export async function create_dark_souls_image(text: string, preset: Preset, grad
   const blurSize = preset.sheen_size; 
   const blurOpacity = preset.sheen_opacity;
   
-  const textColor: RGB = preset.main_color; //[255, 255, 107];
+  const textColor: RGB = preset.main_color;
   const fontSize = 92;
   
   const gradient: GRADIENTS_KEY | "" = typeof preset === 'string' ? preset : "";
