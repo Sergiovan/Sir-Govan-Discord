@@ -977,7 +977,7 @@ export class Bot {
         if (!image) {
             return this.reply(msg, "I have encountered an error. My apologies, but I cannot do this.");
         } else {
-            return msg.channel.send({files: [ {name: 'donk_bonk.png', attachment: image} ]});
+            return msg.reply({files: [ {name: 'donk_bonk.png', attachment: image} ], allowedMentions: { repliedUser: false }});
         }
     }
 
