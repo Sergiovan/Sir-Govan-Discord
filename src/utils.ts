@@ -285,6 +285,10 @@ export function randomBigInt(max: bigint = 20n, min: bigint = 0n): bigint {
     return min + (r / buckets);
 }
 
+export function randomInt(max: number, min: number = 0): number {
+    return Math.floor((Math.random() * (max - min)) + min);
+}
+
 /** Gotten from https://stackoverflow.com/a/55699349 */
 export function randomEnum<T extends object>(anEnum: T): T[keyof T] {
     const enumValues = Object.keys(anEnum)

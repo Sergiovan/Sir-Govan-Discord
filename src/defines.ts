@@ -56,6 +56,8 @@ export class Server implements ServerHelper {
 
     titlecard_emoji: Emoji | null;
 
+
+
     constructor(client: D.Client, id: D.Snowflake, jsonable: Partial<JsonableServer>) {
         this.id = id;
         const guild = client.guilds.cache.get(id);
@@ -179,6 +181,9 @@ export const emojis = {
     weary: new Emoji({name: '😩'}),
     no_mouth: new Emoji({name: '😶'}),
     violin: new Emoji({name: '🎻'}),
+    
+    headstone: new Emoji({name: '🪦'}),
+    fire_heart: new Emoji({name: '❤️‍🔥'})
 };
 
 export enum argType {

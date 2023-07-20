@@ -104,6 +104,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
 
             const can_command = this.can_command(msg);
             const can_listen = this.can_listen(msg);
+            const can_talk = this.can_talk(msg);
             if (!can_command && !can_listen) {
                 return;
             }
@@ -124,7 +125,16 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                     this.maybe_remove_context(msg);
                 }
             }
-
+            
+            if (can_talk) {
+                const words = content.trim().split(' ');
+                if (words.length === 2 && words[1].toLowerCase().endsWith('ed')) {
+                    if ((Math.random() * 10000) < 1.0 && msg.channelId === '140942235670675456') {
+                        this.maybe_dark_souls(msg, emojis.fire_heart);
+                    }
+                }
+            }
+            
             if (can_command) {
                 if (this.parse(msg)) {
                     return;
@@ -209,6 +219,21 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 this.maybe_titlecard(m, u);
                 break;
             }
+            case emojis.headstone.toString():
+            case emojis.fire_heart.toString(): {
+                if (!this.can_talk(msg)) {
+                    return;
+                }
+                const m = msg;
+                const u = await msg.guild.members.fetch(user.id);
+            
+                if (!u || !m) {
+                    return;
+                }
+                const death = emoji.toString() === emojis.headstone.toString();
+                this.maybe_dark_souls(m, death ? emojis.headstone : emojis.fire_heart, death ? 'YOU_DIED' : null);
+                break;
+            }            
             default: { // Chaos
                 if (!server.anything_pin_channel) {
                     break;

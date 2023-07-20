@@ -9,15 +9,15 @@ import { cmds, aliases, beta_cmds } from './commands';
 import { listeners, fixed_listeners, ListenerFunction } from './listeners';
 
 import { emojis, Emoji, JsonableServer, Server, xpTransferReason } from '../defines';
-import { randFromFile, RarityBag, rb_, Logger, Mutex } from '../utils';
+import { randFromFile, RarityBag, rb_, Logger, Mutex, randomElement, randomInt } from '../utils';
 
 import { Persist } from '../data/persist';
 
-import { xp } from '../secrets/secrets';
 import { createImage, TweetData, TweetMoreData, TweetTheme } from './twitter';
 import { join } from 'path';
 import { make_titlecard } from './titlecard';
 import { Screenshotter } from './screenshots';
+import { GRADIENTS, PRESETS, Preset, create_dark_souls_image } from './images'
 
 /** Pair containing command name and command function */
 type Command = [string, CommandFunc];
@@ -546,7 +546,7 @@ export class Bot {
                     }
                     return `${options.base}${options.size}/${icon}${options.ext}`;
                 }
-            }) as any as string; // TODO Remove once twemoji 14.0.1 is gone
+            });
             text = text.replace(/&lt;a?\:.*?\:([0-9]+)&gt;/g, '<img class="emoji" src="https://cdn.discordapp.com/emojis/$1.png">');
             return text;
         }
@@ -922,6 +922,63 @@ export class Bot {
                 name: 'iasip.mp4' // TODO Funky stuff yee
             }]
         });
+    }
+
+    async maybe_dark_souls(msg: D.Message, emoji: Emoji, preset_name: keyof typeof PRESETS | null = null) {
+        const server = this.get_server(msg);
+
+        if (!server || !msg.content.length || msg.embeds.length || msg.attachments.size) {
+            return; // No empty messages or messages with embeds or attachments
+        }
+
+        let reactions: D.MessageReaction;
+        const res = await this.locked_task(msg.channel, async () => {
+            msg = await msg.fetch(); // Update message
+            const recs = msg.reactions.resolve(emoji.to_reaction_resolvable());
+
+            if (!recs || recs?.me) {
+                return false; // If this messages has been pinned or is locked for pinning, cease
+            }
+
+            reactions = recs;
+            await msg.react(emoji.toString());
+            return true;
+        });
+
+        if (!res || !reactions!) return;
+        if (msg.channel instanceof D.StageChannel) return;
+
+        let preset: Preset;
+        if (preset_name === null) {
+            if (Math.random() > 0.99) {
+                preset = {
+                    main_color: [50 + randomInt(205), 50 + randomInt(205), 50 + randomInt(50)],
+                    sheen_tint: [50 + randomInt(205), 50 + randomInt(205), 50 + randomInt(50)],
+
+                    text_spacing: randomInt(20),
+                    sheen_size: Math.random() * 2,
+                    sheen_opacity: Math.random() * 0.2,
+                    font: 'adobe'
+                };
+            } else {
+                const presets = Object.keys(PRESETS).filter((preset) => preset !== 'YOU_DIED') as (keyof typeof PRESETS)[];
+                preset = PRESETS[randomElement(presets)];
+            }
+        } else {
+            preset = PRESETS[preset_name];
+        }
+
+        let gradient;
+        if (Math.random() > 0.99) {
+            gradient = randomElement(Object.keys(GRADIENTS)) as keyof typeof GRADIENTS;
+        }
+
+        let image = await create_dark_souls_image(msg.content, preset, gradient);
+        if (!image) {
+            return this.reply(msg, "I have encountered an error. My apologies, but I cannot do this.");
+        } else {
+            return msg.channel.send({files: [ {name: 'donk_bonk.png', attachment: image} ]});
+        }
     }
 
     /** Pins a message to the hall of fame channel of a server 
