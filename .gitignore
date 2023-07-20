@@ -26,6 +26,8 @@ push_text.sh
 
 # Media
 media/*.ogg
+media/*.otf
+media/*.ttf
 
 # html
 html/

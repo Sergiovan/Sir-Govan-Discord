@@ -77,7 +77,7 @@ export class Screenshotter {
                     width: 1920,
                     height: 1080
                 }, 
-                headless: true,
+                headless: "new",
                 args: minimal_args
             },
         });
