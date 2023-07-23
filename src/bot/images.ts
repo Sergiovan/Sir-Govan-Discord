@@ -206,7 +206,10 @@ async function create_caption_data(ctx: CanvasRenderingContext2D, preset: Preset
           images[src] = emoji_image;
 
           promises.push(new Promise((res, rej) => { 
-            emoji_image.onload = res;
+            emoji_image.onload = (e) => {
+              emoji_image.src = null as any as string;
+              res(e);
+            };
             fetch(src, { method: 'HEAD' }).then(
               (response) => {
                 if (response.status >= 400) {
@@ -338,10 +341,13 @@ function draw_caption(ctx: CanvasRenderingContext2D, canvas: Canvas, lines: capt
   ctx.restore();
 }
 
-function get_size_heuristics(text: string, preset: Preset): number {
-  const canvas = new Canvas(0, 0);
-  const ctx = canvas.getContext('2d');
+const canvas = new Canvas(0, 0);
+canvas.gpu = false;
+(canvas as any).engine = 'cpu';
+const ctx = canvas.getContext('2d');
 
+function get_size_heuristics(text: string, preset: Preset): number {
+  ctx.save();
   const font = preset.font ? FONTS[preset.font] : {family: preset.font_specific, weight: preset.font_weight};
   const fontSize = 92;
   const fontFamily = preset.font_specific ?? font.family;
@@ -350,16 +356,22 @@ function get_size_heuristics(text: string, preset: Preset): number {
   ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
   ctx.textBaseline = 'middle';
 
-  return clamp_to_integer(text.split('\n').map(l => ctx.measureText(l).width).reduce(reduce_max) + 100, 1200, 1920);
+  const res = clamp_to_integer(text.split('\n').map(l => ctx.measureText(l).width).reduce(reduce_max) + 100, 1200, 1920);
+
+  ctx.restore();
+
+  return res;
 }
 
 export async function create_dark_souls_image(text: string, preset: Preset, gradient_key: GRADIENTS_KEY | "" = "") {
 
   if (!text) return null;
 
+  ctx.reset();
   const w = get_size_heuristics(text, preset), h = 280;
-  const canvas = new Canvas(w, h);
-  const ctx = canvas.getContext('2d');
+  canvas.width = w;
+  canvas.height = h;
+  ctx.reset();
 
   // CONSTANTS
   let s = h / 280;
