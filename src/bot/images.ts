@@ -1,6 +1,6 @@
 import { Canvas, FontLibrary, CanvasRenderingContext2D, CanvasGradient, Image, Font } from 'skia-canvas';
 import { Logger } from '../utils';
-import twemoji from 'twemoji'; 
+import twemoji from 'twemoji';
 
 type RGB = [r: number, g: number, b: number];
 
@@ -184,11 +184,12 @@ async function create_caption_data(ctx: CanvasRenderingContext2D, preset: Preset
     });
     const elems: string[] = line.split(/(\<a?\:.*?\:[0-9]+\>)/g).map((str => str.split(/(\<img.*?src=".*?"\/\>)/))).flat(1);
 
+    const images: {[key: string]: Image} = {};
+
     for (let part of elems) {
       let match = part.match(/^\<a?\:.*?\:([0-9]+)\>$|\<img.*?src="(.*?)"\/\>/);
       if (match) {
         let src: string;
-        let emoji_image: Image = new Image;
         if (match[2]) {
           // Url
           src = match[2];
@@ -196,16 +197,37 @@ async function create_caption_data(ctx: CanvasRenderingContext2D, preset: Preset
           // Emoji
           src = `https://cdn.discordapp.com/emojis/${match[1]}.png`;
         }
+
+        let emoji_image: Image;
+        if (src in images) {
+          emoji_image = images[src];
+        } else {
+          emoji_image = new Image;
+          images[src] = emoji_image;
+
+          promises.push(new Promise((res, rej) => { 
+            emoji_image.onload = res;
+            fetch(src, { method: 'HEAD' }).then(
+              (response) => {
+                if (response.status >= 400) {
+                  const err = `Could not load image from ${src}: Response code ${response.status}`;
+                  Logger.inspect(response);
+                  Logger.error(err);
+                  rej(err);
+                } else {
+                  emoji_image.src = src;
+                }
+              }, 
+              (err) => {
+                const err_msg = `Could not load image from ${src}: Error ${err}`;
+                Logger.inspect(err);
+                Logger.error(err_msg);
+                rej(err_msg);
+              }
+            );
+          }))
+        }
         content.push(emoji_image);
-        promises.push(new Promise((res, rej) => { 
-          emoji_image.onload = res;
-          setTimeout(() => {
-            const err = `Could not load image from ${src}`;
-            Logger.error(`Could not load image from ${src}`);
-            rej(`Could not load image from ${src}`);
-          }, 2000);
-        }));
-        emoji_image.src = src;
       } else {
         // Text
         if (charSpacing > 0) {

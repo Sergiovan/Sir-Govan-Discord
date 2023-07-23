@@ -130,7 +130,10 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                 const words = content.trim().split(' ');
                 if (words.length === 2 && words[1].toLowerCase().endsWith('ed')) {
                     if ((Math.random() * 10000) < 1.0 && msg.channelId === '140942235670675456') {
-                        this.maybe_dark_souls(msg, emojis.fire_heart);
+                        const myself = await msg.guild?.members.fetch(this.client.user!.id);
+                        if (myself) {
+                            this.maybe_dark_souls(msg, myself, emojis.fire_heart);
+                        }
                     }
                 }
             }

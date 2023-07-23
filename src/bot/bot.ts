@@ -897,6 +897,13 @@ export class Bot {
         if (!res || !reactions!) return;
         if (msg.channel instanceof D.StageChannel) return;
 
+        const self = this;
+        this.add_cleanup_task(async () => {
+            const reactions = await msg.reactions.resolve(emoji.to_reaction_resolvable());
+            if (!reactions) return;
+            await reactions.users.remove(self.client.user!.id);
+        }, 1000 * 60 * 30);
+
         let episode_title = this.clean_content(msg.content, msg.channel);
         episode_title = episode_title.replace(/\s+$/g, '');
         episode_title = clean_content(episode_title);
@@ -947,6 +954,13 @@ export class Bot {
 
         if (!res || !reactions!) return;
         if (msg.channel instanceof D.StageChannel) return;
+
+        const self = this;
+        this.add_cleanup_task(async () => {
+            const reactions = await msg.reactions.resolve(emoji.to_reaction_resolvable());
+            if (!reactions) return;
+            await reactions.users.remove(self.client.user!.id);
+        }, 1000 * 60 * 30);
 
         let preset: Preset;
         if (preset_name === null) {
