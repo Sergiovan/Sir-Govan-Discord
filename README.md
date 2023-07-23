@@ -24,6 +24,9 @@ Reacting with 🔁 or 🔂 on a message sends it to the Infinitely Tall Cylinder
 ### Never sunny in here
 Reacting with 🎻 on a message makes it into a short titlecard video with the music of IASIP. For the niche comedic value that brings every now and then.
 
+### This is the dark souls of features
+Reacting with ❤️‍🔥 on a message makes it into a small dark souls themed banner image. Reacting with 🪦 makes it into a banner in the style of the famous "You Died" message. 
+
 ## Commands
 ### `!pin {message}`
 Puts a message in the hall of fame. But it'll be marked. Cheaters beware, democracy is strong.
