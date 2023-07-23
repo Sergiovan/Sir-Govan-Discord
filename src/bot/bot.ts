@@ -924,7 +924,7 @@ export class Bot {
         });
     }
 
-    async maybe_dark_souls(msg: D.Message, emoji: Emoji, preset_name: keyof typeof PRESETS | null = null) {
+    async maybe_dark_souls(msg: D.Message, user: D.GuildMember, emoji: Emoji, preset_name: keyof typeof PRESETS | null = null) {
         const server = this.get_server(msg);
 
         if (!server || !msg.content.length || msg.embeds.length || msg.attachments.size) {
@@ -975,9 +975,13 @@ export class Bot {
 
         let image = await create_dark_souls_image(msg.content, preset, gradient);
         if (!image) {
-            return this.reply(msg, "I have encountered an error. My apologies, but I cannot do this.");
+            if (user.id === '104937990006026240') { // kamkam
+                return msg.reply({content: "I have encountered an error. You will be sorry.", allowedMentions: {repliedUser: false}});
+            } else {
+                return msg.reply({content: "I have encountered an error. My apologies, but I cannot do this.", allowedMentions: {repliedUser: false}});
+            }
         } else {
-            return msg.reply({files: [ {name: 'donk_bonk.png', attachment: image} ], allowedMentions: { repliedUser: false }});
+            return msg.channel.send({files: [ {name: 'donk_bonk.png', attachment: image} ] });
         }
     }
 

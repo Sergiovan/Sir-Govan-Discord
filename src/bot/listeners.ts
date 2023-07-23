@@ -134,7 +134,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                     }
                 }
             }
-            
+
             if (can_command) {
                 if (this.parse(msg)) {
                     return;
@@ -231,7 +231,7 @@ export const listeners: { [key in keyof D.ClientEvents]?: ClientListener<key>} =
                     return;
                 }
                 const death = emoji.toString() === emojis.headstone.toString();
-                this.maybe_dark_souls(m, death ? emojis.headstone : emojis.fire_heart, death ? 'YOU_DIED' : null);
+                this.maybe_dark_souls(m, u, death ? emojis.headstone : emojis.fire_heart, death ? 'YOU_DIED' : null);
                 break;
             }            
             default: { // Chaos
