@@ -1,5 +1,5 @@
-# GOVAN IS BACK
-And more Discord than ever. This is just an administrative/silly fun bot for my private server.
+# GOVAN IS BACK (AGAIN)
+In Rust, for a challenge (and because ts was taking too much memory). This is just an administrative/silly fun bot for my private server.
 
 # Functionality
 ## No context

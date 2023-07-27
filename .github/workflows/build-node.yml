@@ -1,6 +1,9 @@
-name: Node.js CI
+name: Rust CI
 
 on: [ push, pull_request ]
+
+env: 
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
@@ -9,16 +12,10 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [ '19.7.0', latest ]
+        target: [ 'aarch64-unknown-linux-gnu', 'x86_64-unknown-linux-gnu', 'riscv64gc-unknown-linux-gnu' ]
 
     steps:
     - uses: actions/checkout@v3
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - name: Install dependencies
-      run: npm ci
-    - name: Run typescript compiler
-      run: npm run compile
+    - run: rustup update && rustup target add ${{ matrix.target }}
+    - run: cargo build --verbose --target=${{ matrix.target }}
+    # - run: cargo test --verbose
