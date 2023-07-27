@@ -995,7 +995,7 @@ export class Bot {
                 return msg.reply({content: "I have encountered an error. My apologies, but I cannot do this.", allowedMentions: {repliedUser: false}});
             }
         } else {
-            return msg.channel.send({files: [ {name: 'donk_bonk.png', attachment: image} ] });
+            return msg.channel.send({files: [ {name: `donk_bonk_${user.user.tag}_${msg.id}.png`, attachment: image} ] });
         }
     }
 

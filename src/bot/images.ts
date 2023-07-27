@@ -341,13 +341,12 @@ function draw_caption(ctx: CanvasRenderingContext2D, canvas: Canvas, lines: capt
   ctx.restore();
 }
 
-const canvas = new Canvas(0, 0);
-canvas.gpu = false;
-(canvas as any).engine = 'cpu';
-const ctx = canvas.getContext('2d');
-
 function get_size_heuristics(text: string, preset: Preset): number {
-  ctx.save();
+  const canvas = new Canvas(0, 0);
+  canvas.gpu = false;
+  (canvas as any).engine = 'cpu';
+  const ctx = canvas.getContext('2d');
+
   const font = preset.font ? FONTS[preset.font] : {family: preset.font_specific, weight: preset.font_weight};
   const fontSize = 92;
   const fontFamily = preset.font_specific ?? font.family;
@@ -358,8 +357,6 @@ function get_size_heuristics(text: string, preset: Preset): number {
 
   const res = clamp_to_integer(text.split('\n').map(l => ctx.measureText(l).width).reduce(reduce_max) + 100, 1200, 1920);
 
-  ctx.restore();
-
   return res;
 }
 
@@ -367,11 +364,11 @@ export async function create_dark_souls_image(text: string, preset: Preset, grad
 
   if (!text) return null;
 
-  ctx.reset();
   const w = get_size_heuristics(text, preset), h = 280;
-  canvas.width = w;
-  canvas.height = h;
-  ctx.reset();
+  const canvas = new Canvas(w, h);
+  canvas.gpu = false;
+  (canvas as any).engine = 'cpu';
+  const ctx = canvas.getContext('2d');   
 
   // CONSTANTS
   let s = h / 280;
