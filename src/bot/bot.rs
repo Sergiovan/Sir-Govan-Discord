@@ -10,8 +10,8 @@ pub struct Bot;
 
 #[async_trait]
 impl EventHandler for Bot {
-  async fn ready(&self, _: Context, ready: Ready) {
-    self.on_ready(ready).await;
+  async fn ready(&self, ctx: Context, ready: Ready) {
+    self.on_ready(ctx, ready).await;
   }
 
   async fn resume(&self, _ctx: Context, _: ResumedEvent) {

@@ -6,6 +6,7 @@
 
 # Data
 data/nocontext.txt
+data/servers.toml
 tournaments/
 
 # Scripts

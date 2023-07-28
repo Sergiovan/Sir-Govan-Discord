@@ -1,4 +1,4 @@
-use crate::bot::Bot;
+use crate::bot::bot::Bot;
 use crate::util::logging;
 
 use serenity::prelude::*;

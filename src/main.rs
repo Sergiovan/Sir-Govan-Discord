@@ -2,9 +2,11 @@ mod bot;
 mod util;
 
 use std::env;
+use std::sync::Arc;
 use serenity::prelude::*;
 
-use bot::Bot;
+use bot::bot::Bot;
+use bot::data::{BotData, ShardManagerContainer};
 use util::logging;
 
 #[tokio::main]
@@ -14,6 +16,8 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+    let beta = env::var("GOVAN_BETA").map_or(false, |res| res.to_lowercase() == "true");
+
     // Set gateway intents, which decides what events the bot will be notified about
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
@@ -28,6 +32,12 @@ async fn main() {
         Client::builder(&token, intents).event_handler(Bot).await.expect("Err creating client");
 
     let shard_manager = client.shard_manager.clone();
+
+    {
+        let mut data = client.data.write().await;
+        data.insert::<BotData>(Arc::new(RwLock::new(BotData::new(beta))));
+        data.insert::<ShardManagerContainer>(shard_manager.clone());
+    }
 
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await.expect("Could not register Ctrl+C handler");

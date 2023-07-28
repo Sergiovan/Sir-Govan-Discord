@@ -1,0 +1,32 @@
+[[servers]]
+  id = 0 # Server ID
+  beta = true # Is a beta server
+  nickname = "Ababa" # Bot nickname in this server
+  
+  [servers.channels]
+  allowed_commands = [0] # Array of channels where bot can talk
+  allowed_listen = [0] # Array of channels where bot can listen in
+  
+  [servers.no_context]
+  channel = 0 # Channel where no-context goes 
+  role = 0 # No-context role
+
+  pin_amount = 1 # Amount of pins needed to enter a hall
+
+  [servers.hall_of_fame] # Hall of fame definitions
+    channel = 0 # Channel for this hall
+    emoji.Unicode = "📌" # Emoji to use
+
+  [servers.hall_of_typo] # Hall of typos
+    channel = 0
+    emoji.Discord = 0 # Static emoji ID
+
+  [servers.hall_of_vague] # Hall of vague
+    channel = 0
+    emoji.DiscordAnimated = 0 # Animated emoji ID
+
+  [servers.hall_of_all] # Hall of everything
+    channel = 0
+    emoji.Unicode = ""
+
+  

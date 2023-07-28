@@ -1,5 +1,4 @@
 mod handlers;
 
-mod bot;
-
-pub use bot::Bot;
+pub mod bot;
+pub mod data;
