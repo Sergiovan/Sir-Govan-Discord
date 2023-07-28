@@ -21,3 +21,10 @@ features = ["macros", "signal", "rt-multi-thread"]
 version = "0.11.6"
 default-features = false
 features = ["cache", "client", "gateway", "model", "utils", "rustls_backend"]
+
+[profile.release]
+codegen-units = 1
+opt-level = 3
+strip = true
+lto = true
+panic = "abort"
