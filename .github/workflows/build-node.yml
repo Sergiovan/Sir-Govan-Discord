@@ -7,15 +7,26 @@ env:
 
 jobs:
   build:
-    
+    name: Build for ${{ matrix.target[1] }}
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        target: [ 'aarch64-unknown-linux-gnu', 'x86_64-unknown-linux-gnu', 'riscv64gc-unknown-linux-gnu' ]
+        target: [ ['aarch64-unknown-linux-gnu', 'ARM'], ['x86_64-unknown-linux-gnu', 'x86'], ['riscv64gc-unknown-linux-gnu', 'RISCV64GC'] ]
 
     steps:
-    - uses: actions/checkout@v3
-    - run: rustup update && rustup target add ${{ matrix.target }}
-    - run: cargo build --verbose --target=${{ matrix.target }}
-    # - run: cargo test --verbose
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+        target: ${{ matrix.target[0] }}
+    - name: Build target
+      uses: actions-rs/cargo@v1
+      with:
+        use-cross: true
+        command: build
+        args: --release --target ${{ matrix.target[0] }}
