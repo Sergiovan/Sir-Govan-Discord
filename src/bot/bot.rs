@@ -6,7 +6,19 @@ use serenity::json::Value;
 use serenity::model::gateway::Ready;
 use tracing::debug;
 
-pub struct Bot;
+use crate::bot::commands::commander::Commander;
+
+pub struct Bot {
+  pub commander: RwLock<Commander>
+}
+
+impl Default for Bot {
+  fn default() -> Self {
+      Bot {
+        commander: RwLock::new(Commander::new())
+      }
+  }
+}
 
 #[async_trait]
 impl EventHandler for Bot {

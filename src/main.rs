@@ -29,7 +29,7 @@ async fn main() {
     // automatically prepend your bot token with "Bot ", which is a requirement
     // by Discord for bot users.
     let mut client =
-        Client::builder(&token, intents).event_handler(Bot).await.expect("Err creating client");
+        Client::builder(&token, intents).event_handler(Bot::default()).await.expect("Err creating client");
 
     let shard_manager = client.shard_manager.clone();
 

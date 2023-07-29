@@ -8,6 +8,8 @@ use serenity::model::prelude::*;
 impl Bot {
   pub async fn on_ready(&self, ctx: Context, ready: Ready) {
     logging::debug("Getting ready...");
+    self.commander.write().await.register_all();
+
     let data = ctx.data.read().await;
 
     if let Some(bot_data) = data.get::<BotData>() {
