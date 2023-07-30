@@ -4,23 +4,81 @@ use serenity::prelude::*;
 use std::collections::{HashSet, HashMap};
 use std::sync::Arc;
 
+mod emoji {
+  pub const PIN: char = '📌';
+  pub const NO_MOUTH: char = '😶';
+  pub const WEARY: char = '😩';
+
+  pub const REPEAT: char = '🔁';
+  pub const REPEAT_ONCE: char = '🔂';
+  pub const VIOLIN: char = '🎻';
+  pub const HEADSTONE: char = '🪦';
+  pub const FIRE_HEART: &str = "❤️‍🔥";
+}
+
 pub mod config {
+  use crate::bot::data::emoji;
   use serde::{Serialize, Deserialize};
+  use serenity::model::prelude::ReactionType;
 
   pub const DATA_PATH: &str = "data";
   pub const SETTINGS_FILE: &str = "servers.toml";
 
-  #[derive(Serialize, Deserialize, Debug)]
+  #[derive(Serialize, Deserialize, Debug, Clone)]
   pub enum EmojiType {
     Unicode(String),
     Discord(u64),
-    DiscordAnimated(u64)
+  }
+
+  impl PartialEq<EmojiType> for EmojiType {
+    fn eq(&self, other: &EmojiType) -> bool {
+      match self {
+        EmojiType::Unicode(name) => match other {
+          EmojiType::Unicode(oname) => name == oname,
+          EmojiType::Discord( .. ) => false
+        },
+        EmojiType::Discord(id) => match other {
+          EmojiType::Unicode(_) => false,
+          EmojiType::Discord (oid) => id == oid
+        }
+      }
+    }
+  }
+
+  impl Eq for EmojiType {}
+
+  impl From<&ReactionType> for EmojiType {
+    fn from(value: &ReactionType) -> Self {
+      match value {
+        ReactionType::Unicode(name) => EmojiType::Unicode(name.clone()),
+        ReactionType::Custom { id, .. } => EmojiType::Discord(*id.as_u64()),
+        _ => EmojiType::Discord(0)
+      }
+    }
+  }
+
+  impl From<&str> for EmojiType {
+    fn from(value: &str) -> Self {
+      EmojiType::Unicode(value.to_string())
+    }
+  }
+
+  impl From<u64> for EmojiType {
+    fn from(value: u64) -> Self {
+        EmojiType::Discord(value)
+    }
   }
 
   #[derive(Serialize, Deserialize, Debug)]
-  pub struct Hall {
+  pub struct Hall<const N: char> {
     pub channel: u64,
     pub emoji: Option<EmojiType>
+  }
+
+  impl<const N: char> Hall<N> {
+    pub fn get_emoji(&self) -> Option<EmojiType> {
+      self.emoji.clone().or(Some(EmojiType::Unicode(N.to_string())))
+    }
   }
 
   #[derive(Serialize, Deserialize, Debug)]
@@ -45,11 +103,10 @@ pub mod config {
     pub channels: Channels,
     pub no_context: Option<NoContext>,
 
-    pub hall_of_fame: Option<Hall>,
-    pub hall_of_typo: Option<Hall>,
-    pub hall_of_vague: Option<Hall>,
-    pub hall_of_all: Option<Hall>,
-  
+    pub hall_of_fame: Option<Hall<{emoji::PIN}>>,
+    pub hall_of_typo: Option<Hall<{emoji::WEARY}>>,
+    pub hall_of_vague: Option<Hall<{emoji::NO_MOUTH}>>,
+    pub hall_of_all: Option<Hall<'\0'>>,
   }
 
   #[derive(Serialize, Deserialize, Debug)]
@@ -115,15 +172,29 @@ pub struct Server {
 
   pub channels: Channels,
   pub no_context: Option<NoContext>,
-  
-  pub hall_of_fame: Option<Hall>,
-  pub hall_of_typo: Option<Hall>,
-  pub hall_of_vague: Option<Hall>,
-  pub hall_of_all: Option<Hall>
+
+  pub hall_of_fame: Option<Hall<{emoji::PIN}>>,
+  pub hall_of_typo: Option<Hall<{emoji::WEARY}>>,
+  pub hall_of_vague: Option<Hall<{emoji::NO_MOUTH}>>,
+  pub hall_of_all: Option<Hall<'\0'>>
 }
 
 impl Server {
+  fn get_emoji<const T: char>(hall: &Option<Hall<T>>) -> Option<EmojiType> {
+    hall.as_ref().and_then(|x| x.get_emoji())
+  }
 
+  pub fn is_fame_emoji(&self, emoji: EmojiType) -> bool {
+    Server::get_emoji(&self.hall_of_fame).map_or(false, |x| x == emoji)
+  }
+
+  pub fn is_typo_emoji(&self, emoji: EmojiType) -> bool {
+    Server::get_emoji(&self.hall_of_typo).map_or(false, |x| x == emoji)
+  }
+
+  pub fn is_vague_emoji(&self, emoji: EmojiType) -> bool {
+    Server::get_emoji(&self.hall_of_vague).map_or(false, |x| x == emoji)
+  }
 }
 
 impl From<config::Server> for Server {
