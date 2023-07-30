@@ -5,7 +5,7 @@
   
   [servers.channels]
   allowed_commands = [0] # Array of channels where bot can talk
-  allowed_listen = [0] # Array of channels where bot can listen in
+  disallowed_listen = [0] # Array of channels where bot can not listen in, even if present
   
   [servers.no_context]
   channel = 0 # Channel where no-context goes 

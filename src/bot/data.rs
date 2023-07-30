@@ -20,7 +20,7 @@ pub mod config {
   #[derive(Serialize, Deserialize, Debug)]
   pub struct Hall {
     pub channel: u64,
-    pub emoji: EmojiType
+    pub emoji: Option<EmojiType>
   }
 
   #[derive(Serialize, Deserialize, Debug)]
@@ -32,7 +32,7 @@ pub mod config {
   #[derive(Serialize, Deserialize, Debug)]
   pub struct Channels {
     pub allowed_commands: Vec<u64>,
-    pub allowed_listen: Vec<u64>
+    pub disallowed_listen: Vec<u64>
   }
 
   #[derive(Serialize, Deserialize, Debug)]
@@ -40,11 +40,10 @@ pub mod config {
     pub id: u64,
     pub beta: bool,
     pub nickname: Option<String>,
+    pub pin_amount: u32,
   
     pub channels: Channels,
     pub no_context: Option<NoContext>,
-  
-    pub pin_amount: u32,
 
     pub hall_of_fame: Option<Hall>,
     pub hall_of_typo: Option<Hall>,
@@ -95,14 +94,14 @@ pub use config::NoContext;
 #[derive(Debug)]
 pub struct Channels {
   pub allowed_commands: HashSet<u64>,
-  pub allowed_listen: HashSet<u64>
+  pub disallowed_listen: HashSet<u64>
 }
 
 impl From<config::Channels> for Channels {
   fn from(value: config::Channels) -> Self {
     Channels {
       allowed_commands: HashSet::from_iter(value.allowed_commands.into_iter()),
-      allowed_listen: HashSet::from_iter(value.allowed_listen.into_iter())
+      disallowed_listen: HashSet::from_iter(value.disallowed_listen.into_iter())
     }
   }
 }
@@ -112,12 +111,11 @@ pub struct Server {
   pub id: u64,
   pub beta: bool,
   pub nickname: Option<String>,
+  pub pin_amount: u32,
 
   pub channels: Channels,
   pub no_context: Option<NoContext>,
-
-  pub pin_amount: u32,
-
+  
   pub hall_of_fame: Option<Hall>,
   pub hall_of_typo: Option<Hall>,
   pub hall_of_vague: Option<Hall>,

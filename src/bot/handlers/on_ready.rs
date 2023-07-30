@@ -28,8 +28,10 @@ impl Bot {
         }
       };
 
+      let is_beta = bot_data.read().await.beta;
+
       bot_data.write().await.servers.extend(
-        data.servers.into_iter().map(|server| (server.id, server.into()))
+        data.servers.into_iter().filter(|server| server.beta == is_beta).map(|server| (server.id, server.into()))
       );
 
       logging::info(

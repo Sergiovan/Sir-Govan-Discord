@@ -52,11 +52,11 @@ impl Bot {
       let server = bot_data.servers.get(msg.guild_id.expect("Guild did not exist outside of DMs").as_u64());
       let Some(server) = server else { return };
 
-      if server.channels.allowed_listen.contains(msg.channel_id.as_u64()) {
-        log(&ctx, &msg).await;
-      } else {
+      if server.channels.disallowed_listen.contains(msg.channel_id.as_u64()) {
         return;
       }
+        
+      log(&ctx, &msg).await;
 
       if msg.is_own(&ctx) {
         return;
