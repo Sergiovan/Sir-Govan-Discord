@@ -826,7 +826,7 @@ export class Bot {
                 messageReference: msg
             },
             files: [{
-                name: `tweet_by_${tweet.retweeter}.png`, // TODO Funky funny hella names
+                name: `tweet_by_${retweeter.user.tag}.png`, // TODO Funky funny hella names
                 attachment: img 
             }]
         });
