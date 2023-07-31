@@ -727,7 +727,7 @@ export class Bot {
 
         let tweet: TweetData = {
             theme: rb_(this.text.tweetTheme, 'dim', 2) as TweetTheme,
-            retweeter: rb_(this.text.tweetRetweeter, retweeter.user.username, 0.5),
+            retweeter: rb_(this.text.tweetRetweeter, retweeter.nickname ?? retweeter.user.username, 0.5),
             avatar: author.displayAvatarURL(),
             name: author_member?.displayName ?? author.username,
             verified: verified,
@@ -826,7 +826,7 @@ export class Bot {
                 messageReference: msg
             },
             files: [{
-                name: 'tweet.png', // TODO Funky funny hella names
+                name: `tweet_by_${tweet.retweeter}.png`, // TODO Funky funny hella names
                 attachment: img 
             }]
         });
