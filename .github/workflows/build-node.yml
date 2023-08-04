@@ -29,4 +29,4 @@ jobs:
       with:
         use-cross: true
         command: build
-        args: --release --target ${{ matrix.target[0] }}
+        args: --verbose --release --target ${{ matrix.target[0] }}

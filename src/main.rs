@@ -1,9 +1,9 @@
 mod bot;
 mod util;
 
+use serenity::prelude::*;
 use std::env;
 use std::sync::Arc;
-use serenity::prelude::*;
 
 use bot::bot::Bot;
 use bot::data::{BotData, ShardManagerContainer};
@@ -28,8 +28,10 @@ async fn main() {
     // Create a new instance of the Client, logging in as a bot. This will
     // automatically prepend your bot token with "Bot ", which is a requirement
     // by Discord for bot users.
-    let mut client =
-        Client::builder(&token, intents).event_handler(Bot::default()).await.expect("Err creating client");
+    let mut client = Client::builder(&token, intents)
+        .event_handler(Bot::default())
+        .await
+        .expect("Err creating client");
 
     let shard_manager = client.shard_manager.clone();
 
@@ -40,7 +42,9 @@ async fn main() {
     }
 
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.expect("Could not register Ctrl+C handler");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Could not register Ctrl+C handler");
         logging::debug("Bye!");
         shard_manager.lock().await.shutdown_all().await;
     });
