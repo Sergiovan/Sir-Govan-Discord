@@ -50,8 +50,6 @@ impl Commander {
 
         if let Some(f) = self.commands.get(first) {
             f(self, ctx, msg, words).await;
-        } else {
-            return;
         }
     }
 }

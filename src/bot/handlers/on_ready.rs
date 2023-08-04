@@ -1,5 +1,5 @@
-use crate::bot::bot::Bot;
 use crate::bot::data::{BotData, ShardManagerContainer};
+use crate::bot::Bot;
 use crate::util::logging;
 
 use serenity::model::prelude::*;
@@ -64,7 +64,6 @@ impl Bot {
                 .await
                 .shutdown_all()
                 .await;
-            return;
         }
     }
 }

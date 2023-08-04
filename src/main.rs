@@ -5,8 +5,8 @@ use serenity::prelude::*;
 use std::env;
 use std::sync::Arc;
 
-use bot::bot::Bot;
 use bot::data::{BotData, ShardManagerContainer};
+use bot::Bot;
 use util::logging;
 
 #[tokio::main]

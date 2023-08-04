@@ -1,5 +1,5 @@
-use crate::bot::bot::Bot;
 use crate::bot::data::{BotData, EmojiType};
+use crate::bot::Bot;
 use crate::util::logging;
 
 use serenity::model::prelude::*;
@@ -97,7 +97,7 @@ impl Bot {
 
         match action {
             Action::Pin => self.maybe_pin(ctx, add_reaction, channel).await,
-            Action::None => return,
+            Action::None => (),
         };
     }
 }

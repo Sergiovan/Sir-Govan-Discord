@@ -9,11 +9,11 @@ mod emoji {
     pub const NO_MOUTH: char = '😶';
     pub const WEARY: char = '😩';
 
-    pub const REPEAT: char = '🔁';
-    pub const REPEAT_ONCE: char = '🔂';
-    pub const VIOLIN: char = '🎻';
-    pub const HEADSTONE: char = '🪦';
-    pub const FIRE_HEART: &str = "❤️‍🔥";
+    pub const _REPEAT: char = '🔁';
+    pub const _REPEAT_ONCE: char = '🔂';
+    pub const _VIOLIN: char = '🎻';
+    pub const _HEADSTONE: char = '🪦';
+    pub const _FIRE_HEART: &str = "❤️‍🔥";
 }
 
 pub mod config {
@@ -138,7 +138,7 @@ pub mod config {
         use std::path::Path;
 
         let settings_path = Path::new(DATA_PATH).join(SETTINGS_FILE);
-        let data = fs::read_to_string(&settings_path)?;
+        let data = fs::read_to_string(settings_path)?;
 
         let servers: Servers = toml::from_str(&data)?;
 
@@ -190,11 +190,11 @@ impl Server {
         Server::get_emoji(self.hall_of_fame.as_ref()).map_or(false, |x| &x == emoji)
     }
 
-    pub fn is_typo_emoji(&self, emoji: &EmojiType) -> bool {
+    pub fn _is_typo_emoji(&self, emoji: &EmojiType) -> bool {
         Server::get_emoji(self.hall_of_typo.as_ref()).map_or(false, |x| &x == emoji)
     }
 
-    pub fn is_vague_emoji(&self, emoji: &EmojiType) -> bool {
+    pub fn _is_vague_emoji(&self, emoji: &EmojiType) -> bool {
         Server::get_emoji(self.hall_of_vague.as_ref()).map_or(false, |x| &x == emoji)
     }
 }

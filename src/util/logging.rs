@@ -8,7 +8,7 @@ use std::{cell::Cell, sync::Mutex};
 
 static DAY: Lazy<Mutex<Cell<DateTime<Utc>>>> = Lazy::new(|| {
     Mutex::new(Cell::new(
-        Utc.with_ymd_and_hms(2000, 01, 01, 0, 0, 0).unwrap(),
+        Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap(),
     ))
 });
 
@@ -46,7 +46,7 @@ fn print_message(time: DateTime<Utc>, level: &str, text: &str) {
                 *day = time;
             } else {
                 while *day <= time {
-                    *day = *day + Duration::days(1);
+                    *day += Duration::days(1);
                     println!("~~~~~~~ {} ~~~~~~~", day.format("%Y-%m-%d"));
                 }
             }

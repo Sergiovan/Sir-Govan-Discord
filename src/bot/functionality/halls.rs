@@ -1,4 +1,4 @@
-use crate::bot::bot::Bot;
+use crate::bot::Bot;
 
 use serenity::model::prelude::*;
 use serenity::prelude::*;
@@ -6,13 +6,13 @@ use serenity::prelude::*;
 pub struct HallSafety;
 
 impl HallSafety {
-    pub async fn can_pin(&self, ctx: Context, reaction: Reaction) -> bool {
-        return false;
+    pub async fn _can_pin(&self, _ctx: Context, _reaction: Reaction) -> bool {
+        false
     }
 }
 
 impl Bot {
-    pub async fn maybe_pin(&self, ctx: Context, reaction: Reaction, dest: GuildChannel) {
+    pub async fn maybe_pin(&self, _ctx: Context, _reaction: Reaction, _dest: GuildChannel) {
         println!("Yep");
     }
 }

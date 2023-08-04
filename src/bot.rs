@@ -1,3 +1,9 @@
+mod commands;
+mod functionality;
+mod handlers;
+
+pub mod data;
+
 use serenity::async_trait;
 use serenity::json::Value;
 use serenity::model::prelude::*;
@@ -6,8 +12,8 @@ use serenity::prelude::*;
 use serenity::model::gateway::Ready;
 use tracing::debug;
 
-use crate::bot::commands::commander::Commander;
-use crate::bot::functionality::halls::HallSafety;
+use self::commands::commander::Commander;
+use self::functionality::halls::HallSafety;
 use std::sync::Arc;
 
 pub struct Bot {
