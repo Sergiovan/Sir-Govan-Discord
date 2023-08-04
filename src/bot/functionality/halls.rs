@@ -39,7 +39,7 @@ impl HallSafety {
                 Ok(users) => {
                     let filtered = users
                         .into_iter()
-                        .filter(|x| x.bot || x.id == msg.author.id)
+                        .filter(|x| !x.bot && x.id != msg.author.id)
                         .collect::<Vec<_>>();
 
                     if filtered.is_empty() {
@@ -239,8 +239,6 @@ impl Bot {
         builder: &'a mut CreateMessage<'b>,
         data: PinData,
     ) -> &'a mut CreateMessage<'b> {
-        logger::info("Yay");
-
         builder.add_embed(|b| {
             b.color(data.r << 16 | data.g << 8 | data.b)
                 .author(|b| b.name(data.author).icon_url(data.author_avatar))

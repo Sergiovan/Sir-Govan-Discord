@@ -80,10 +80,10 @@ pub mod config {
     }
 
     impl<const N: char> Hall<N> {
-        pub fn get_emoji(&self) -> Option<EmojiType> {
+        pub fn get_emoji(&self) -> EmojiType {
             self.emoji
                 .clone()
-                .or(Some(EmojiType::Unicode(N.to_string())))
+                .unwrap_or(EmojiType::Unicode(N.to_string()))
         }
     }
 
@@ -187,18 +187,18 @@ pub struct Server {
 
 impl Server {
     fn get_emoji<const T: char>(hall: Option<&Hall<T>>) -> Option<EmojiType> {
-        hall.and_then(|x| x.get_emoji())
+        hall.and_then(|x| Some(x.get_emoji()))
     }
 
     pub fn is_fame_emoji(&self, emoji: &EmojiType) -> bool {
         Server::get_emoji(self.hall_of_fame.as_ref()).map_or(false, |x| &x == emoji)
     }
 
-    pub fn _is_typo_emoji(&self, emoji: &EmojiType) -> bool {
+    pub fn is_typo_emoji(&self, emoji: &EmojiType) -> bool {
         Server::get_emoji(self.hall_of_typo.as_ref()).map_or(false, |x| &x == emoji)
     }
 
-    pub fn _is_vague_emoji(&self, emoji: &EmojiType) -> bool {
+    pub fn is_vague_emoji(&self, emoji: &EmojiType) -> bool {
         Server::get_emoji(self.hall_of_vague.as_ref()).map_or(false, |x| &x == emoji)
     }
 }

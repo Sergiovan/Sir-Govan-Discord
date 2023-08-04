@@ -60,11 +60,15 @@ impl Bot {
         };
 
         enum Action {
-            Pin,
+            Pin {
+                destination_id: u64,
+                required: u32,
+                emoji_override: Option<EmojiType>,
+            },
             None,
         }
 
-        let (action, destination_id, required): (Action, u64, u32) = {
+        let action = {
             let data = ctx.data.read().await;
             let bot_data = data.get::<BotData>().unwrap().read().await;
 
@@ -82,58 +86,91 @@ impl Bot {
             }
 
             let emoji: EmojiType = (&add_reaction.emoji).into();
+            let required = server.pin_amount;
+
+            // Decide what to do here
             if server.is_fame_emoji(&emoji) {
                 let hall = server.hall_of_fame.as_ref().unwrap();
                 let channel_id = hall.channel;
-                let required = server.pin_amount;
 
-                (Action::Pin, channel_id, required)
-            } else {
-                (Action::None, 0, u32::MAX)
-            }
-        };
-
-        if matches!(action, Action::None) || destination_id == 0 {
-            return;
-        }
-
-        let channel = match ctx.cache.guild_channel(destination_id) {
-            Some(channel) => channel,
-            None => {
-                match ctx.http.get_channel(destination_id).await {
-                    Ok(Channel::Guild(channel)) => channel,
-                    Ok(c) => {
-                        logger::error(&format!("Channel {} for hall emoji {} is misconfigured, not a guild channel: {}", destination_id, add_reaction.emoji, c));
-                        return;
-                    }
-                    Err(e) => {
-                        logger::error(&format!(
-                            "Error when fetching channel {}: {}",
-                            destination_id, e
-                        ));
-                        return;
-                    }
+                Action::Pin {
+                    destination_id: channel_id,
+                    required,
+                    emoji_override: {
+                        if let EmojiType::Unicode(emoji) = hall.get_emoji() {
+                            if emoji.contains(crate::bot::data::emoji::PIN) {
+                                Some(crate::bot::data::emoji::REDDIT_GOLD)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    },
                 }
+            } else if server.is_typo_emoji(&emoji) {
+                let hall = server.hall_of_typo.as_ref().unwrap();
+                let channel_id = hall.channel;
+
+                Action::Pin {
+                    destination_id: channel_id,
+                    required,
+                    emoji_override: None,
+                }
+            } else if server.is_vague_emoji(&emoji) {
+                let hall = server.hall_of_vague.as_ref().unwrap();
+                let channel_id = hall.channel;
+
+                Action::Pin {
+                    destination_id: channel_id,
+                    required,
+                    emoji_override: None,
+                }
+            } else if let Some(hall) = server.hall_of_all.as_ref() {
+                let channel_id = hall.channel;
+
+                Action::Pin {
+                    destination_id: channel_id,
+                    required,
+                    emoji_override: None,
+                }
+            } else {
+                Action::None
             }
         };
-
-        if !channel.guild_cached(&ctx).await {
-            return;
-        }
 
         match action {
-            Action::Pin => {
-                self.maybe_pin(
-                    ctx,
-                    msg,
-                    add_reaction,
-                    channel,
-                    required,
-                    Some(crate::bot::data::emoji::REDDIT_GOLD),
-                )
-                .await
+            Action::None => return,
+            Action::Pin {
+                destination_id,
+                required,
+                emoji_override,
+            } => {
+                let channel = match ctx.cache.guild_channel(destination_id) {
+                    Some(channel) => channel,
+                    None => match ctx.http.get_channel(destination_id).await {
+                        Ok(Channel::Guild(channel)) => channel,
+                        Ok(c) => {
+                            logger::error(&format!("Channel {} for hall emoji {} is misconfigured, not a guild channel: {}", destination_id, add_reaction.emoji, c));
+                            return;
+                        }
+                        Err(e) => {
+                            logger::error(&format!(
+                                "Error when fetching channel {}: {}",
+                                destination_id, e
+                            ));
+                            return;
+                        }
+                    },
+                };
+
+                if !channel.guild_cached(&ctx).await {
+                    return;
+                }
+
+                self.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
+                    .await;
             }
-            Action::None => (),
-        };
+        }
     }
 }
