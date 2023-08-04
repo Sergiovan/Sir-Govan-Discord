@@ -4,7 +4,9 @@ use serenity::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-mod emoji {
+pub mod emoji {
+    use super::EmojiType;
+
     pub const PIN: char = '📌';
     pub const NO_MOUTH: char = '😶';
     pub const WEARY: char = '😩';
@@ -14,6 +16,8 @@ mod emoji {
     pub const _VIOLIN: char = '🎻';
     pub const _HEADSTONE: char = '🪦';
     pub const _FIRE_HEART: &str = "❤️‍🔥";
+
+    pub const REDDIT_GOLD: EmojiType = EmojiType::Discord(263774481233870848);
 }
 
 pub mod config {

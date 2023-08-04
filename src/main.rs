@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use bot::data::{BotData, ShardManagerContainer};
 use bot::Bot;
-use util::logging;
+use util::logger;
 
 #[tokio::main]
 async fn main() {
@@ -19,7 +19,8 @@ async fn main() {
     let beta = env::var("GOVAN_BETA").map_or(false, |res| res.to_lowercase() == "true");
 
     // Set gateway intents, which decides what events the bot will be notified about
-    let intents = GatewayIntents::GUILD_MESSAGES
+    let intents = GatewayIntents::GUILDS
+        | GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT
         | GatewayIntents::GUILD_MESSAGE_REACTIONS
@@ -45,7 +46,7 @@ async fn main() {
         tokio::signal::ctrl_c()
             .await
             .expect("Could not register Ctrl+C handler");
-        logging::debug("Bye!");
+        logger::debug("Bye!");
         shard_manager.lock().await.shutdown_all().await;
     });
 
@@ -54,6 +55,6 @@ async fn main() {
     // Shards will automatically attempt to reconnect, and will perform
     // exponential backoff until it reconnects.
     if let Err(why) = client.start().await {
-        logging::error(&format!("Client error: {:?}", why));
+        logger::error(&format!("Client error: {:?}", why));
     }
 }

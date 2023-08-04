@@ -1101,6 +1101,7 @@ dependencies = [
  "colored",
  "dotenv",
  "once_cell",
+ "rand",
  "serde",
  "serenity",
  "tokio",

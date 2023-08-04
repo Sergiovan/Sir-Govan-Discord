@@ -1,6 +1,6 @@
 use crate::bot::data::BotData;
-use crate::bot::Bot;
-use crate::util::logging;
+use crate::bot::{Bot, CacheGuild};
+use crate::util::logger;
 
 use colored::Colorize;
 use serenity::model::prelude::*;
@@ -8,6 +8,10 @@ use serenity::prelude::*;
 
 impl Bot {
     pub async fn on_message(&self, ctx: Context, msg: Message) {
+        if !msg.guild_cached(&ctx).await {
+            return;
+        }
+
         let data = ctx.data.read().await;
         let bot_data = data.get::<BotData>().unwrap().read().await;
 
@@ -44,18 +48,25 @@ impl Bot {
                 String::new()
             };
 
+            let embeds = if !msg.embeds.is_empty() {
+                format!("[{} embeds] ", msg.embeds.len())
+            } else {
+                String::new()
+            };
+
             let stickers = if !msg.sticker_items.is_empty() {
                 format!("[{} stickers] ", msg.sticker_items.len())
             } else {
                 String::new()
             };
 
-            logging::info(&format!(
-                "{} @ {}: {}{}{}",
+            logger::info(&format!(
+                "{} @ {}: {}{}{}{}",
                 author.cyan(),
                 channel.cyan(),
                 content,
                 attachments.yellow(),
+                embeds.yellow(),
                 stickers.yellow()
             ));
         }

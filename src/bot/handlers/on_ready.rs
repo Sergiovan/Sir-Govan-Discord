@@ -1,13 +1,13 @@
 use crate::bot::data::{BotData, ShardManagerContainer};
 use crate::bot::Bot;
-use crate::util::logging;
+use crate::util::logger;
 
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
     pub async fn on_ready(&self, ctx: Context, ready: Ready) {
-        logging::debug("Getting ready...");
+        logger::debug("Getting ready...");
         self.commander.write().await.register_all();
 
         let data = ctx.data.read().await;
@@ -17,7 +17,7 @@ impl Bot {
             let data = match config::read_servers() {
                 Ok(data) => data,
                 Err(config::Error::IO(err)) => {
-                    logging::error(&format!("Could not open the settings file: {}", err));
+                    logger::error(&format!("Could not open the settings file: {}", err));
                     data.get::<ShardManagerContainer>()
                         .unwrap()
                         .lock()
@@ -27,7 +27,7 @@ impl Bot {
                     return;
                 }
                 Err(config::Error::Toml(err)) => {
-                    logging::error(&format!("Could not parse the settings file: {}", err));
+                    logger::error(&format!("Could not parse the settings file: {}", err));
                     data.get::<ShardManagerContainer>()
                         .unwrap()
                         .lock()
@@ -47,7 +47,7 @@ impl Bot {
                     .map(|server| (server.id, server.into())),
             );
 
-            logging::info(&format!(
+            logger::info(&format!(
                 "Am ready :). I am {}. I am in {} mode",
                 ready.user.tag(),
                 if bot_data.read().await.beta {
@@ -57,7 +57,7 @@ impl Bot {
                 }
             ));
         } else {
-            logging::error("Error getting the server list!");
+            logger::error("Error getting the server list!");
             data.get::<ShardManagerContainer>()
                 .unwrap()
                 .lock()
