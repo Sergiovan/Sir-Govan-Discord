@@ -1,4 +1,4 @@
-name: Rust CI
+name: Rust build
 
 on: [ push, pull_request ]
 
