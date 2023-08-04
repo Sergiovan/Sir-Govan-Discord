@@ -52,7 +52,7 @@ impl Bot {
       }
 
       let emoji: EmojiType = (&add_reaction.emoji).into();
-      if server.is_fame_emoji(emoji) {
+      if server.is_fame_emoji(&emoji) {
         let channel_id = server.hall_of_fame.as_ref().unwrap().channel;
         (Action::Pin, channel_id)
       } else {

@@ -1,1 +1,1 @@
-mod halls;
+pub mod halls;

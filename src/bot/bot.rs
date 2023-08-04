@@ -7,16 +7,20 @@ use serenity::model::gateway::Ready;
 use tracing::debug;
 
 use crate::bot::commands::commander::Commander;
+use crate::bot::functionality::halls::HallSafety;
+use std::sync::Arc;
 
 pub struct Bot {
-  pub commander: RwLock<Commander>
+  pub commander: Arc<RwLock<Commander>>,
+  pub pin_lock: Arc<Mutex<HallSafety>>,
 }
 
 impl Default for Bot {
   fn default() -> Self {
-      Bot {
-        commander: RwLock::new(Commander::new())
-      }
+    Bot {
+      commander: Arc::new(RwLock::new(Commander::new())),
+      pin_lock: Arc::new(Mutex::new(HallSafety))
+    }
   }
 }
 

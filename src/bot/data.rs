@@ -180,20 +180,20 @@ pub struct Server {
 }
 
 impl Server {
-  fn get_emoji<const T: char>(hall: &Option<Hall<T>>) -> Option<EmojiType> {
-    hall.as_ref().and_then(|x| x.get_emoji())
+  fn get_emoji<const T: char>(hall: Option<&Hall<T>>) -> Option<EmojiType> {
+    hall.and_then(|x| x.get_emoji())
   }
 
-  pub fn is_fame_emoji(&self, emoji: EmojiType) -> bool {
-    Server::get_emoji(&self.hall_of_fame).map_or(false, |x| x == emoji)
+  pub fn is_fame_emoji(&self, emoji: &EmojiType) -> bool {
+    Server::get_emoji(self.hall_of_fame.as_ref()).map_or(false, |x| &x == emoji)
   }
 
-  pub fn is_typo_emoji(&self, emoji: EmojiType) -> bool {
-    Server::get_emoji(&self.hall_of_typo).map_or(false, |x| x == emoji)
+  pub fn is_typo_emoji(&self, emoji: &EmojiType) -> bool {
+    Server::get_emoji(self.hall_of_typo.as_ref()).map_or(false, |x| &x == emoji)
   }
 
-  pub fn is_vague_emoji(&self, emoji: EmojiType) -> bool {
-    Server::get_emoji(&self.hall_of_vague).map_or(false, |x| x == emoji)
+  pub fn is_vague_emoji(&self, emoji: &EmojiType) -> bool {
+    Server::get_emoji(self.hall_of_vague.as_ref()).map_or(false, |x| &x == emoji)
   }
 }
 
