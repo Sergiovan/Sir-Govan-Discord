@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use crate::bot::commands::commander::Commander;
 use crate::util::{self, logger, NickOrName, ResultErrorHandler, UniqueColorError};
 use serenity::model::prelude::*;
@@ -13,13 +15,13 @@ impl Commander {
 		ctx: &Context,
 		msg: &Message,
 		mut words: Arguments<'a>,
-	) -> Option<()> {
+	) -> Option<Infallible> {
 		msg.guild_id?;
 
 		let member = msg
 			.member(ctx)
 			.await
-			.log_or_option(&format!("Could not fetch member from message {}", msg.id))?;
+			.unwrap_or_log(&format!("Could not fetch member from message {}", msg.id))?;
 
 		let top_role = match util::get_unique_color(ctx, &member) {
 			Ok(r) => r,
@@ -59,7 +61,7 @@ impl Commander {
 					&format!("Your current color is #{:06X}", top_role.colour.0),
 				)
 				.await
-				.log_or_option(&format!("Error replying to {}", msg.id))?;
+				.unwrap_or_log(&format!("Error replying to {}", msg.id))?;
 			}
 			Some(s) => {
 				let color = if s.to_lowercase() == "random" {
@@ -87,7 +89,7 @@ impl Commander {
 							&format!("Done. Your new color is #{:06X}", r.colour.0),
 						)
 						.await
-						.log_or_option(&format!("Error replying to {}", msg.id))?,
+						.unwrap_or_log(&format!("Error replying to {}", msg.id))?,
 					Err(e) => {
 						logger::error(&format!(
 							"Could not change role {} for {} to color #{:06X}: {}",
@@ -101,12 +103,12 @@ impl Commander {
 							"Something went wrong. Could not change your role color",
 						)
 						.await
-						.log_or_option(&format!("Error replying to {}", msg.id))?
+						.unwrap_or_log(&format!("Error replying to {}", msg.id))?
 					}
 				};
 			}
 		}
 
-		Some(())
+		None
 	}
 }

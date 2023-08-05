@@ -1,5 +1,6 @@
 use crate::bot::data::EmojiType;
 use core::future::Future;
+use std::convert::Infallible;
 use std::{collections::HashMap, pin::Pin};
 
 use regex::Regex;
@@ -11,7 +12,7 @@ use serenity::prelude::*;
 
 use std::collections::VecDeque;
 
-type CommandRet<'a> = Pin<Box<(dyn Future<Output = Option<()>> + 'a + Send)>>;
+type CommandRet<'a> = Pin<Box<(dyn Future<Output = Option<Infallible>> + 'a + Send)>>;
 type CommandFn = (dyn for<'fut> Fn(
 	&'fut Commander,
 	&'fut Context,

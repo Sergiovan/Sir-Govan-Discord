@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use crate::bot::data::{BotData, ShardManagerContainer};
 use crate::bot::Bot;
 use crate::util::logger;
@@ -6,7 +8,7 @@ use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
-	pub async fn on_ready(&self, ctx: Context, ready: Ready) {
+	pub async fn on_ready(&self, ctx: Context, ready: Ready) -> Option<Infallible> {
 		logger::debug("Getting ready...");
 		self.commander.write().await.register_all();
 
@@ -16,7 +18,7 @@ impl Bot {
 			use crate::bot::data::config;
 			let data = match config::read_servers() {
 				Ok(data) => data,
-				Err(config::Error::IO(err)) => {
+				Err(config::ServerTomlError::IO(err)) => {
 					logger::error(&format!("Could not open the settings file: {}", err));
 					data.get::<ShardManagerContainer>()
 						.unwrap()
@@ -24,9 +26,9 @@ impl Bot {
 						.await
 						.shutdown_all()
 						.await;
-					return;
+					return None;
 				}
-				Err(config::Error::Toml(err)) => {
+				Err(config::ServerTomlError::Toml(err)) => {
 					logger::error(&format!("Could not parse the settings file: {}", err));
 					data.get::<ShardManagerContainer>()
 						.unwrap()
@@ -34,7 +36,7 @@ impl Bot {
 						.await
 						.shutdown_all()
 						.await;
-					return;
+					return None;
 				}
 			};
 
@@ -65,5 +67,7 @@ impl Bot {
 				.shutdown_all()
 				.await;
 		}
+
+		None
 	}
 }

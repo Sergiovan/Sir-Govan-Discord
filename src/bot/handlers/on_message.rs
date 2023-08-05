@@ -1,15 +1,17 @@
+use std::convert::Infallible;
+
 use crate::bot::data::BotData;
-use crate::bot::{Bot, CacheGuild};
-use crate::util::logger;
+use crate::bot::Bot;
+use crate::util::{logger, CacheGuild};
 
 use colored::Colorize;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
-	pub async fn on_message(&self, ctx: Context, msg: Message) {
+	pub async fn on_message(&self, ctx: Context, msg: Message) -> Option<Infallible> {
 		if !msg.guild_cached(&ctx).await {
-			return;
+			return None;
 		}
 
 		let data = ctx.data.read().await;
@@ -27,11 +29,11 @@ impl Bot {
 			let channel = match msg.channel(&ctx).await {
 				Ok(channel) => match channel {
 					Channel::Guild(channel) => channel.name,
-					Channel::Private(_) => {
+					Channel::Private(channel) => {
 						if mine {
-							"me".to_string()
+							channel.recipient.name
 						} else {
-							ctx.cache.current_user().tag()
+							"me".to_string()
 						}
 					}
 					Channel::Category(channel) => channel.name,
@@ -78,21 +80,20 @@ impl Bot {
 				msg.guild_id
 					.expect("Guild did not exist outside of DMs")
 					.as_u64(),
-			);
-			let Some(server) = server else { return };
+			)?;
 
 			if server
 				.channels
 				.disallowed_listen
 				.contains(msg.channel_id.as_u64())
 			{
-				return;
+				return None;
 			}
 
 			log(&ctx, &msg).await;
 
 			if msg.is_own(&ctx) {
-				return;
+				return None;
 			}
 
 			// From here on we're for sure allowed to listen into messages
@@ -109,5 +110,6 @@ impl Bot {
 				self.commander.read().await.parse(&ctx, &msg).await;
 			}
 		}
+		None
 	}
 }

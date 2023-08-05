@@ -1,63 +1,51 @@
+use std::convert::Infallible;
+
 use crate::bot::data::{BotData, EmojiType};
-use crate::bot::{Bot, CacheGuild};
-use crate::util::logger;
+use crate::bot::Bot;
+use crate::util::{logger, CacheGuild, ResultErrorHandler};
 
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
-	pub async fn on_reaction_add(&self, ctx: Context, add_reaction: Reaction) {
-		let reactor = match add_reaction.user(&ctx).await {
-			Ok(reactor) => reactor,
-			Err(e) => {
-				logger::error(&format!(
-					"Could not determine reactor for reaction {:?}: {}",
-					add_reaction, e
-				));
-				return;
-			}
-		};
+	pub async fn on_reaction_add(
+		&self,
+		ctx: Context,
+		add_reaction: Reaction,
+	) -> Option<Infallible> {
+		let reactor = add_reaction.user(&ctx).await.unwrap_or_log(&format!(
+			"Could not determine reactor for reaction {:?}",
+			add_reaction
+		))?;
 
 		if reactor.id == ctx.cache.current_user_id() {
-			return;
+			return None;
 		}
 
-		let msg = match add_reaction.message(&ctx.http).await {
-			Ok(msg) => msg,
-			Err(err) => {
-				logger::error(&format!(
-					"Message {} that was reacted to with {} could not be fetched: {}",
-					add_reaction.message_id, add_reaction.emoji, err
-				));
-				return;
-			}
-		};
+		let msg = add_reaction
+			.message(&ctx.http)
+			.await
+			.unwrap_or_log(&format!(
+				"Message {} that was reacted to with {} could not be fetched",
+				add_reaction.message_id, add_reaction.emoji
+			))?;
 
 		if !msg.guild_cached(&ctx).await {
-			return;
+			return None;
 		}
 
 		if msg.is_own(&ctx) {
-			return;
+			return None;
 		}
 
 		// So, msg.is_private() won't work because messages fetched through the REST API don't come with
 		// a guild_id, which means msg.is_private() will always be true
-		let this_channel = match msg.channel(&ctx).await {
-			Ok(channel) => channel,
-			Err(e) => {
-				logger::error(&format!(
-					"Message {}'s channel {} could not be fetched: {}",
-					msg.id, msg.channel_id, e
-				));
-				return;
-			}
-		};
+		let this_channel = msg.channel(&ctx).await.unwrap_or_log(&format!(
+			"Message {}'s channel {} could not be fetched",
+			msg.id, msg.channel_id
+		))?;
 
-		let this_channel = match this_channel.guild() {
-			Some(channel) => channel,
-			None => return, // No error message, this is valid
-		};
+		let this_channel = this_channel.guild()?;
 
 		enum Action {
 			Pin {
@@ -72,17 +60,14 @@ impl Bot {
 			let data = ctx.data.read().await;
 			let bot_data = data.get::<BotData>().unwrap().read().await;
 
-			let server = match bot_data.servers.get(this_channel.guild_id.as_u64()) {
-				Some(server) => server,
-				None => return,
-			};
+			let server = bot_data.servers.get(this_channel.guild_id.as_u64())?;
 
 			if server
 				.channels
 				.disallowed_listen
 				.contains(msg.channel_id.as_u64())
 			{
-				return;
+				return None;
 			}
 
 			let emoji: EmojiType = (&add_reaction.emoji).into();
@@ -140,7 +125,7 @@ impl Bot {
 		};
 
 		match action {
-			Action::None => (),
+			Action::None => None,
 			Action::Pin {
 				destination_id,
 				required,
@@ -152,24 +137,25 @@ impl Bot {
 						Ok(Channel::Guild(channel)) => channel,
 						Ok(c) => {
 							logger::error(&format!("Channel {} for hall emoji {} is misconfigured, not a guild channel: {}", destination_id, add_reaction.emoji, c));
-							return;
+							return None;
 						}
 						Err(e) => {
 							logger::error(&format!(
 								"Error when fetching channel {}: {}",
 								destination_id, e
 							));
-							return;
+							return None;
 						}
 					},
 				};
 
 				if !channel.guild_cached(&ctx).await {
-					return;
+					return None;
 				}
 
 				self.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
 					.await;
+				None
 			}
 		}
 	}

@@ -120,24 +120,24 @@ pub mod config {
 		pub servers: Vec<Server>,
 	}
 
-	pub enum Error {
+	pub enum ServerTomlError {
 		IO(std::io::Error),
 		Toml(toml::de::Error),
 	}
 
-	impl From<std::io::Error> for Error {
+	impl From<std::io::Error> for ServerTomlError {
 		fn from(value: std::io::Error) -> Self {
-			Error::IO(value)
+			ServerTomlError::IO(value)
 		}
 	}
 
-	impl From<toml::de::Error> for Error {
+	impl From<toml::de::Error> for ServerTomlError {
 		fn from(value: toml::de::Error) -> Self {
-			Error::Toml(value)
+			ServerTomlError::Toml(value)
 		}
 	}
 
-	pub fn read_servers() -> Result<Servers, Error> {
+	pub fn read_servers() -> Result<Servers, ServerTomlError> {
 		use std::fs;
 		use std::path::Path;
 

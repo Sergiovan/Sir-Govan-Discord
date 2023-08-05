@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use crate::bot::data::EmojiType;
 use crate::bot::Bot;
 
@@ -5,7 +7,7 @@ use serenity::builder::CreateMessage;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-use crate::util::logger;
+use crate::util::{self, logger, ResultErrorHandler};
 use rand::distributions::Uniform;
 use rand::prelude::*;
 pub struct HallSafety;
@@ -114,24 +116,20 @@ impl Bot {
 		dest: GuildChannel,
 		required: u32,
 		override_icon: Option<EmojiType>,
-	) {
-		match dest.permissions_for_user(&ctx, ctx.cache.current_user()) {
-			Ok(perms) => {
-				if !perms.send_messages() {
-					logger::error(&format!(
-						"Cannot pin to {}: No permission to send messages",
-						dest.name
-					));
-					return; // Unspeakable channel
-				}
-			}
-			Err(e) => {
-				logger::error(&format!(
-					"Could not get permissions for self in {}: {}",
-					dest.name, e
-				));
-				return;
-			}
+	) -> Option<Infallible> {
+		let perms = dest
+			.permissions_for_user(&ctx, ctx.cache.current_user())
+			.unwrap_or_log(&format!(
+				"Could not get permissions for self in {}",
+				dest.name
+			))?;
+
+		if !perms.send_messages() {
+			logger::error(&format!(
+				"Cannot pin to {}: No permission to send messages",
+				dest.name
+			));
+			return None; // Unspeakable channel
 		}
 
 		let can_pin = {
@@ -145,36 +143,17 @@ impl Bot {
 			const FALLBACK: &str = "https://twemoji.maxcdn.com/v/latest/72x72/2049.png";
 			let color_range = Uniform::from(0..0x10);
 
-			fn emoji_str_to_url(emoji: &str) -> String {
-				format!(
-					"https://twemoji.maxcdn.com/v/latest/72x72/{}.png",
-					emoji
-						.chars()
-						.map(|c| format!("{:x}", c as u32))
-						.collect::<Vec<_>>()
-						.join("-")
-				)
-			}
-
-			fn emoji_to_url(id: u64, animated: bool) -> String {
-				format!(
-					"https://cdn.discordapp.com/emojis/{}.{}",
-					id,
-					if animated { "gif" } else { "png" }
-				)
-			}
-
 			let pin_data = PinData {
 				icon_url: if let Some(emoji) = override_icon {
 					match emoji {
-						EmojiType::Unicode(ref emoji) => emoji_str_to_url(emoji),
-						EmojiType::Discord(id) => emoji_to_url(id, false),
+						EmojiType::Unicode(ref emoji) => util::url_from_unicode_emoji(emoji),
+						EmojiType::Discord(id) => util::url_from_discord_emoji(id, false),
 					}
 				} else {
 					match reaction.emoji {
-						ReactionType::Unicode(ref emoji) => emoji_str_to_url(emoji),
+						ReactionType::Unicode(ref emoji) => util::url_from_unicode_emoji(emoji),
 						ReactionType::Custom { animated, id, .. } => {
-							emoji_to_url(id.into(), animated)
+							util::url_from_discord_emoji(id.into(), animated)
 						}
 						_ => FALLBACK.to_string(),
 					}
@@ -222,16 +201,15 @@ impl Bot {
 					Embed::Nothing
 				},
 			};
-			if let Err(e) = dest
-				.send_message(&ctx, |b| self.make_pin(b, pin_data))
+			dest.send_message(&ctx, |b| self.make_pin(b, pin_data))
 				.await
-			{
-				logger::error(&format!(
-					"Error while sending pin of {} to {}: {}",
-					msg.id, dest.name, e
+				.log_if_err(&format!(
+					"Error while sending pin of {} to {}",
+					msg.id, dest.name
 				));
-			};
-		}
+		};
+
+		None
 	}
 
 	fn make_pin<'a, 'b>(
