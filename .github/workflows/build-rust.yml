@@ -39,8 +39,4 @@ jobs:
     - name: Install cross
       run: cargo install cross --git https://github.com/cross-rs/cross
     - name: Build target
-      if: ${{ matrix.target[0] }} == 'x86_64-unknown-linux-gnu'
-      run: cargo build --verbose --release --target ${{ matrix.target[0] }} 
-    - name: Build target
-      if: 
       run: cross build --target ${{ matrix.target[0] }} 
