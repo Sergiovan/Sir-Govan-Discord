@@ -11,8 +11,13 @@ use serenity::prelude::*;
 
 use std::collections::VecDeque;
 
-type CommandRet<'a> = Pin<Box<(dyn Future<Output = ()> + 'a + Send)>>;
-type CommandFn = (dyn for<'fut> Fn(&'fut Commander, &'fut Context, &'fut Message, Vec<&'fut str>) -> CommandRet<'fut>
+type CommandRet<'a> = Pin<Box<(dyn Future<Output = Option<()>> + 'a + Send)>>;
+type CommandFn = (dyn for<'fut> Fn(
+    &'fut Commander,
+    &'fut Context,
+    &'fut Message,
+    Arguments<'fut>,
+) -> CommandRet<'fut>
      + Sync
      + Send);
 type Command = Box<CommandFn>;
@@ -40,7 +45,7 @@ impl Commander {
     }
 
     pub fn register_command(&mut self, name: &str, command: Command) {
-        self.commands.insert(name.to_string(), command);
+        self.commands.insert(format!("!{}", name), command);
     }
 
     pub async fn parse(&self, ctx: &Context, msg: &Message) {
@@ -48,12 +53,15 @@ impl Commander {
             return;
         }
 
-        let words = msg.content.split_whitespace().collect::<Vec<_>>();
-        if words.is_empty() {
+        let content = msg.content.clone();
+        let mut words = Arguments::from(content.as_str());
+        if words.empty() {
             return;
         }
 
-        let first: &str = &words[0][1..];
+        let first: &str = words
+            .string()
+            .expect("Non-empty arguments didn't return string");
 
         if let Some(f) = self.commands.get(first) {
             f(self, ctx, msg, words).await;
@@ -61,6 +69,7 @@ impl Commander {
     }
 }
 
+#[allow(dead_code)]
 pub enum Argument<'a> {
     String(&'a str),
     Number(u64),
@@ -83,11 +92,14 @@ impl<'a, 'b: 'a> From<&'b str> for Arguments<'a> {
     }
 }
 
-// TODO Remove
 #[allow(dead_code)]
 impl<'a> Arguments<'a> {
     pub fn count(&self) -> usize {
         self.args.len()
+    }
+
+    pub fn empty(&self) -> bool {
+        self.count() == 0
     }
 
     fn shift(&mut self) {

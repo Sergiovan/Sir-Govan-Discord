@@ -20,7 +20,6 @@ jobs:
     - name: Build target
       run: cargo build --verbose --release --target x86_64-unknown-linux-gnu
 
-
   cross-build:
     name: Build for ${{ matrix.target[1] }}
     runs-on: ubuntu-latest
