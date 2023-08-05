@@ -17,16 +17,9 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v3
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
-        profile: minimal
-        override: true
         target: ${{ matrix.target[0] }}
     - name: Build target
-      uses: actions-rs/cargo@v1
-      with:
-        use-cross: true
-        command: build
-        args: --verbose --release --target ${{ matrix.target[0] }}
+      run: cargo build --verbose --release --target ${{ matrix.target[0] }} 

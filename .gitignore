@@ -25,5 +25,8 @@ html/
 ffmpeg-concat-files.txt
 logs*/
 
+# Local files
+bin/*.sh
+
 # Added by cargo
 /target
