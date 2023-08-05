@@ -187,7 +187,7 @@ pub struct Server {
 
 impl Server {
     fn get_emoji<const T: char>(hall: Option<&Hall<T>>) -> Option<EmojiType> {
-        hall.and_then(|x| Some(x.get_emoji()))
+        hall.map(|x| x.get_emoji())
     }
 
     pub fn is_fame_emoji(&self, emoji: &EmojiType) -> bool {

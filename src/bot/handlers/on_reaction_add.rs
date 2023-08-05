@@ -140,7 +140,7 @@ impl Bot {
         };
 
         match action {
-            Action::None => return,
+            Action::None => (),
             Action::Pin {
                 destination_id,
                 required,

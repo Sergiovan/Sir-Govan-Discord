@@ -197,7 +197,7 @@ impl Bot {
                 timestamp: msg.timestamp,
                 message_id: *msg.id.as_u64(),
                 channel_id: *msg.channel_id.as_u64(),
-                embed: if let &[ref first, ..] = &msg.attachments[..] {
+                embed: if let [ref first, ..] = &msg.attachments[..] {
                     let content_type = first.content_type.as_ref();
                     if content_type.is_some_and(|x| x.starts_with("video/")) {
                         Embed::Video(first.filename.clone())
@@ -206,7 +206,7 @@ impl Bot {
                     } else {
                         Embed::Image(first.url.clone())
                     }
-                } else if let &[ref first, ..] = &msg.embeds[..] {
+                } else if let [ref first, ..] = &msg.embeds[..] {
                     match first.image.as_ref() {
                         Some(url) => Embed::Image(url.url.clone()),
                         None => match first.thumbnail.as_ref() {
@@ -214,10 +214,10 @@ impl Bot {
                             None => Embed::Nothing,
                         },
                     }
-                } else if let &[ref first, ..] = &msg.sticker_items[..] {
+                } else if let [ref first, ..] = &msg.sticker_items[..] {
                     first
                         .image_url()
-                        .map_or_else(|| Embed::Nothing, |u| Embed::Image(u))
+                        .map_or_else(|| Embed::Nothing, Embed::Image)
                 } else {
                     Embed::Nothing
                 },
