@@ -7,12 +7,27 @@ env:
 
 jobs:
   build:
+    name: Build for x86_64
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+        target: x86_64-unknown-linux-gnu
+    - name: Build target
+      run: cargo build --verbose --release --target x86_64-unknown-linux-gnu
+
+
+  cross-build:
     name: Build for ${{ matrix.target[1] }}
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        target: [ ['aarch64-unknown-linux-gnu', 'ARM'], ['x86_64-unknown-linux-gnu', 'x86'] ]
+        target: [ ['aarch64-unknown-linux-gnu', 'Aarch64'] ]
 
     steps:
     - name: Checkout
@@ -21,5 +36,10 @@ jobs:
       with:
         toolchain: stable
         target: ${{ matrix.target[0] }}
+        components: cross
     - name: Build target
+      if: ${{ matrix.target[0] }} == 'x86_64-unknown-linux-gnu'
       run: cargo build --verbose --release --target ${{ matrix.target[0] }} 
+    - name: Build target
+      if: 
+      run: cross build --target ${{ matrix.target[0] }} 

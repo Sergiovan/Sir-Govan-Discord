@@ -49,6 +49,11 @@ Pong!
 ### MORE
 There's way more commands but they're for admin control, or just not that interesting to put here.
 
+# Building
+Just `cargo build` :). You might need a gcc compiler to get damn Ring to work properly. 
+
+For a raspberry pi, check out these cool cross-compilers: https://github.com/tttapa/docker-arm-cross-toolchain. You could, theoretically, also use https://github.com/cross-rs/cross but I don't know how that works. 
+
 # FAQ
 
 ## Why did you make this?
