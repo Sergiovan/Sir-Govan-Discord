@@ -1,19 +1,30 @@
 use std::convert::Infallible;
 
-use crate::bot::commands::commander::Commander;
+use crate::bot::commands::commander::Command;
 use crate::util::{self, logger, NickOrName, ResultErrorHandler, UniqueColorError};
 use serenity::model::prelude::*;
-use serenity::prelude::*;
+use serenity::{async_trait, prelude::*};
 
 use super::commander::Arguments;
 
 use rand::Rng;
 
-impl Commander {
-	pub async fn color<'a>(
+pub struct Color;
+
+#[async_trait]
+impl Command for Color {
+	fn name() -> &'static str {
+		"color"
+	}
+
+	fn aliases() -> &'static [&'static str] {
+		&["colour"]
+	}
+
+	async fn execute<'a>(
 		&self,
 		ctx: &Context,
-		msg: &Message,
+		msg: &'a Message,
 		mut words: Arguments<'a>,
 	) -> Option<Infallible> {
 		msg.guild_id?;

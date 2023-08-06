@@ -1,37 +1,39 @@
 use crate::bot::data::EmojiType;
-use core::future::Future;
+use std::collections::HashMap;
 use std::convert::Infallible;
-use std::{collections::HashMap, pin::Pin};
 
 use regex::Regex;
 
 use num_bigint::BigInt;
 use once_cell::sync::Lazy;
 use serenity::model::prelude::*;
-use serenity::prelude::*;
+use serenity::{async_trait, prelude::*};
 
 use std::collections::VecDeque;
 
-type CommandRet<'a> = Pin<Box<(dyn Future<Output = Option<Infallible>> + 'a + Send)>>;
-type CommandFn = (dyn for<'fut> Fn(
-	&'fut Commander,
-	&'fut Context,
-	&'fut Message,
-	Arguments<'fut>,
-) -> CommandRet<'fut>
-     + Sync
-     + Send);
-type Command = Box<CommandFn>;
+#[async_trait]
+pub trait Command: Send + Sync {
+	fn name() -> &'static str
+	where
+		Self: Sized;
 
-pub struct Commander {
-	commands: HashMap<String, Command>,
+	fn aliases() -> &'static [&'static str]
+	where
+		Self: Sized,
+	{
+		&[]
+	}
+
+	async fn execute<'a>(
+		&self,
+		ctx: &Context,
+		msg: &'a Message,
+		mut args: Arguments<'a>,
+	) -> Option<Infallible>;
 }
 
-// You know what, close enough
-macro_rules! command {
-	($function:expr) => {
-		Box::new(|s, c, m, v| Box::pin($function(s, c, m, v)))
-	};
+pub struct Commander {
+	commands: HashMap<String, &'static dyn Command>,
 }
 
 impl Commander {
@@ -42,11 +44,14 @@ impl Commander {
 	}
 
 	pub fn register_all(&mut self) {
-		self.register_command("color", command!(Self::color));
+		self.register_command(&super::color::Color);
 	}
 
-	pub fn register_command(&mut self, name: &str, command: Command) {
-		self.commands.insert(format!("!{}", name), command);
+	pub fn register_command<T: Command + 'static>(&mut self, command: &'static T) {
+		self.commands.insert(format!("!{}", T::name()), command);
+		for alias in T::aliases().iter() {
+			self.commands.insert(format!("!{}", alias), command);
+		}
 	}
 
 	pub async fn parse(&self, ctx: &Context, msg: &Message) {
@@ -64,8 +69,8 @@ impl Commander {
 			.string()
 			.expect("Non-empty arguments didn't return string");
 
-		if let Some(f) = self.commands.get(first) {
-			f(self, ctx, msg, words).await;
+		if let Some(c) = self.commands.get(first) {
+			c.execute(ctx, msg, words).await;
 		}
 	}
 }
