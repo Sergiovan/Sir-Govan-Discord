@@ -1,0 +1,12 @@
+[package]
+name = "sirgovan"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sirgovan-lib = { version = "*", path = "../lib"}
+dotenv = "0.15.0"
+
+[dependencies.tokio]
+version = "1.29.1"
+features = ["macros", "signal", "rt-multi-thread"] 

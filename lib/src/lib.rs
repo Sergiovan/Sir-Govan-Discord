@@ -1,19 +1,15 @@
-use serenity::prelude::*;
-use std::env;
-use std::sync::Arc;
+pub mod bot;
+pub mod util;
 
-use sirgovan_lib::bot::data::{BotData, ShardManagerContainer};
-use sirgovan_lib::bot::Bot;
-use sirgovan_lib::util::logger;
+pub async fn run(token: &str, beta: bool) {
+	use serenity::prelude::*;
+	use std::sync::Arc;
 
-#[tokio::main]
-async fn main() {
-	dotenv::dotenv().expect("Failed to load .env file");
+	use crate::bot::data::{BotData, ShardManagerContainer};
+	use crate::bot::Bot;
+	use crate::util::logger;
 
 	tracing_subscriber::fmt::init();
-
-	let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-	let beta = env::var("GOVAN_BETA").map_or(false, |res| res.to_lowercase() == "true");
 
 	// Set gateway intents, which decides what events the bot will be notified about
 	let intents = GatewayIntents::GUILDS
@@ -26,7 +22,7 @@ async fn main() {
 	// Create a new instance of the Client, logging in as a bot. This will
 	// automatically prepend your bot token with "Bot ", which is a requirement
 	// by Discord for bot users.
-	let mut client = Client::builder(&token, intents)
+	let mut client = Client::builder(token, intents)
 		.event_handler(Bot::default())
 		.await
 		.expect("Err creating client");
@@ -43,6 +39,7 @@ async fn main() {
 		tokio::signal::ctrl_c()
 			.await
 			.expect("Could not register Ctrl+C handler");
+		print!("\r");
 		logger::debug("Bye!");
 		shard_manager.lock().await.shutdown_all().await;
 	});

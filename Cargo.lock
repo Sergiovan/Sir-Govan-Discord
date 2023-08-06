@@ -1155,21 +1155,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "sirgovan-macros"
+name = "sirgovan"
 version = "0.1.0"
 dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "dotenv",
+ "sirgovan-lib",
+ "tokio",
 ]
 
 [[package]]
-name = "sirgovan-rust"
+name = "sirgovan-lib"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "colored",
- "dotenv",
  "num-bigint",
  "once_cell",
  "rand",
@@ -1181,6 +1180,15 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "sirgovan-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
