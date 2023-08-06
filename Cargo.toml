@@ -1,6 +1,6 @@
 [workspace]
-members = ["macros", "executable", "lib"]
-default-members = ["executable"]
+members = ["macros", "bin", "lib"]
+default-members = ["bin"]
 
 [profile.dev]
 panic = "abort"
