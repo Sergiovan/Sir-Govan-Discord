@@ -13,8 +13,16 @@ where
 	rand::thread_rng().gen_range(range)
 }
 
+pub fn one_in(so_many: u64) -> bool {
+	from_range(0..so_many) == 0
+}
+
 pub fn pick<T>(elems: &Vec<T>) -> Option<&T> {
 	elems.choose(&mut rand::thread_rng())
+}
+
+pub fn pick_or<'a, T>(elems: &'a Vec<T>, default: &'a T) -> &'a T {
+	elems.choose(&mut rand::thread_rng()).unwrap_or(default)
 }
 
 type ChanceType = u32;

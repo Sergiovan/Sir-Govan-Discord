@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use crate::bot::data::{BotData, EmojiType};
+use crate::bot::data::EmojiType;
 use crate::bot::Bot;
 use crate::util::{logger, CacheGuild, ResultErrorHandler};
 
@@ -57,8 +57,7 @@ impl Bot {
 		}
 
 		let action = {
-			let data = ctx.data.read().await;
-			let bot_data = data.get::<BotData>().unwrap().read().await;
+			let bot_data = self.data.read().await;
 
 			let server = bot_data.servers.get(this_channel.guild_id.as_u64())?;
 

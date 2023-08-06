@@ -3,7 +3,6 @@ pub mod util;
 
 pub async fn run(token: &str, beta: bool) {
 	use serenity::prelude::*;
-	use std::sync::Arc;
 
 	use crate::bot::data::{BotData, ShardManagerContainer};
 	use crate::bot::Bot;
@@ -23,15 +22,13 @@ pub async fn run(token: &str, beta: bool) {
 	// automatically prepend your bot token with "Bot ", which is a requirement
 	// by Discord for bot users.
 	let mut client = Client::builder(token, intents)
-		.event_handler(Bot::default())
+		.event_handler(Bot::new(BotData::new(beta)))
 		.await
 		.expect("Err creating client");
 
 	let shard_manager = client.shard_manager.clone();
-
 	{
 		let mut data = client.data.write().await;
-		data.insert::<BotData>(Arc::new(RwLock::new(BotData::new(beta))));
 		data.insert::<ShardManagerContainer>(shard_manager.clone());
 	}
 

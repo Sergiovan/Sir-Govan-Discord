@@ -25,8 +25,10 @@ pub mod config {
 	use serde::{Deserialize, Serialize};
 	use serenity::model::prelude::ReactionType;
 
-	pub const DATA_PATH: &str = "data";
+	pub const DATA_PATH: &str = "res";
+
 	pub const SETTINGS_FILE: &str = "servers.toml";
+	pub const NO_CONTEXT_FILE: &str = "nocontext.txt";
 
 	#[derive(Serialize, Deserialize, Debug, Clone)]
 	pub enum EmojiType {
@@ -154,6 +156,8 @@ pub use config::EmojiType;
 pub use config::Hall;
 pub use config::NoContext;
 
+use crate::util::random;
+
 #[derive(Debug)]
 pub struct Channels {
 	pub allowed_commands: HashSet<u64>,
@@ -225,6 +229,8 @@ impl From<config::Server> for Server {
 pub struct BotData {
 	pub servers: HashMap<u64, Server>,
 	pub beta: bool,
+
+	no_context_strings: Vec<String>,
 }
 
 impl BotData {
@@ -232,12 +238,26 @@ impl BotData {
 		BotData {
 			servers: HashMap::new(),
 			beta,
+			no_context_strings: vec![],
 		}
 	}
-}
 
-impl TypeMapKey for BotData {
-	type Value = Arc<RwLock<BotData>>;
+	pub fn load_no_context(&mut self) -> Result<(), std::io::Error> {
+		use std::fs;
+		use std::path::Path;
+
+		let settings_path = Path::new(config::DATA_PATH).join(config::NO_CONTEXT_FILE);
+		let data = fs::read_to_string(settings_path)?;
+		let data = data.lines();
+
+		self.no_context_strings = data.map(str::to_string).collect();
+
+		Ok(())
+	}
+
+	pub fn random_no_context(&self) -> String {
+		random::pick_or(&self.no_context_strings, &"No context".to_string()).clone()
+	}
 }
 
 pub struct ShardManagerContainer;

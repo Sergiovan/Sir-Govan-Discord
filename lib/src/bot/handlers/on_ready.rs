@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use crate::bot::data::{BotData, ShardManagerContainer};
+use crate::bot::data::ShardManagerContainer;
 use crate::bot::Bot;
 use crate::util::logger;
 
@@ -12,61 +12,76 @@ impl Bot {
 		logger::debug("Getting ready...");
 		self.commander.write().await.register_all();
 
-		let data = ctx.data.read().await;
+		let bot_data = &self.data;
 
-		if let Some(bot_data) = data.get::<BotData>() {
-			use crate::bot::data::config;
-			let data = match config::read_servers() {
-				Ok(data) => data,
-				Err(config::ServerTomlError::IO(err)) => {
-					logger::error(&format!("Could not open the settings file: {}", err));
-					data.get::<ShardManagerContainer>()
-						.unwrap()
-						.lock()
-						.await
-						.shutdown_all()
-						.await;
-					return None;
-				}
-				Err(config::ServerTomlError::Toml(err)) => {
-					logger::error(&format!("Could not parse the settings file: {}", err));
-					data.get::<ShardManagerContainer>()
-						.unwrap()
-						.lock()
-						.await
-						.shutdown_all()
-						.await;
-					return None;
-				}
-			};
+		use crate::bot::data::config;
+		let data = match config::read_servers() {
+			Ok(data) => data,
+			Err(config::ServerTomlError::IO(err)) => {
+				logger::error(&format!("Could not open the settings file: {}", err));
+				ctx.data
+					.read()
+					.await
+					.get::<ShardManagerContainer>()
+					.unwrap()
+					.lock()
+					.await
+					.shutdown_all()
+					.await;
+				return None;
+			}
+			Err(config::ServerTomlError::Toml(err)) => {
+				logger::error(&format!("Could not parse the settings file: {}", err));
+				ctx.data
+					.read()
+					.await
+					.get::<ShardManagerContainer>()
+					.unwrap()
+					.lock()
+					.await
+					.shutdown_all()
+					.await;
+				return None;
+			}
+		};
 
-			let is_beta = bot_data.read().await.beta;
+		let is_beta = bot_data.read().await.beta;
 
-			bot_data.write().await.servers.extend(
+		{
+			let mut bot_data = bot_data.write().await;
+			bot_data.servers.extend(
 				data.servers
 					.into_iter()
 					.filter(|server| server.beta == is_beta)
 					.map(|server| (server.id, server.into())),
 			);
-
-			logger::info(&format!(
-				"Am ready :). I am {}. I am in {} mode",
-				ready.user.tag(),
-				if bot_data.read().await.beta {
-					"beta"
-				} else {
-					"normal"
+			match bot_data.load_no_context() {
+				Ok(()) => (),
+				Err(e) => {
+					logger::error(&format!("Could not load no context roles from file: {}", e));
+					ctx.data
+						.read()
+						.await
+						.get::<ShardManagerContainer>()
+						.unwrap()
+						.lock()
+						.await
+						.shutdown_all()
+						.await;
+					return None;
 				}
-			));
-		} else {
-			logger::error("Error getting the server list!");
-			data.get::<ShardManagerContainer>()
-				.unwrap()
-				.lock()
-				.await
-				.shutdown_all()
-				.await;
+			}
 		}
+
+		logger::info(&format!(
+			"Am ready :). I am {}. I am in {} mode",
+			ready.user.tag(),
+			if bot_data.read().await.beta {
+				"beta"
+			} else {
+				"normal"
+			}
+		));
 
 		None
 	}

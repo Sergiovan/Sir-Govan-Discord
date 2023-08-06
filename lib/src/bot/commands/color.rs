@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
 use crate::bot::commands::commander::Command;
+use crate::bot::Bot;
 use crate::util::{self, logger, NickOrName, ResultErrorHandler, UniqueColorError};
 use serenity::model::prelude::*;
 use serenity::{async_trait, prelude::*};
@@ -17,6 +18,7 @@ fn color<'a>(
 	ctx: &Context,
 	msg: &'a Message,
 	mut words: Arguments<'a>,
+	_bot: &Bot,
 ) -> Option<Infallible> {
 	msg.guild_id?;
 

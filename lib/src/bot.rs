@@ -13,17 +13,20 @@ use serenity::model::gateway::Ready;
 use tracing::debug;
 
 use self::commands::commander::Commander;
+use self::data::BotData;
 use self::functionality::halls::HallSafety;
 use std::sync::Arc;
 
 pub struct Bot {
+	pub data: Arc<RwLock<BotData>>,
 	pub commander: Arc<RwLock<Commander>>,
 	pub pin_lock: Arc<Mutex<HallSafety>>,
 }
 
-impl Default for Bot {
-	fn default() -> Self {
+impl Bot {
+	pub fn new(data: BotData) -> Bot {
 		Bot {
+			data: Arc::new(RwLock::new(data)),
 			commander: Arc::new(RwLock::new(Commander::new())),
 			pin_lock: Arc::new(Mutex::new(HallSafety)),
 		}

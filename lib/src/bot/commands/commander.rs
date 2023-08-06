@@ -1,4 +1,5 @@
 use crate::bot::data::EmojiType;
+use crate::bot::Bot;
 use std::collections::HashMap;
 use std::convert::Infallible;
 
@@ -29,6 +30,7 @@ pub trait Command: Send + Sync {
 		ctx: &Context,
 		msg: &'a Message,
 		mut args: Arguments<'a>,
+		bot: &Bot,
 	) -> Option<Infallible>;
 }
 
@@ -60,7 +62,7 @@ impl Commander {
 		}
 	}
 
-	pub async fn parse(&self, ctx: &Context, msg: &Message) {
+	pub async fn parse(&self, ctx: &Context, msg: &Message, bot: &Bot) {
 		if !msg.content.starts_with('!') {
 			return;
 		}
@@ -76,7 +78,7 @@ impl Commander {
 			.expect("Non-empty arguments didn't return string");
 
 		if let Some(c) = self.commands.get(first) {
-			c.execute(ctx, msg, words).await;
+			c.execute(ctx, msg, words, bot).await;
 		}
 	}
 }

@@ -1,8 +1,7 @@
 use std::convert::Infallible;
 
-use crate::bot::data::BotData;
 use crate::bot::Bot;
-use crate::util::{logger, CacheGuild};
+use crate::util::{logger, random, CacheGuild};
 
 use colored::Colorize;
 use serenity::model::prelude::*;
@@ -14,8 +13,7 @@ impl Bot {
 			return None;
 		}
 
-		let data = ctx.data.read().await;
-		let bot_data = data.get::<BotData>().unwrap().read().await;
+		let bot_data = self.data.read().await;
 
 		async fn log(ctx: &Context, msg: &Message) {
 			let mine = msg.is_own(ctx);
@@ -98,7 +96,9 @@ impl Bot {
 
 			// From here on we're for sure allowed to listen into messages
 
-			// TODO Context Removal goes here
+			if self.can_remove_context(&ctx, &msg, server) && random::one_in(100) {
+				self.remove_context(&ctx, &msg, server).await;
+			}
 
 			// TODO Donk Solbs easter egg goes here
 
@@ -107,7 +107,7 @@ impl Bot {
 				.allowed_commands
 				.contains(msg.channel_id.as_u64())
 			{
-				self.commander.read().await.parse(&ctx, &msg).await;
+				self.commander.read().await.parse(&ctx, &msg, self).await;
 			}
 		}
 		None
