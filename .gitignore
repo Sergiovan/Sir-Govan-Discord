@@ -1,32 +1,32 @@
-# IDEs
+## IDEs
 .vscode/
 
+## Resources 
 # Sensitive
 .env
 
 # Data
-data/nocontext.txt
-data/servers.toml
-tournaments/
-
-# Scripts
-push_text.sh
+res/nocontext.txt
+res/servers.toml
 
 # Media
-media/*.ogg
-media/*.otf
-media/*.ttf
+res/media/*.ogg
+res/media/*.otf
+res/media/*.ttf
 
 # html
-html/
-!html/*.hbs
+res/html/*
+!res/html/*.hbs
 
-# Temp output
+## Helper Scripts
+scripts/*.sh
+
+## Output
 ffmpeg-concat-files.txt
 logs*/
 
-# Local files
-scripts/*.sh
-
 # Added by cargo
-/target
+target/
+
+# Other
+tournaments/
