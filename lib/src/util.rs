@@ -1,4 +1,5 @@
 pub mod logger;
+pub mod random;
 
 use serenity::model::prelude::*;
 use serenity::{async_trait, prelude::*};
