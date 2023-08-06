@@ -36,6 +36,12 @@ pub struct Commander {
 	commands: HashMap<String, &'static dyn Command>,
 }
 
+impl Default for Commander {
+	fn default() -> Self {
+		Commander::new()
+	}
+}
+
 impl Commander {
 	pub fn new() -> Commander {
 		Commander {

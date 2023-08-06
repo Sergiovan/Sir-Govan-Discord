@@ -1155,6 +1155,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sirgovan-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "sirgovan-rust"
 version = "0.1.0"
 dependencies = [
@@ -1167,6 +1176,7 @@ dependencies = [
  "regex",
  "serde",
  "serenity",
+ "sirgovan-macros",
  "tokio",
  "toml",
  "tracing",

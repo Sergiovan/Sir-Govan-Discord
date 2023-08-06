@@ -1,13 +1,10 @@
-mod bot;
-mod util;
-
 use serenity::prelude::*;
 use std::env;
 use std::sync::Arc;
 
-use bot::data::{BotData, ShardManagerContainer};
-use bot::Bot;
-use util::logger;
+use sirgovan_lib::bot::data::{BotData, ShardManagerContainer};
+use sirgovan_lib::bot::Bot;
+use sirgovan_lib::util::logger;
 
 #[tokio::main]
 async fn main() {

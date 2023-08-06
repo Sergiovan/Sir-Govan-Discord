@@ -1,11 +1,22 @@
+[workspace]
+members = ["macros"]
+
 [package]
 name = "sirgovan-rust"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "sirgovan_lib"
+path = "src/lib/lib.rs"
+
+[[bin]]
+name = "sirgovan_bin"
+path = "src/bin/main.rs"
 
 [dependencies]
+sirgovan-macros = { version = "*", path = "./macros" }
 dotenv = "0.15.0"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
