@@ -13,6 +13,7 @@ res/servers.toml
 res/media/*.ogg
 res/media/*.otf
 res/media/*.ttf
+res/media/file_missing.png
 
 # html
 res/html/*
@@ -24,6 +25,7 @@ scripts/*.sh
 ## Output
 ffmpeg-concat-files.txt
 logs*/
+res/saved/
 
 # Added by cargo
 target/
