@@ -52,7 +52,9 @@ There's way more commands but they're for admin control, or just not that intere
 # Building
 Just `cargo build` :). You might need a gcc compiler to get damn Ring to work properly. 
 
-For a raspberry pi, check out these cool cross-compilers: https://github.com/tttapa/docker-arm-cross-toolchain. You could, theoretically, also use https://github.com/cross-rs/cross but I don't know how that works. 
+~~For a raspberry pi, check out these cool cross-compilers: https://github.com/tttapa/docker-arm-cross-toolchain. You could, theoretically, also use https://github.com/cross-rs/cross but I don't know how that works.~~
+
+Nevermind, cross compiling skia-safe is impossible, it cannot be done. Give up. 
 
 # FAQ
 
