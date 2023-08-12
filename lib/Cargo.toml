@@ -20,11 +20,15 @@ rand = "0.8.5"
 num-bigint = { version = "0.4.3", features = ["rand", "serde"] }
 regex = "1.9.1"
 num-rational = "0.4.1"
-skia-safe = { version = "0.64.0", features = ["textlayout"] }
+skia-safe = { version = "0.64.0" }
 lazy_static = "1.4.0"
 reqwest = "0.11.18"
 image = "0.24.7"
 futures = "0.3.28"
+
+[dependencies.openssl]
+version = "*"
+features = ["vendored"]
 
 [dependencies.tokio]
 version = "1.29.1"
