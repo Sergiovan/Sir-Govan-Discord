@@ -10,9 +10,9 @@ use serenity::prelude::*;
 use crate::util::{self, logger, ResultErrorHandler};
 use rand::distributions::Uniform;
 use rand::prelude::*;
-pub struct HallSafety;
+pub struct PinSafety;
 
-impl HallSafety {
+impl PinSafety {
 	async fn get_reactors(
 		&self,
 		ctx: &Context,

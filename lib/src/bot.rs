@@ -14,13 +14,13 @@ use tracing::debug;
 
 use self::commands::commander::Commander;
 use self::data::BotData;
-use self::functionality::halls::HallSafety;
+use self::functionality::halls::PinSafety;
 use std::sync::Arc;
 
 pub struct Bot {
 	pub data: Arc<RwLock<BotData>>,
 	pub commander: Arc<RwLock<Commander>>,
-	pub pin_lock: Arc<Mutex<HallSafety>>,
+	pub pin_lock: Arc<Mutex<PinSafety>>,
 }
 
 impl Bot {
@@ -28,7 +28,7 @@ impl Bot {
 		Bot {
 			data: Arc::new(RwLock::new(data)),
 			commander: Arc::new(RwLock::new(Commander::new())),
-			pin_lock: Arc::new(Mutex::new(HallSafety)),
+			pin_lock: Arc::new(Mutex::new(PinSafety)),
 		}
 	}
 }

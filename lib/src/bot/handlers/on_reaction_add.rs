@@ -53,6 +53,7 @@ impl Bot {
 				required: u32,
 				emoji_override: Option<EmojiType>,
 			},
+			DarkSouls(String),
 			None,
 		}
 
@@ -119,12 +120,44 @@ impl Bot {
 					emoji_override: None,
 				}
 			} else {
-				Action::None
+				println!("{:?}", emoji);
+				match emoji {
+					EmojiType::Unicode(ref code) => match code.as_str() {
+						"❤️‍🔥" => Action::DarkSouls(code.clone()),
+						_ => {
+							println!("{:?} didn't match anything", emoji);
+							Action::None
+						}
+					},
+					EmojiType::Discord(_) => Action::None,
+				}
 			}
 		};
 
 		match action {
 			Action::None => None,
+			Action::DarkSouls(emoji) => {
+				use crate::bot::functionality::text_banners;
+				if msg
+					.reactions
+					.iter()
+					.any(|r| r.reaction_type.unicode_eq(&emoji) && r.me)
+				{
+					return None; // Nothing to do
+				}
+				let data =
+					text_banners::create_image(&msg.content, &text_banners::Preset::BONFIRE_LIT)
+						.await
+						.unwrap_or_log("Error creating Dark Souls banner")?;
+				this_channel
+					.send_message(&ctx, |b| {
+						b.add_file((data.as_bytes(), "donk_blonk.png"))
+							.content("I'm the rusty one :)")
+					})
+					.await
+					.log_if_err("Sending donk blonk failed");
+				None
+			}
 			Action::Pin {
 				destination_id,
 				required,
