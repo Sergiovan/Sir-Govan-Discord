@@ -20,7 +20,7 @@ res/html/*
 !res/html/*.hbs
 
 ## Helper Scripts
-scripts/*.sh
+scripts/install-*.sh
 
 ## Output
 ffmpeg-concat-files.txt
@@ -32,3 +32,4 @@ target/
 
 # Other
 tournaments/
+tmp/
