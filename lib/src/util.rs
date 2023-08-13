@@ -27,7 +27,7 @@ pub trait ResultErrorHandler<T> {
 	fn unwrap_or_log(self, msg: &str) -> Option<T>;
 }
 
-impl<T, E: ::std::fmt::Display> ResultErrorHandler<T> for Result<T, E> {
+impl<T, E: std::fmt::Display> ResultErrorHandler<T> for Result<T, E> {
 	fn log_if_err(self, msg: &str) {
 		match self {
 			Ok(_) => (),
@@ -45,6 +45,20 @@ impl<T, E: ::std::fmt::Display> ResultErrorHandler<T> for Result<T, E> {
 				None
 			}
 		}
+	}
+}
+
+pub trait OptionErrorHandler<T> {
+	fn log_if_none(self, msg: &str) -> Self;
+}
+
+impl<T> OptionErrorHandler<T> for Option<T> {
+	fn log_if_none(self, msg: &str) -> Self {
+		match self {
+			Some(_) => (),
+			None => logger::error(msg),
+		}
+		self
 	}
 }
 

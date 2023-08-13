@@ -1,16 +1,13 @@
 use std::{convert::Infallible, fs};
 
-use crate::util::filename_from_discord_emoji;
+use crate::util::{MatchMap, OptionErrorHandler, ResultErrorHandler};
 
 use skia_safe;
 
 use std::ops::Mul;
-use std::path;
+use std::{mem, path};
 
-use crate::{
-	bot::data,
-	util::{logger, MatchMap},
-};
+use lazy_static::lazy_static;
 
 pub struct Rgb(u8, u8, u8);
 
@@ -125,43 +122,41 @@ impl Preset {
 	};
 }
 
-enum LinePart {
+enum DrawData {
+	TextBlob {
+		data: skia_safe::TextBlob,
+		width: f32,
+		height: f32,
+	},
+	Image {
+		data: skia_safe::Image,
+		width: f32,
+		height: f32,
+	},
+}
+
+struct LineData {
+	data: Vec<DrawData>,
+	width: f32,
+	_height: f32,
+}
+
+struct CaptionData {
+	lines: Vec<LineData>,
+	width: f32,
+	height: f32,
+}
+
+#[derive(Debug)]
+enum LineElement {
 	String(String),
 	Image(path::PathBuf, bool),
 }
 
-type LineData = Vec<LinePart>;
-type CaptionData = Vec<LineData>;
-
 const Y_SCALE: f32 = 1.5_f32;
-const FONT_SIZE: u32 = 92;
-
-fn size_guesstimation(text: &str, type_face: &skia_safe::Typeface) -> (f32, f32) {
-	let font = skia_safe::Font::new(type_face, Some(FONT_SIZE as f32));
-
-	let longest = text
-		.split('\n')
-		.map(|l| {
-			font.measure_str(
-				crate::util::DISCORD_EMOJI_REGEX.replace(l.trim(), "XX"),
-				None,
-			)
-			.0
-		})
-		.reduce(f32::max)
-		.unwrap_or(1200_f32);
-
-	((longest * 1.1_f32).clamp(1200_f32, 1920_f32), 280_f32)
-}
+const FONT_SIZE: f32 = 92_f32;
 
 pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data, &'static str> {
-	// let ttf = fs::read(match preset.font {
-	// 	Font::Garamond => "res/media/Adobe Garamond Pro Regular.ttf",
-	// 	Font::Optimus => "res/media/OptimusPrincepsSemiBold.ttf",
-	// })
-	// .unwrap();
-	let lines = create_caption_data(preset, text).await.unwrap();
-
 	let type_face = skia_safe::Typeface::from_name(
 		match preset.font {
 			Font::Garamond => "Adobe Garamond Pro",
@@ -173,8 +168,13 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 		},
 	)
 	.unwrap();
+	let font = skia_safe::Font::new(&type_face, Some(FONT_SIZE));
 
-	let (w, h) = size_guesstimation(text, &type_face);
+	let lines = create_caption_data(preset, text, &type_face, &font)
+		.await
+		.unwrap();
+
+	let (w, h) = (lines.width.mul(1.1_f32).clamp(1200_f32, 1920_f32), 280_f32);
 	let mut surface =
 		skia_safe::surfaces::raster_n32_premul((w as i32, h as i32)).expect("Create surface");
 	let canvas = surface.canvas();
@@ -203,7 +203,7 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 
 	// Background shade
 	canvas.translate((0_f32, y0));
-	draw_background(canvas, preset, scale);
+	draw_background(canvas, (w, h), preset, scale);
 	canvas.translate((x0, 0_f32));
 
 	// Text
@@ -254,10 +254,9 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 
 		draw_caption(
 			canvas,
+			w,
 			&lines,
-			&type_face,
 			vertical_offset * (scale_factor - 1_f32) / Y_SCALE,
-			preset.text_spacing,
 			paint,
 		);
 
@@ -280,14 +279,7 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 	// Draw text again
 	canvas.save();
 	canvas.scale((1_f32, Y_SCALE));
-	draw_caption(
-		canvas,
-		&lines,
-		&type_face,
-		0_f32,
-		preset.text_spacing,
-		&fill_style,
-	);
+	draw_caption(canvas, w, &lines, 0_f32, &fill_style);
 	canvas.restore();
 
 	let encoding = skia_safe::EncodedImageFormat::PNG;
@@ -297,145 +289,101 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 		.unwrap())
 }
 
-async fn create_caption_data(_preset: &Preset, text: &str) -> Option<CaptionData> {
+async fn create_caption_data(
+	preset: &Preset,
+	text: &str,
+	type_face: &skia_safe::Typeface,
+	font: &skia_safe::Font,
+) -> Option<CaptionData> {
 	use crate::util;
 
-	let lines = text.split('\n').map(|s| s.trim());
-	let mut res: Vec<Vec<TempConversion>> = vec![];
+	let letter_spacing = preset.text_spacing / 4_f32;
 
-	enum Separation {
+	let lines = text.split('\n').map(|s| s.trim());
+	let mut res: Vec<Vec<AsyncElementConverter>> = vec![];
+
+	#[derive(Debug)]
+	enum LineElementRaw {
 		String(String),
 		UnicodeEmoji(String),
 		DiscordEmoji(String),
 	}
 
-	struct TempConversion {
-		original: Separation,
-		converted: Option<LinePart>,
-	}
-
-	impl TempConversion {
-		fn new(sep: Separation) -> TempConversion {
-			TempConversion {
-				original: sep,
-				converted: None,
-			}
-		}
-
-		fn string(string: &str) -> TempConversion {
-			Self::new(Separation::String(string.to_string()))
-		}
-
-		fn unicode_emoji(string: &str) -> TempConversion {
-			Self::new(Separation::UnicodeEmoji(string.to_string()))
-		}
-
-		fn discord_emoji(string: &str) -> TempConversion {
-			Self::new(Separation::DiscordEmoji(string.to_string()))
-		}
-
-		async fn convert(&mut self) {
-			use data::config;
+	impl LineElementRaw {
+		async fn convert(self) -> LineElement {
+			use crate::bot::data::config;
 
 			async fn url_to_filesystem(
 				url: &str,
 				base: &str,
 				filename: &str,
-			) -> std::path::PathBuf {
+			) -> Option<std::path::PathBuf> {
 				let path = path::Path::new(config::DATA_PATH)
 					.join(config::SAVED_DIR)
 					.join(base)
 					.join(filename);
 
 				if path.exists() {
-					return path;
+					return Some(path);
 				}
 
 				let request = reqwest::get(url).await;
-				let data = match request {
-					Ok(res) => {
-						if !res.status().is_success() {
-							logger::error(&format!("Request for {} failed: {:?}", url, res));
-							return path::Path::new(config::DATA_PATH)
-								.join(config::MEDIA_DIR)
-								.join(config::FALLBACK_IMAGE);
-						}
-						match res.bytes().await {
-							Ok(data) => data,
-							Err(e) => {
-								logger::error(&format!(
-                "Could not convert data from {} to bytes: {}. Resorting to fallback",
-                url, e
-              ));
-								return path::Path::new(config::DATA_PATH)
-									.join(config::MEDIA_DIR)
-									.join(config::FALLBACK_IMAGE);
-							}
-						}
-					}
+				let res = request.unwrap_or_log(&format!("Could not find {}", url))?;
+				let data = res
+					.bytes()
+					.await
+					.unwrap_or_log(&format!("Could not convert data from {} to bytes", url))?;
+
+				let parent = path
+					.parent()
+					.log_if_none(&format!("{:?} has no parent", path))?;
+
+				fs::create_dir_all(parent).unwrap_or_log(&format!(
+					"Could not create directories in {}",
+					parent.display()
+				))?;
+
+				use crate::util::logger;
+
+				match image::load_from_memory_with_format(&data, image::ImageFormat::Png) {
+					Ok(_) => (),
 					Err(e) => {
 						logger::error(&format!(
-							"Could not find {}: {}. Resorting to fallback",
+							"Image from {} does not have the correct format: {}",
 							url, e
 						));
-						return path::Path::new(config::DATA_PATH)
-							.join(config::MEDIA_DIR)
-							.join(config::FALLBACK_IMAGE);
-					}
-				};
-
-				let parent = match path.parent() {
-					Some(parent) => parent,
-					None => {
-						logger::error(&format!("{:?} has no parent", path));
-						return path::Path::new(config::DATA_PATH)
-							.join(config::MEDIA_DIR)
-							.join(config::FALLBACK_IMAGE);
-					}
-				};
-
-				match fs::create_dir_all(parent) {
-					Ok(()) => (),
-					Err(e) => {
-						logger::error(&format!(
-							"Could not create directories in {:?}: {}",
-							parent, e
-						));
-						return path::Path::new(config::DATA_PATH)
-							.join(config::MEDIA_DIR)
-							.join(config::FALLBACK_IMAGE);
+						return None;
 					}
 				}
-				match tokio::fs::write(&path, data).await {
-					Ok(_) => path,
-					Err(e) => {
-						logger::error(&format!(
-							"Could not write data to {}: {}. Resorting to fallback",
-							path.display(),
-							e
-						));
-						path::Path::new(config::DATA_PATH)
-							.join(config::MEDIA_DIR)
-							.join(config::FALLBACK_IMAGE)
-					}
-				}
+
+				tokio::fs::write(&path, data)
+					.await
+					.unwrap_or_log(&format!("Could not write data to {}", path.display()))?;
+
+				Some(path)
 			}
 
-			match self.original {
-				Separation::String(ref string) => {
-					self.converted = Some(LinePart::String(string.to_uppercase()))
-				}
-				Separation::UnicodeEmoji(ref emoji) => {
-					let filename = util::filename_from_unicode_emoji(emoji);
-					let url = util::url_from_unicode_emoji(emoji);
-					self.converted = Some(LinePart::Image(
-						url_to_filesystem(&url, "unicode", &filename).await,
+			lazy_static! {
+				static ref FALLBACK_IMAGE: path::PathBuf = path::Path::new(config::DATA_PATH)
+					.join(config::MEDIA_DIR)
+					.join(config::FALLBACK_IMAGE);
+			}
+
+			match self {
+				LineElementRaw::String(string) => LineElement::String(string.to_uppercase()),
+				LineElementRaw::UnicodeEmoji(emoji) => {
+					let filename = util::filename_from_unicode_emoji(&emoji);
+					let url = util::url_from_unicode_emoji(&emoji);
+					LineElement::Image(
+						url_to_filesystem(&url, "unicode", &filename)
+							.await
+							.unwrap_or(FALLBACK_IMAGE.clone()),
 						true,
-					));
+					)
 				}
-				Separation::DiscordEmoji(ref emoji) => {
+				LineElementRaw::DiscordEmoji(emoji) => {
 					let regex_match = util::DISCORD_EMOJI_REGEX
-						.captures(emoji)
+						.captures(&emoji)
 						.expect("Emoji was not a match?");
 					let animated = !regex_match.get(1).unwrap().is_empty();
 					let name = regex_match.get(2).unwrap().as_str();
@@ -446,38 +394,91 @@ async fn create_caption_data(_preset: &Preset, text: &str) -> Option<CaptionData
 						.parse::<u64>()
 						.expect("id was not numeric?");
 
-					let filename =
-						format!("{}-{}", name, filename_from_discord_emoji(id, animated));
+					let filename = format!(
+						"{}-{}",
+						name,
+						util::filename_from_discord_emoji(id, animated)
+					);
 					let url = util::url_from_discord_emoji(id, animated);
-					self.converted = Some(LinePart::Image(
-						url_to_filesystem(&url, "discord", &filename).await,
+					LineElement::Image(
+						url_to_filesystem(&url, "discord", &filename)
+							.await
+							.unwrap_or(FALLBACK_IMAGE.clone()),
 						false,
-					));
+					)
 				}
 			}
 		}
 	}
 
+	#[derive(Debug)]
+	enum AsyncElementConverter {
+		Default,
+		Original(LineElementRaw),
+		Converted(LineElement),
+	}
+
+	impl AsyncElementConverter {
+		fn new(sep: LineElementRaw) -> AsyncElementConverter {
+			AsyncElementConverter::Original(sep)
+		}
+
+		fn string(string: &str) -> AsyncElementConverter {
+			Self::new(LineElementRaw::String(string.to_string()))
+		}
+
+		fn unicode_emoji(string: &str) -> AsyncElementConverter {
+			Self::new(LineElementRaw::UnicodeEmoji(string.to_string()))
+		}
+
+		fn discord_emoji(string: &str) -> AsyncElementConverter {
+			Self::new(LineElementRaw::DiscordEmoji(string.to_string()))
+		}
+
+		async fn convert(&mut self) {
+			let tmp = std::mem::replace(self, Self::Default);
+
+			_ = mem::replace(
+				self,
+				Self::Converted(match tmp {
+					Self::Original(r) => r.convert().await,
+					Self::Converted(_) => panic!("Called convert() on converted value: {:?}", tmp),
+					Self::Default => panic!("Called convert() on a default value: {:?}", tmp),
+				}),
+			);
+		}
+
+		fn take(self) -> LineElement {
+			match self {
+				Self::Converted(t) => t,
+				Self::Original(_) => panic!("Trying to take out of original element: {:?}", self),
+				Self::Default => panic!("Trying to take out of defaulted element: {:?}", self),
+			}
+		}
+	}
+
 	for line in lines.into_iter() {
-		let parts: Vec<TempConversion> = line
+		let parts: Vec<AsyncElementConverter> = line
 			.match_map(&util::EMOJI_REGEX, |(string, is_match)| {
 				if is_match {
 					match string.chars().next().unwrap() {
 						'0'..='9' => {
-							vec![TempConversion::string(string)]
+							vec![AsyncElementConverter::string(string)]
 						}
-						'©' => vec![TempConversion::string(string)],
-						'®' => vec![TempConversion::string(string)],
-						'™' => vec![TempConversion::string(string)],
-						_ => vec![TempConversion::unicode_emoji(string)],
+						'©' => vec![AsyncElementConverter::string(string)],
+						'®' => vec![AsyncElementConverter::string(string)],
+						'™' => vec![AsyncElementConverter::string(string)],
+						_ => vec![AsyncElementConverter::unicode_emoji(
+							string.trim_end_matches('\u{fe0f}'),
+						)],
 					}
 				} else {
 					string
 						.match_map(&util::DISCORD_EMOJI_REGEX, |(string, is_match)| {
 							if is_match {
-								TempConversion::discord_emoji(string)
+								AsyncElementConverter::discord_emoji(string)
 							} else {
-								TempConversion::string(string)
+								AsyncElementConverter::string(string)
 							}
 						})
 						.collect()
@@ -495,21 +496,119 @@ async fn create_caption_data(_preset: &Preset, text: &str) -> Option<CaptionData
 	)
 	.await;
 
+	let (_, metrics) = font.metrics();
+	let line_amount = res.len();
+
+	let mut line_heights: Vec<f32> = vec![];
+	line_heights.reserve(line_amount);
+
+	let mut max_height = 0_f32;
+	let mut total_height = 0_f32;
+
+	let mut max_width = 0_f32;
+
 	// Load and save images
-	Some(
-		res.into_iter()
-			.map(|l| {
-				l.into_iter()
-					.map(|p| p.converted.expect("Should have been Some"))
-					.collect::<Vec<LinePart>>()
-			})
-			.collect(),
-	)
+	let caption_lines: Vec<LineData> = res
+		.into_iter()
+		.map(|l| {
+			let mut max_line_height = 0_f32;
+			let mut line_width = 0_f32;
+			let line_data: Vec<DrawData> = l
+				.into_iter()
+				.map(|p| {
+					let part = p.take();
+					match part {
+						LineElement::String(text) => {
+							let mut glyphs = vec![0_u16; text.chars().count()];
+							type_face.str_to_glyphs(&text, glyphs.as_mut_slice());
+							let mut widths = vec![0_f32; glyphs.len()];
+							font.get_widths(&glyphs, widths.as_mut_slice());
+
+							let mut cumulative_widths = vec![];
+							cumulative_widths.reserve(text.len());
+
+							let mut cumulative: f32 = letter_spacing;
+							for width in widths.iter() {
+								cumulative_widths.push(cumulative);
+								cumulative += width + letter_spacing;
+							}
+
+							let height = metrics.cap_height;
+							max_line_height = max_line_height.max(height);
+
+							let text = skia_safe::TextBlob::from_pos_text_h(
+								text.as_bytes(),
+								cumulative_widths.as_slice(),
+								0_f32,
+								font,
+								None,
+							)
+							.unwrap();
+
+							line_width += cumulative;
+
+							DrawData::TextBlob {
+								data: text,
+								width: cumulative,
+								height,
+							}
+						}
+						LineElement::Image(src, unicode) => {
+							let data = fs::read(src).expect("exists");
+							let data = skia_safe::Data::new_copy(data.as_slice());
+							let image = skia_safe::Image::from_encoded(data).expect("Is valid");
+
+							let image_height = if unicode {
+								128_f32
+							} else {
+								f32::min(128_f32, image.height() as f32)
+							};
+							let image_width = if unicode {
+								128_f32
+							} else {
+								f32::min(128_f32, image.width() as f32)
+							};
+
+							max_height = max_height.max(image_height / Y_SCALE);
+							max_line_height = max_line_height.max(image_height / Y_SCALE);
+
+							line_width += image_width;
+
+							DrawData::Image {
+								width: image_width,
+								height: image_height,
+								data: image,
+							}
+						}
+					}
+				})
+				.collect();
+
+			total_height += max_line_height;
+			max_width = max_width.max(line_width);
+
+			LineData {
+				data: line_data,
+				width: line_width,
+				_height: max_line_height,
+			}
+		})
+		.collect();
+
+	Some(CaptionData {
+		lines: caption_lines,
+		width: max_width,
+		height: total_height,
+	})
 }
 
-fn draw_background(canvas: &mut skia_safe::Canvas, preset: &Preset, scale: f32) {
-	let w = unsafe { canvas.surface() }.unwrap().width() as f32;
-	let h = unsafe { canvas.surface().unwrap() }.height() as f32;
+fn draw_background(
+	canvas: &mut skia_safe::Canvas,
+	canvas_size: (f32, f32),
+	preset: &Preset,
+	scale: f32,
+) {
+	let (w, h) = canvas_size;
 
 	const SHADOW_SIZE: f32 = 1_f32;
 	const SHADOW_OFFSET: f32 = 0_f32;
@@ -572,162 +671,34 @@ fn draw_background(canvas: &mut skia_safe::Canvas, preset: &Preset, scale: f32) 
 
 fn draw_caption(
 	canvas: &mut skia_safe::Canvas,
-	lines: &CaptionData,
-	type_face: &skia_safe::Typeface,
+	canvas_width: f32,
+	caption_data: &CaptionData,
 	y_offset: f32,
-	letter_spacing: f32,
 	paint: &skia_safe::Paint,
 ) {
-	// TODO Scale to text canvas.scale((1200_f32, 280_f32))
-
-	let letter_spacing = letter_spacing / 4_f32;
-
 	canvas.save();
 
-	let font = skia_safe::Font::new(type_face, Some(FONT_SIZE as f32));
+	let line_amount = caption_data.lines.len();
+	let total_height = caption_data.height + (5 * line_amount - 1) as f32;
 
-	enum DrawData {
-		TextBlob {
-			data: skia_safe::TextBlob,
-			width: f32,
-			height: f32,
-		},
-		Image {
-			data: skia_safe::Image,
-			width: f32,
-			height: f32,
-		},
-	}
-
-	impl DrawData {
-		fn width(&self) -> f32 {
-			match self {
-				DrawData::TextBlob { width, .. } => *width,
-				DrawData::Image { width, .. } => *width,
-			}
-		}
-
-		fn _height(&self) -> f32 {
-			match self {
-				DrawData::TextBlob { height, .. } => *height,
-				DrawData::Image { height, .. } => *height,
-			}
-		}
-	}
-
-	let (_, metrics) = font.metrics();
-	let line_amount = lines.len();
-
-	let mut line_heights: Vec<f32> = vec![];
-	line_heights.reserve(line_amount);
-
-	let mut max_height = 0_f32;
-	let mut total_height = 0_f32;
-
-	let mut max_width = 0_f32;
-
-	let draw_data: Vec<Vec<DrawData>> = lines
-		.iter()
-		.map(|line| {
-			let mut max_line_height = 0_f32;
-			let mut line_width = 0_f32;
-			let res = line
-				.iter()
-				.map(|part| match part {
-					LinePart::String(text) => {
-						let mut glyphs = vec![0_u16; text.chars().count()];
-						type_face.str_to_glyphs(text, glyphs.as_mut_slice());
-						let mut widths = vec![0_f32; glyphs.len()];
-						font.get_widths(&glyphs, widths.as_mut_slice());
-
-						let mut cumulative_widths = vec![];
-						cumulative_widths.reserve(text.len());
-
-						let mut cumulative: f32 = letter_spacing;
-						for width in widths.iter() {
-							cumulative_widths.push(cumulative);
-							cumulative += width + letter_spacing;
-						}
-
-						let height = metrics.cap_height;
-						max_line_height = max_line_height.max(height);
-
-						let text = skia_safe::TextBlob::from_pos_text_h(
-							text.as_bytes(),
-							cumulative_widths.as_slice(),
-							0_f32,
-							&font,
-							None,
-						)
-						.unwrap();
-
-						line_width += cumulative;
-
-						DrawData::TextBlob {
-							data: text,
-							width: cumulative,
-							height,
-						}
-					}
-					LinePart::Image(src, unicode) => {
-						let data = fs::read(src).expect("exists");
-						let data = skia_safe::Data::new_copy(data.as_slice());
-						let image = skia_safe::Image::from_encoded(data).expect("Is valid");
-
-						let image_height = if *unicode {
-							128_f32
-						} else {
-							f32::min(128_f32, image.height() as f32)
-						};
-						let image_width = if *unicode {
-							128_f32
-						} else {
-							f32::min(128_f32, image.width() as f32)
-						};
-
-						max_height = max_height.max(image_height / Y_SCALE);
-						max_line_height = max_line_height.max(image_height / Y_SCALE);
-
-						line_width += image_width;
-
-						DrawData::Image {
-							width: image_width,
-							height: image_height,
-							data: image,
-						}
-					}
-				})
-				.collect();
-
-			line_heights.push(max_line_height);
-			total_height += max_line_height;
-			max_width = max_width.max(line_width);
-
-			res
-		})
-		.collect();
-
-	total_height += (5 * line_amount - 1) as f32;
 	let average_line_height = total_height / line_amount as f32;
-	let canvas_width = unsafe { canvas.surface().unwrap().width() } as f32;
 
-	if max_width * 1.1_f32 > canvas_width {
+	if caption_data.width > canvas_width {
 		canvas.scale((
-			canvas_width / (max_width * 1.1_f32),
-			canvas_width / (max_width * 1.1_f32),
+			canvas_width / (caption_data.width),
+			canvas_width / (caption_data.width),
 		));
 	}
 
 	let top = -total_height / 2_f32;
 
-	draw_data.into_iter().enumerate().for_each(|(i, line)| {
-		let line_width: f32 = line.iter().map(DrawData::width).sum();
-		let x0 = -line_width / 2_f32;
+	caption_data.lines.iter().enumerate().for_each(|(i, line)| {
+		let x0 = -line.width / 2_f32;
 		let mut x = x0;
 		let y0 = top + y_offset;
 		let y = y0 + (average_line_height * i as f32);
 
-		line.into_iter().for_each(|part| match part {
+		line.data.iter().for_each(|part| match part {
 			DrawData::TextBlob {
 				data,
 				width,
@@ -768,7 +739,7 @@ async fn test_banner() -> Result<(), &'static str> {
 	use std::env;
 	env::set_current_dir("/mnt/lnxdata/data/code/sirgovan-rust/").unwrap();
 	logger::debug("Start");
-	let content = create_image("PAY OUT THE BELIEVERS 😎", &Preset::BONFIRE_LIT).await?;
+	let content = create_image("PAY OUT THE BELIEVERS", &Preset::BONFIRE_LIT).await?;
 	logger::debug("End");
 	fs::write("res/tmp.png", content.as_bytes()).unwrap();
 
