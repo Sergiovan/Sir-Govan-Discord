@@ -1,8 +1,4 @@
-use serenity::client::bridge::gateway::ShardManager;
-use serenity::prelude::*;
-
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
 pub mod emoji {
 	use super::EmojiType;
@@ -112,7 +108,7 @@ pub mod config {
 		pub id: u64,
 		pub beta: bool,
 		pub nickname: Option<String>,
-		pub pin_amount: u32,
+		pub pin_amount: usize,
 
 		pub channels: Channels,
 		pub no_context: Option<NoContext>,
@@ -184,7 +180,7 @@ pub struct Server {
 	pub id: u64,
 	pub beta: bool,
 	pub nickname: Option<String>,
-	pub pin_amount: u32,
+	pub pin_amount: usize,
 
 	pub channels: Channels,
 	pub no_context: Option<NoContext>,
@@ -264,10 +260,4 @@ impl BotData {
 	pub fn random_no_context(&self) -> String {
 		random::pick_or(&self.no_context_strings, &"No context".to_string()).clone()
 	}
-}
-
-pub struct ShardManagerContainer;
-
-impl TypeMapKey for ShardManagerContainer {
-	type Value = Arc<Mutex<ShardManager>>;
 }

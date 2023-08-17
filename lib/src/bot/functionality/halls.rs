@@ -10,102 +10,6 @@ use serenity::prelude::*;
 use crate::util::{self, logger, ResultErrorHandler};
 use rand::distributions::Uniform;
 use rand::prelude::*;
-pub struct PinSafety;
-
-impl PinSafety {
-	async fn get_reactors(
-		&self,
-		ctx: &Context,
-		msg: &Message,
-		reaction: &Reaction,
-		required: u32,
-	) -> Vec<User> {
-		// First get the emoji for sure
-		if let ReactionType::Custom { name: None, .. } = reaction.emoji {
-			logger::error(&format!(
-				"Emoji from reaction was incomplete: {}",
-				reaction.emoji
-			));
-			return vec![];
-		};
-
-		let mut last: Option<UserId> = None;
-		let mut res = vec![];
-
-		loop {
-			// NOTE: Unknown how `last` interacts with the order in which reaction_users are returned
-			match msg
-				.reaction_users(&ctx, reaction.emoji.clone(), None, last)
-				.await
-			{
-				Ok(users) => {
-					let filtered = users
-						.into_iter()
-						.filter(|x| !x.bot && x.id != msg.author.id)
-						.collect::<Vec<_>>();
-
-					if filtered.is_empty() {
-						return res;
-					}
-
-					res.extend(filtered);
-				}
-				Err(e) => {
-					logger::error(&format!(
-						"Could not get {} reactions from {}: {}",
-						reaction.emoji, msg.id, e
-					));
-					return vec![];
-				}
-			};
-
-			if res.len() > required as usize {
-				return res;
-			}
-
-			last = res.last().map(|x| x.id);
-		}
-	}
-
-	pub async fn locked_react(
-		&self,
-		ctx: &Context,
-		msg: &Message,
-		reaction: &Reaction,
-		required: u32,
-	) -> bool {
-		// The only way to access this function is by locking HallSafety, so we're, well, safe
-
-		let Some(msg_reactions) = msg
-            .reactions
-            .iter()
-            .find(|x| x.reaction_type == reaction.emoji)
-        else {
-            return false; // No reactions to speak of, cannot pin
-        };
-
-		if msg_reactions.me {
-			return false; // No reactions if I've already reacted
-		}
-
-		let reactors = self.get_reactors(ctx, msg, reaction, required).await;
-
-		if reactors.len() >= required as usize {
-			match msg.react(&ctx, reaction.emoji.clone()).await {
-				Ok(_) => true,
-				Err(e) => {
-					logger::error(&format!(
-						"Error while adding {} reaction to {}: {}",
-						reaction.emoji, msg.id, e
-					));
-					false
-				}
-			}
-		} else {
-			false
-		}
-	}
-}
 
 impl Bot {
 	pub async fn maybe_pin(
@@ -114,7 +18,7 @@ impl Bot {
 		msg: Message,
 		reaction: Reaction,
 		dest: GuildChannel,
-		required: u32,
+		required: usize,
 		override_icon: Option<EmojiType>,
 	) -> Option<Infallible> {
 		let perms = dest
@@ -135,7 +39,7 @@ impl Bot {
 		let can_pin = {
 			let hall_safety = self.pin_lock.lock().await;
 			hall_safety
-				.locked_react(&ctx, &msg, &reaction, required)
+				.locked_react(&ctx, &msg, &reaction, Some(required), None)
 				.await
 		};
 

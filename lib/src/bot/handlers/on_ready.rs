@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use crate::bot::data::ShardManagerContainer;
 use crate::bot::Bot;
 use crate::util::logger;
 
@@ -8,8 +7,9 @@ use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
-	pub async fn on_ready(&self, ctx: Context, ready: Ready) -> Option<Infallible> {
+	pub async fn on_ready(&self, _ctx: Context, ready: Ready) -> Option<Infallible> {
 		logger::debug("Getting ready...");
+
 		self.commander.write().await.register_all();
 
 		let bot_data = &self.data;
@@ -19,28 +19,12 @@ impl Bot {
 			Ok(data) => data,
 			Err(config::ServerTomlError::IO(err)) => {
 				logger::error(&format!("Could not open the settings file: {}", err));
-				ctx.data
-					.read()
-					.await
-					.get::<ShardManagerContainer>()
-					.unwrap()
-					.lock()
-					.await
-					.shutdown_all()
-					.await;
+				self.shutdown().await;
 				return None;
 			}
 			Err(config::ServerTomlError::Toml(err)) => {
 				logger::error(&format!("Could not parse the settings file: {}", err));
-				ctx.data
-					.read()
-					.await
-					.get::<ShardManagerContainer>()
-					.unwrap()
-					.lock()
-					.await
-					.shutdown_all()
-					.await;
+				self.shutdown().await;
 				return None;
 			}
 		};
@@ -59,15 +43,7 @@ impl Bot {
 				Ok(()) => (),
 				Err(e) => {
 					logger::error(&format!("Could not load no context roles from file: {}", e));
-					ctx.data
-						.read()
-						.await
-						.get::<ShardManagerContainer>()
-						.unwrap()
-						.lock()
-						.await
-						.shutdown_all()
-						.await;
+					self.shutdown().await;
 					return None;
 				}
 			}

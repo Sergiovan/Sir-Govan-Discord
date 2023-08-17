@@ -3,57 +3,34 @@ mod functionality;
 mod handlers;
 
 pub mod data;
-
-use serenity::async_trait;
-use serenity::json::Value;
-use serenity::model::prelude::*;
+use serenity::client::bridge::gateway::ShardManager;
 use serenity::prelude::*;
-
-use serenity::model::gateway::Ready;
-use tracing::debug;
 
 use self::commands::commander::Commander;
 use self::data::BotData;
-use self::functionality::halls::PinSafety;
+use self::functionality::react_locks::ReactSafety;
 use std::sync::Arc;
 
 pub struct Bot {
-	pub data: Arc<RwLock<BotData>>,
-	pub commander: Arc<RwLock<Commander>>,
-	pub pin_lock: Arc<Mutex<PinSafety>>,
+	data: RwLock<BotData>,
+	commander: RwLock<Commander>,
+	pin_lock: Mutex<ReactSafety>,
+	shard_manager: RwLock<Option<Arc<Mutex<ShardManager>>>>,
+	shutdown: Mutex<bool>,
 }
 
 impl Bot {
 	pub fn new(data: BotData) -> Bot {
 		Bot {
-			data: Arc::new(RwLock::new(data)),
-			commander: Arc::new(RwLock::new(Commander::new())),
-			pin_lock: Arc::new(Mutex::new(PinSafety)),
+			data: RwLock::new(data),
+			commander: RwLock::new(Commander::new()),
+			pin_lock: Mutex::new(ReactSafety::default()),
+			shard_manager: RwLock::new(None),
+			shutdown: Mutex::new(false),
 		}
 	}
-}
 
-#[async_trait]
-impl EventHandler for Bot {
-	async fn ready(&self, ctx: Context, ready: Ready) {
-		self.on_ready(ctx, ready).await;
-	}
-
-	async fn resume(&self, _ctx: Context, _: ResumedEvent) {
-		// TODO
-		debug!("Reconnected :)");
-	}
-
-	async fn unknown(&self, _ctx: Context, _name: String, _raw: Value) {
-		// TODO
-		debug!("wtf");
-	}
-
-	async fn message(&self, ctx: Context, msg: Message) {
-		self.on_message(ctx, msg).await;
-	}
-
-	async fn reaction_add(&self, ctx: Context, add_reaction: Reaction) {
-		self.on_reaction_add(ctx, add_reaction).await;
+	pub async fn set_shard_manager(&self, shard_manager: Arc<Mutex<ShardManager>>) {
+		*self.shard_manager.write().await = Some(shard_manager)
 	}
 }

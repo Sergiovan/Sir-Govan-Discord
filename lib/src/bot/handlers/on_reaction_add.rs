@@ -50,7 +50,7 @@ impl Bot {
 		enum Action {
 			Pin {
 				destination_id: u64,
-				required: u32,
+				required: usize,
 				emoji_override: Option<EmojiType>,
 			},
 			DarkSouls(String),
@@ -120,14 +120,10 @@ impl Bot {
 					emoji_override: None,
 				}
 			} else {
-				println!("{:?}", emoji);
 				match emoji {
 					EmojiType::Unicode(ref code) => match code.as_str() {
 						"❤️‍🔥" => Action::DarkSouls(code.clone()),
-						_ => {
-							println!("{:?} didn't match anything", emoji);
-							Action::None
-						}
+						_ => Action::None,
 					},
 					EmojiType::Discord(_) => Action::None,
 				}
@@ -144,6 +140,19 @@ impl Bot {
 					.any(|r| r.reaction_type.unicode_eq(&emoji) && r.me)
 				{
 					return None; // Nothing to do
+				}
+				let pin_lock = self.pin_lock.lock().await;
+				if !pin_lock
+					.locked_react(
+						&ctx,
+						&msg,
+						&add_reaction,
+						None,
+						Some(std::time::Duration::from_secs(60 * 30)),
+					)
+					.await
+				{
+					return None;
 				}
 				let data =
 					text_banners::create_image(&msg.content, &text_banners::Preset::BONFIRE_LIT)
