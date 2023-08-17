@@ -1,7 +1,9 @@
 use std::convert::Infallible;
 
+use crate::bot::data;
 use crate::bot::data::EmojiType;
 use crate::bot::Bot;
+use crate::util;
 use crate::util::{logger, CacheGuild, ResultErrorHandler};
 
 use serenity::model::prelude::*;
@@ -47,13 +49,18 @@ impl Bot {
 
 		let this_channel = this_channel.guild()?;
 
+		enum DarkSoulsType {
+			FIRE_HEART,
+			HEADSTONE,
+		}
+
 		enum Action {
 			Pin {
 				destination_id: u64,
 				required: usize,
 				emoji_override: Option<EmojiType>,
 			},
-			DarkSouls(String),
+			DarkSouls(DarkSoulsType),
 			None,
 		}
 
@@ -122,7 +129,8 @@ impl Bot {
 			} else {
 				match emoji {
 					EmojiType::Unicode(ref code) => match code.as_str() {
-						"❤️‍🔥" => Action::DarkSouls(code.clone()),
+						data::emoji::FIRE_HEART => Action::DarkSouls(DarkSoulsType::FIRE_HEART),
+						data::emoji::HEADSTONE => Action::DarkSouls(DarkSoulsType::HEADSTONE),
 						_ => Action::None,
 					},
 					EmojiType::Discord(_) => Action::None,
@@ -132,15 +140,8 @@ impl Bot {
 
 		match action {
 			Action::None => None,
-			Action::DarkSouls(emoji) => {
+			Action::DarkSouls(souls_type) => {
 				use crate::bot::functionality::text_banners;
-				if msg
-					.reactions
-					.iter()
-					.any(|r| r.reaction_type.unicode_eq(&emoji) && r.me)
-				{
-					return None; // Nothing to do
-				}
 				let pin_lock = self.pin_lock.lock().await;
 				if !pin_lock
 					.locked_react(
@@ -154,10 +155,47 @@ impl Bot {
 				{
 					return None;
 				}
-				let data =
-					text_banners::create_image(&msg.content, &text_banners::Preset::BONFIRE_LIT)
-						.await
-						.unwrap_or_log("Error creating Dark Souls banner")?;
+
+				let preset = match souls_type {
+					DarkSoulsType::HEADSTONE => text_banners::Preset::YOU_DIED.clone(),
+					DarkSoulsType::FIRE_HEART => {
+						if util::random::one_in(100) {
+							text_banners::Preset {
+								main_color: text_banners::Rgb(
+									util::random::from_range(50..255),
+									util::random::from_range(50..255),
+									util::random::from_range(50..255),
+								),
+
+								sheen_tint: text_banners::Rgb(
+									util::random::from_range(50..255),
+									util::random::from_range(50..255),
+									util::random::from_range(50..255),
+								),
+
+								text_spacing: util::random::from_range(0..20) as f32,
+								sheen_size: util::random::from_range(0.0..2.0),
+								sheen_opacity: util::random::from_range(0.0..0.2),
+								text_opacity: None,
+								shadow_opacity: None,
+								font: text_banners::Font::Garamond,
+								font_weight: None,
+							}
+						} else {
+							util::random::pick::<text_banners::Preset>(&vec![
+								text_banners::Preset::BONFIRE_LIT,
+								text_banners::Preset::HUMANITY_RESTORED,
+								text_banners::Preset::VICTORY_ACHIEVED,
+							])
+							.unwrap()
+							.clone()
+						}
+					}
+				};
+
+				let data = text_banners::create_image(&msg.content, &preset)
+					.await
+					.unwrap_or_log("Error creating Dark Souls banner")?;
 				this_channel
 					.send_message(&ctx, |b| {
 						b.add_file((data.as_bytes(), "donk_blonk.png"))

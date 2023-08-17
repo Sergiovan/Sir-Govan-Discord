@@ -10,8 +10,8 @@ pub mod emoji {
 	pub const _REPEAT: char = '🔁';
 	pub const _REPEAT_ONCE: char = '🔂';
 	pub const _VIOLIN: char = '🎻';
-	pub const _HEADSTONE: char = '🪦';
-	pub const _FIRE_HEART: &str = "❤️‍🔥";
+	pub const HEADSTONE: &str = "🪦";
+	pub const FIRE_HEART: &str = "❤️‍🔥";
 
 	pub const REDDIT_GOLD: EmojiType = EmojiType::Discord(263774481233870848);
 }

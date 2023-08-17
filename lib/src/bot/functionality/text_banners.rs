@@ -9,7 +9,8 @@ use std::{mem, path};
 
 use lazy_static::lazy_static;
 
-pub struct Rgb(u8, u8, u8);
+#[derive(Clone)]
+pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Mul<Self> for &Rgb {
 	type Output = Rgb;
@@ -37,16 +38,19 @@ impl From<&Rgb> for skia_safe::Color4f {
 	}
 }
 
+#[derive(Clone)]
 pub enum Font {
 	Garamond,
-	_Optimus,
+	Optimus,
 }
 
+#[derive(Clone)]
 pub enum FontWeight {
 	Normal,
-	_Bold,
+	Bold,
 }
 
+#[derive(Clone)]
 pub struct Preset {
 	pub main_color: Rgb,
 	pub sheen_tint: Rgb,
@@ -64,7 +68,7 @@ pub struct Preset {
 }
 
 impl Preset {
-	pub const _HUMANITY_RESTORED: Preset = Preset {
+	pub const HUMANITY_RESTORED: Preset = Preset {
 		main_color: Rgb(129, 187, 153),
 		sheen_tint: Rgb(255, 178, 153),
 
@@ -78,7 +82,8 @@ impl Preset {
 		font: Font::Garamond,
 		font_weight: None,
 	};
-	pub const _VICTORY_ACHIEVED: Preset = Preset {
+
+	pub const VICTORY_ACHIEVED: Preset = Preset {
 		main_color: Rgb(255, 255, 107),
 		sheen_tint: Rgb(187, 201, 192),
 
@@ -92,6 +97,7 @@ impl Preset {
 		font: Font::Garamond,
 		font_weight: None,
 	};
+
 	pub const BONFIRE_LIT: Preset = Preset {
 		main_color: Rgb(255, 228, 92),
 		sheen_tint: Rgb(251, 149, 131),
@@ -106,7 +112,8 @@ impl Preset {
 		font: Font::Garamond,
 		font_weight: None,
 	};
-	pub const _YOU_DIED: Preset = Preset {
+
+	pub const YOU_DIED: Preset = Preset {
 		main_color: Rgb(101, 5, 4),
 		sheen_tint: Rgb(0, 0, 0),
 
@@ -117,8 +124,8 @@ impl Preset {
 		text_opacity: Some(1.0),
 		shadow_opacity: Some(1.0),
 
-		font: Font::_Optimus,
-		font_weight: Some(FontWeight::_Bold),
+		font: Font::Optimus,
+		font_weight: Some(FontWeight::Bold),
 	};
 }
 
@@ -160,11 +167,11 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 	let type_face = skia_safe::Typeface::from_name(
 		match preset.font {
 			Font::Garamond => "Adobe Garamond Pro",
-			Font::_Optimus => "OptimusPrincepsSemiBold",
+			Font::Optimus => "OptimusPrincepsSemiBold",
 		},
 		match preset.font_weight.as_ref().unwrap_or(&FontWeight::Normal) {
 			FontWeight::Normal => skia_safe::FontStyle::normal(),
-			FontWeight::_Bold => skia_safe::FontStyle::bold(),
+			FontWeight::Bold => skia_safe::FontStyle::bold(),
 		},
 	)
 	.unwrap();
