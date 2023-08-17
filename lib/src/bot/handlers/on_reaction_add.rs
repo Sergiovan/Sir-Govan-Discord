@@ -50,8 +50,8 @@ impl Bot {
 		let this_channel = this_channel.guild()?;
 
 		enum DarkSoulsType {
-			FIRE_HEART,
-			HEADSTONE,
+			FireHeart,
+			Headstone,
 		}
 
 		enum Action {
@@ -129,8 +129,8 @@ impl Bot {
 			} else {
 				match emoji {
 					EmojiType::Unicode(ref code) => match code.as_str() {
-						data::emoji::FIRE_HEART => Action::DarkSouls(DarkSoulsType::FIRE_HEART),
-						data::emoji::HEADSTONE => Action::DarkSouls(DarkSoulsType::HEADSTONE),
+						data::emoji::FIRE_HEART => Action::DarkSouls(DarkSoulsType::FireHeart),
+						data::emoji::HEADSTONE => Action::DarkSouls(DarkSoulsType::Headstone),
 						_ => Action::None,
 					},
 					EmojiType::Discord(_) => Action::None,
@@ -157,8 +157,8 @@ impl Bot {
 				}
 
 				let preset = match souls_type {
-					DarkSoulsType::HEADSTONE => text_banners::Preset::YOU_DIED.clone(),
-					DarkSoulsType::FIRE_HEART => {
+					DarkSoulsType::Headstone => text_banners::Preset::YOU_DIED.clone(),
+					DarkSoulsType::FireHeart => {
 						if util::random::one_in(100) {
 							text_banners::Preset {
 								main_color: text_banners::Rgb(
@@ -182,7 +182,7 @@ impl Bot {
 								font_weight: None,
 							}
 						} else {
-							util::random::pick::<text_banners::Preset>(&vec![
+							util::random::pick(&[
 								text_banners::Preset::BONFIRE_LIT,
 								text_banners::Preset::HUMANITY_RESTORED,
 								text_banners::Preset::VICTORY_ACHIEVED,
@@ -193,7 +193,21 @@ impl Bot {
 					}
 				};
 
-				let data = text_banners::create_image(&msg.content, &preset)
+				let gradient = if util::random::one_in(100) {
+					util::random::pick(&[
+						text_banners::gradients::LGBT,
+						text_banners::gradients::TRANS,
+						text_banners::gradients::BI,
+						text_banners::gradients::LESBIAN,
+						text_banners::gradients::ENBI,
+						text_banners::gradients::PAN,
+					])
+					.map(|g| g.to_owned())
+				} else {
+					None
+				};
+
+				let data = text_banners::create_image(&msg.content, &preset, gradient)
 					.await
 					.unwrap_or_log("Error creating Dark Souls banner")?;
 				this_channel

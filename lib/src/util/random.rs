@@ -17,8 +17,8 @@ pub fn one_in(so_many: u64) -> bool {
 	from_range(0..so_many) == 0
 }
 
-pub fn pick<T>(elems: &Vec<T>) -> Option<&T> {
-	elems.choose(&mut rand::thread_rng())
+pub fn pick<T, L: AsRef<[T]>>(elems: &L) -> Option<&<[T] as rand::prelude::SliceRandom>::Item> {
+	elems.as_ref().choose(&mut rand::thread_rng())
 }
 
 pub fn pick_or<'a, T>(elems: &'a Vec<T>, default: &'a T) -> &'a T {

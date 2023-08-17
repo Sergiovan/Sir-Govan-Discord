@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fs};
+use std::fs;
 
 use crate::util::{MatchMap, OptionErrorHandler, ResultErrorHandler};
 
@@ -11,6 +11,17 @@ use lazy_static::lazy_static;
 
 #[derive(Clone)]
 pub struct Rgb(pub u8, pub u8, pub u8);
+
+impl Rgb {
+	pub fn into_color4f(self, opacity: Option<f32>) -> skia_safe::Color4f {
+		skia_safe::Color4f::new(
+			self.0 as f32 / 255_f32,
+			self.1 as f32 / 255_f32,
+			self.2 as f32 / 255_f32,
+			opacity.unwrap_or(1_f32),
+		)
+	}
+}
 
 impl Mul<Self> for &Rgb {
 	type Output = Rgb;
@@ -129,6 +140,70 @@ impl Preset {
 	};
 }
 
+pub type Gradient = [Rgb];
+
+pub mod gradients {
+	use super::Gradient;
+	use super::Rgb;
+
+	// Govan is WOKE
+	pub const LGBT: &Gradient = &[
+		Rgb(0xff, 0x00, 0x00),
+		Rgb(0xff, 0x88, 0x00),
+		Rgb(0xff, 0xee, 0x00),
+		Rgb(0x00, 0xaa, 0x00),
+		Rgb(0x22, 0x66, 0xcc),
+		Rgb(0xaa, 0x00, 0xaa),
+	];
+
+	pub const TRANS: &Gradient = &[
+		Rgb(0x77, 0xbb, 0xff),
+		Rgb(0x77, 0xbb, 0xff),
+		Rgb(0xff, 0x99, 0xaa),
+		Rgb(0xff, 0x99, 0xaa),
+		Rgb(0xff, 0xff, 0xff),
+		Rgb(0xff, 0xff, 0xff),
+		Rgb(0xff, 0x99, 0xaa),
+		Rgb(0xff, 0x99, 0xaa),
+		Rgb(0x77, 0xbb, 0xff),
+		Rgb(0x77, 0xbb, 0xff),
+	];
+
+	pub const BI: &Gradient = &[
+		Rgb(0xff, 0x00, 0x88),
+		Rgb(0xff, 0x00, 0x88),
+		Rgb(0xaa, 0x66, 0xaa),
+		Rgb(0x88, 0x00, 0xff),
+		Rgb(0x88, 0x00, 0xff),
+	];
+
+	pub const LESBIAN: &Gradient = &[
+		Rgb(0xff, 0x22, 0x00),
+		Rgb(0xff, 0x66, 0x44),
+		Rgb(0xff, 0xaa, 0x88),
+		Rgb(0xff, 0xff, 0xff),
+		Rgb(0xff, 0x88, 0xff),
+		Rgb(0xff, 0x44, 0xcc),
+		Rgb(0xff, 0x00, 0x88),
+	];
+
+	pub const ENBI: &Gradient = &[
+		Rgb(0xff, 0xff, 0x22),
+		Rgb(0xff, 0xff, 0xff),
+		Rgb(0x88, 0x44, 0xdd),
+		Rgb(0x33, 0x33, 0x33),
+	];
+
+	pub const PAN: &Gradient = &[
+		Rgb(0xff, 0x22, 0xcc),
+		Rgb(0xff, 0x22, 0xcc),
+		Rgb(0xff, 0xff, 0x22),
+		Rgb(0xff, 0xff, 0x22),
+		Rgb(0x22, 0xcc, 0xff),
+		Rgb(0x22, 0xcc, 0xff),
+	];
+}
+
 enum DrawData {
 	TextBlob {
 		data: skia_safe::TextBlob,
@@ -163,7 +238,11 @@ enum LineElement {
 const Y_SCALE: f32 = 1.5_f32;
 const FONT_SIZE: f32 = 92_f32;
 
-pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data, &'static str> {
+pub async fn create_image(
+	text: &str,
+	preset: &Preset,
+	gradient: Option<&Gradient>,
+) -> Result<skia_safe::Data, &'static str> {
 	let type_face = skia_safe::Typeface::from_name(
 		match preset.font {
 			Font::Garamond => "Adobe Garamond Pro",
@@ -201,9 +280,6 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 
 	let text_color = &preset.main_color;
 
-	let gradient: Option<Infallible> = None;
-	let _gradient_scale = 0.5; // We will use this later
-
 	let x0 = (X_OFFSET * w) + w / 2_f32;
 	let y0 = (Y_OFFSET * h) + h / 2_f32;
 	let scale = scale * SCALE_MODIFIER;
@@ -221,8 +297,9 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 	let vertical_offset = VERTICAL_OFFSET_MOD * scale / (blur_size - 1_f32);
 
 	let fill_style = if gradient.is_some() {
-		// Create gradient
-		skia_safe::Paint::default()
+		let gradient = create_gradient(gradient.unwrap(), w, Some(1_f32), Some(blur_tint));
+
+		skia_safe::Paint::default().set_shader(gradient).clone()
 	} else {
 		let color = text_color * blur_tint;
 		skia_safe::Paint::new(
@@ -275,8 +352,9 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 
 	// Gradient
 	let fill_style = if gradient.is_some() {
-		// Create gradient
-		skia_safe::Paint::default()
+		let gradient = create_gradient(gradient.unwrap(), w, Some(text_opacity), None);
+
+		skia_safe::Paint::default().set_shader(gradient).clone()
 	} else {
 		let mut color: skia_safe::Color4f = text_color.into();
 		color.a = text_opacity;
@@ -290,10 +368,12 @@ pub async fn create_image(text: &str, preset: &Preset) -> Result<skia_safe::Data
 	canvas.restore();
 
 	let encoding = skia_safe::EncodedImageFormat::PNG;
-	Ok(surface
-		.image_snapshot()
-		.encode(None, encoding, Some(100))
-		.unwrap())
+	Ok(
+		surface
+			.image_snapshot()
+			.encode(None, encoding, Some(100))
+			.unwrap(),
+	)
 }
 
 async fn create_caption_data(
@@ -498,7 +578,8 @@ async fn create_caption_data(
 	}
 
 	futures::future::join_all(
-		res.iter_mut()
+		res
+			.iter_mut()
 			.map(|l| futures::future::join_all(l.iter_mut().map(|p| p.convert()))),
 	)
 	.await;
@@ -607,6 +688,39 @@ async fn create_caption_data(
 		width: max_width,
 		height: total_height,
 	})
+}
+
+fn create_gradient(
+	gradient: &Gradient,
+	width: f32,
+	opacity: Option<f32>,
+	tint: Option<&Rgb>,
+) -> Option<skia_safe::Shader> {
+	skia_safe::gradient_shader::linear(
+		((-(width / 2_f32), 0_f32), (width / 2_f32, 0_f32)),
+		skia_safe::gradient_shader::GradientShaderColors::ColorsInSpace(
+			&gradient
+				.iter()
+				.map(|c| {
+					if let Some(tint) = tint {
+						(c * tint).into_color4f(opacity)
+					} else {
+						c.clone().into_color4f(opacity)
+					}
+				})
+				.collect::<Vec<_>>(),
+			None,
+		),
+		Some(
+			(0..gradient.len())
+				.map(|n| n as f32 / (gradient.len() - 1) as f32)
+				.collect::<Vec<_>>()
+				.as_slice(),
+		),
+		skia_safe::TileMode::Repeat,
+		None,
+		None,
+	)
 }
 
 fn draw_background(
@@ -746,7 +860,12 @@ async fn test_banner() -> Result<(), &'static str> {
 	use std::env;
 	env::set_current_dir("/mnt/lnxdata/data/code/sirgovan-rust/").unwrap();
 	logger::debug("Start");
-	let content = create_image("PAY OUT THE BELIEVERS", &Preset::BONFIRE_LIT).await?;
+	let content = create_image(
+		"PAY OUT THE BELIEVERS",
+		&Preset::BONFIRE_LIT,
+		Some(self::gradients::TRANS),
+	)
+	.await?;
 	logger::debug("End");
 	fs::write("res/tmp.png", content.as_bytes()).unwrap();
 
