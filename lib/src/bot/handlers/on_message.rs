@@ -107,7 +107,7 @@ impl Bot {
 				.allowed_commands
 				.contains(msg.channel_id.as_u64())
 			{
-				self.commander.read().await.parse(&ctx, &msg, self).await;
+				self.commander.lock().await.parse(&ctx, &msg, self).await;
 			}
 		}
 		None

@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 pub struct Bot {
 	data: RwLock<BotData>,
-	commander: RwLock<Commander>,
+	commander: Mutex<Commander>,
 	pin_lock: Mutex<ReactSafety>,
 	shard_manager: RwLock<Option<Arc<Mutex<ShardManager>>>>,
 	shutdown: Mutex<bool>,
@@ -25,9 +25,12 @@ pub struct Bot {
 
 impl Bot {
 	pub fn new(data: BotData) -> Bot {
+		let mut commander = Commander::new();
+		commander.register_all();
+
 		Bot {
 			data: RwLock::new(data),
-			commander: RwLock::new(Commander::new()),
+			commander: Mutex::new(commander),
 			pin_lock: Mutex::new(ReactSafety::default()),
 			shard_manager: RwLock::new(None),
 			shutdown: Mutex::new(false),

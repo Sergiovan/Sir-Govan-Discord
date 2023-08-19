@@ -1,18 +1,30 @@
+use std::convert::Infallible;
+
 pub mod bot;
 pub mod event_handler;
 pub mod util;
 
-pub async fn run(token: &str, beta: bool) {
+pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 	use serenity::prelude::*;
 
-	use crate::bot::data::BotData;
-	use crate::bot::Bot;
-	use crate::event_handler::BotEventHandler;
-	use crate::util::logger;
+	use bot::data::BotData;
+	use bot::Bot;
+	use event_handler::BotEventHandler;
+	use util::logger;
+	use util::ResultErrorHandler;
 
 	tracing_subscriber::fmt::init();
 
-	let bot = std::sync::Arc::new(Bot::new(BotData::new(beta)));
+	let mut bot_data = BotData::new(beta);
+
+	bot_data
+		.load_servers()
+		.ok_or_log("Could not load servers file")?;
+	bot_data
+		.load_no_context()
+		.ok_or_log("Could not load No Context Roles")?;
+
+	let bot = std::sync::Arc::new(Bot::new(bot_data));
 
 	// Set gateway intents, which decides what events the bot will be notified about
 	let intents = GatewayIntents::GUILDS
@@ -54,4 +66,6 @@ pub async fn run(token: &str, beta: bool) {
 			logger::error(&format!("Could not close down bot before a minute: {}", e));
 		}
 	}
+
+	None
 }
