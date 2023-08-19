@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
-use crate::bot::data::EmojiType;
 use crate::bot::Bot;
+use crate::data::EmojiType;
 
 use serenity::builder::CreateMessage;
 use serenity::model::prelude::*;

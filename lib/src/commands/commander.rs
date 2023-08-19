@@ -1,5 +1,5 @@
-use crate::bot::data::EmojiType;
 use crate::bot::Bot;
+use crate::data::EmojiType;
 use std::collections::HashMap;
 use std::convert::Infallible;
 

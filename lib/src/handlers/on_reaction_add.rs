@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
-use crate::bot::data;
-use crate::bot::data::EmojiType;
 use crate::bot::Bot;
+use crate::data;
+use crate::data::EmojiType;
 use crate::util;
 use crate::util::{logger, CacheGuild, ResultErrorHandler};
 
@@ -91,8 +91,8 @@ impl Bot {
 					required,
 					emoji_override: {
 						if let EmojiType::Unicode(emoji) = hall.get_emoji() {
-							if emoji.contains(crate::bot::data::emoji::PIN) {
-								Some(crate::bot::data::emoji::REDDIT_GOLD)
+							if emoji.contains(crate::data::emoji::PIN) {
+								Some(crate::data::emoji::REDDIT_GOLD)
 							} else {
 								None
 							}
@@ -150,7 +150,8 @@ impl Bot {
 		match action {
 			Action::None => None,
 			Action::DarkSouls(souls_type) => {
-				use crate::bot::helpers::text_banners;
+				use crate::helpers::text_banners;
+
 				let pin_lock = self.pin_lock.lock().await;
 				if !pin_lock
 					.locked_react(

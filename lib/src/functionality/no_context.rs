@@ -3,8 +3,8 @@ use std::convert::Infallible;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-use crate::bot::data::Server;
 use crate::bot::Bot;
+use crate::data::Server;
 use crate::util::{NickOrName, ResultErrorHandler};
 
 impl Bot {

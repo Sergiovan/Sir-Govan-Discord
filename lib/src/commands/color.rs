@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
-use crate::bot::commands::commander::Command;
 use crate::bot::Bot;
+use crate::commands::commander::Command;
 use crate::util::{self, logger, NickOrName, ResultErrorHandler, UniqueColorError};
 use serenity::model::prelude::*;
 use serenity::{async_trait, prelude::*};

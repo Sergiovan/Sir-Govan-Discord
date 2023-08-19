@@ -2,8 +2,8 @@ use serenity::model::prelude::*;
 use serenity::{async_trait, prelude::*};
 
 use super::commander::Arguments;
-use crate::bot::commands::commander::Command;
 use crate::bot::Bot;
+use crate::commands::commander::Command;
 
 use std::convert::Infallible;
 

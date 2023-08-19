@@ -1,14 +1,20 @@
 use std::convert::Infallible;
 
+pub(crate) mod commands;
+pub(crate) mod functionality;
+pub(crate) mod handlers;
+pub(crate) mod helpers;
+
 pub mod bot;
+pub mod data;
 pub mod event_handler;
 pub mod util;
 
 pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 	use serenity::prelude::*;
 
-	use bot::data::BotData;
 	use bot::Bot;
+	use data::BotData;
 	use event_handler::BotEventHandler;
 	use util::logger;
 	use util::ResultErrorHandler;

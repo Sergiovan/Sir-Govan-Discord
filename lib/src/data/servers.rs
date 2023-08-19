@@ -1,4 +1,4 @@
-use crate::bot::data::emoji;
+use crate::data::emoji;
 use serde::{Deserialize, Serialize};
 use serenity::model::prelude::ReactionType;
 

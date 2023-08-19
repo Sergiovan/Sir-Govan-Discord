@@ -2,45 +2,44 @@
 
 use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 use colored::Colorize;
-use once_cell::sync::Lazy;
+use lazy_static::lazy_static;
 
-use std::{cell::Cell, sync::Mutex};
+use std::sync::RwLock;
 
-static DAY: Lazy<Mutex<Cell<DateTime<Utc>>>> = Lazy::new(|| {
-	Mutex::new(Cell::new(
-		Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap(),
-	))
-});
+lazy_static! {
+	static ref DAY: RwLock<DateTime<Utc>> =
+		RwLock::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap());
+	static ref DEBUG_TEXT: String = format!("[{:7}]", "DEBUG".green());
+	static ref INFO_TEXT: String = format!("[{:7}]", "INFO".cyan());
+	static ref WARNING_TEXT: String = format!("[{:7}]", "WARNING".yellow());
+	static ref ERROR_TEXT: String = format!("[{:7}]", "ERROR".red());
+}
 
 pub fn debug(text: &str) {
-	static DEBUG_TEXT: Lazy<String> = Lazy::new(|| format!("[{:7}]", "DEBUG".green()));
-
 	print_message(Utc::now(), &DEBUG_TEXT, text);
 }
 
 pub fn info(text: &str) {
-	static INFO_TEXT: Lazy<String> = Lazy::new(|| format!("[{:7}]", "INFO".cyan()));
-
 	print_message(Utc::now(), &INFO_TEXT, text);
 }
 
 pub fn warning(text: &str) {
-	static WARNING_TEXT: Lazy<String> = Lazy::new(|| format!("[{:7}]", "WARNING".yellow()));
-
 	print_message(Utc::now(), &WARNING_TEXT, text);
 }
 
 pub fn error(text: &str) {
-	static WARNING_TEXT: Lazy<String> = Lazy::new(|| format!("[{:7}]", "ERROR".red()));
-
-	print_message(Utc::now(), &WARNING_TEXT, text);
+	print_message(Utc::now(), &ERROR_TEXT, text);
 }
 
 fn print_message(time: DateTime<Utc>, level: &str, text: &str) {
 	{
-		let mut day_lock = DAY.lock().expect("Could not lock day");
-		let day = day_lock.get_mut();
-		if day.day() != time.day() || day.month() != time.month() || day.year() != time.year() {
+		let day_passed = {
+			let day = DAY.read().expect("Could not lock day");
+			day.day() != time.day() || day.month() != time.month() || day.year() != time.year()
+		};
+
+		if day_passed {
+			let mut day = DAY.write().expect("Could not lock day");
 			if day.year() == 2000 {
 				println!("~~~~~~~ {} ~~~~~~~", time.format("%Y-%m-%d"));
 				*day = time;
@@ -52,6 +51,7 @@ fn print_message(time: DateTime<Utc>, level: &str, text: &str) {
 			}
 		}
 	}
+
 	let time_str = time.format("%H:%M:%S%.3f");
 	println!("[{}]{} {}", time_str, level, text);
 }

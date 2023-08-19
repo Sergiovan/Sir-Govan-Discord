@@ -1,26 +1,20 @@
-mod commands;
-mod functionality;
-mod handlers;
-mod helpers;
-
-pub mod data;
 use serenity::client::bridge::gateway::ShardManager;
 use serenity::prelude::*;
 
-use self::commands::commander::Commander;
-use self::data::BotData;
-use self::helpers::react_locks::ReactSafety;
-use self::helpers::screenshotter::Screenshotter;
+use super::commands::commander::Commander;
+use super::data::BotData;
+use super::helpers::react_locks::ReactSafety;
+use super::helpers::screenshotter::Screenshotter;
 use super::util::ResultErrorHandler;
 use std::sync::Arc;
 
 pub struct Bot {
-	data: RwLock<BotData>,
-	commander: Mutex<Commander>,
-	pin_lock: Mutex<ReactSafety>,
-	shard_manager: RwLock<Option<Arc<Mutex<ShardManager>>>>,
-	shutdown: Mutex<bool>,
-	screenshotter: RwLock<Option<Screenshotter>>,
+	pub(crate) data: RwLock<BotData>,
+	pub(crate) commander: Mutex<Commander>,
+	pub(crate) pin_lock: Mutex<ReactSafety>,
+	pub(crate) shard_manager: RwLock<Option<Arc<Mutex<ShardManager>>>>,
+	pub(crate) shutdown: Mutex<bool>,
+	pub(crate) screenshotter: RwLock<Option<Screenshotter>>,
 }
 
 impl Bot {

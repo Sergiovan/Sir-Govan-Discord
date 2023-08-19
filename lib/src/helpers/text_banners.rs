@@ -396,7 +396,7 @@ async fn create_caption_data(
 
 	impl LineElementRaw {
 		async fn convert(self) -> LineElement {
-			use crate::bot::data::config;
+			use crate::data::config;
 
 			async fn url_to_filesystem(
 				url: &str,
