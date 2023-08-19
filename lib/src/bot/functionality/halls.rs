@@ -103,8 +103,7 @@ impl Bot {
 					Embed::Nothing
 				},
 			};
-			dest
-				.send_message(&ctx, |b| self.make_pin(b, pin_data))
+			dest.send_message(&ctx, |b| self.make_pin(b, pin_data))
 				.await
 				.log_if_err(&format!(
 					"Error while sending pin of {} to {}",

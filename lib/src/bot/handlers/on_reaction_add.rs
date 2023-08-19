@@ -10,7 +10,11 @@ use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
-	pub async fn on_reaction_add(&self, ctx: Context, add_reaction: Reaction) -> Option<Infallible> {
+	pub async fn on_reaction_add(
+		&self,
+		ctx: Context,
+		add_reaction: Reaction,
+	) -> Option<Infallible> {
 		let reactor = add_reaction.user(&ctx).await.ok_or_log(&format!(
 			"Could not determine reactor for reaction {:?}",
 			add_reaction
@@ -242,8 +246,7 @@ impl Bot {
 					return None;
 				}
 
-				self
-					.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
+				self.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
 					.await;
 				None
 			}

@@ -47,8 +47,7 @@ fn color<'a>(
 				return None;
 			}
 			UniqueColorError::NoColoredRole => {
-				msg
-					.reply(&ctx, "It seems you have no proper role to color")
+				msg.reply(&ctx, "It seems you have no proper role to color")
 					.await
 					.log_if_err(&format!("Error replying to {}", msg.id));
 				return None;
@@ -61,13 +60,12 @@ fn color<'a>(
 	match color {
 		None => {
 			// We say
-			msg
-				.reply(
-					&ctx,
-					&format!("Your current color is #{:06X}", top_role.colour.0),
-				)
-				.await
-				.ok_or_log(&format!("Error replying to {}", msg.id))?;
+			msg.reply(
+				&ctx,
+				&format!("Your current color is #{:06X}", top_role.colour.0),
+			)
+			.await
+			.ok_or_log(&format!("Error replying to {}", msg.id))?;
 		}
 		Some(s) => {
 			let color = if s.to_lowercase() == "random" {
@@ -80,8 +78,7 @@ fn color<'a>(
                         return None;
                     };
 				if hash > 0xFFFFFF {
-					msg
-						.reply(&ctx, "That hex is too large")
+					msg.reply(&ctx, "That hex is too large")
 						.await
 						.log_if_err(&format!("Error replying to {}", msg.id));
 					return None;
@@ -105,13 +102,12 @@ fn color<'a>(
 						color,
 						e
 					));
-					msg
-						.reply(
-							&ctx,
-							"Something went wrong. Could not change your role color",
-						)
-						.await
-						.ok_or_log(&format!("Error replying to {}", msg.id))?
+					msg.reply(
+						&ctx,
+						"Something went wrong. Could not change your role color",
+					)
+					.await
+					.ok_or_log(&format!("Error replying to {}", msg.id))?
 				}
 			};
 		}

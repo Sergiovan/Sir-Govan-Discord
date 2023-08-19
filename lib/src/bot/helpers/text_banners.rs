@@ -368,12 +368,10 @@ pub async fn create_image(
 	canvas.restore();
 
 	let encoding = skia_safe::EncodedImageFormat::PNG;
-	Ok(
-		surface
-			.image_snapshot()
-			.encode(None, encoding, Some(100))
-			.unwrap(),
-	)
+	Ok(surface
+		.image_snapshot()
+		.encode(None, encoding, Some(100))
+		.unwrap())
 }
 
 async fn create_caption_data(
@@ -400,7 +398,11 @@ async fn create_caption_data(
 		async fn convert(self) -> LineElement {
 			use crate::bot::data::config;
 
-			async fn url_to_filesystem(url: &str, base: &str, filename: &str) -> Option<std::path::PathBuf> {
+			async fn url_to_filesystem(
+				url: &str,
+				base: &str,
+				filename: &str,
+			) -> Option<std::path::PathBuf> {
 				let path = path::Path::new(config::DATA_PATH)
 					.join(config::SAVED_DIR)
 					.join(base)
@@ -574,8 +576,7 @@ async fn create_caption_data(
 	}
 
 	futures::future::join_all(
-		res
-			.iter_mut()
+		res.iter_mut()
 			.map(|l| futures::future::join_all(l.iter_mut().map(|p| p.convert()))),
 	)
 	.await;
@@ -836,7 +837,10 @@ fn draw_caption(
 					data,
 					None,
 					skia_safe::Rect::new(x, top, x + width, top + height / Y_SCALE),
-					skia_safe::SamplingOptions::new(skia_safe::FilterMode::Linear, skia_safe::MipmapMode::Linear),
+					skia_safe::SamplingOptions::new(
+						skia_safe::FilterMode::Linear,
+						skia_safe::MipmapMode::Linear,
+					),
 					paint,
 				);
 				x += width;

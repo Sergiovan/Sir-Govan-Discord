@@ -202,7 +202,9 @@ impl<'a> Arguments<'a> {
 					Some(_) | None => Some(Argument::String(arg)),
 				}
 			} // Maybe Channel, Role, User
-			Some(_) if IS_EMOJI.is_match(arg) => Some(Argument::Emoji(EmojiType::Unicode(arg.to_string()))),
+			Some(_) if IS_EMOJI.is_match(arg) => {
+				Some(Argument::Emoji(EmojiType::Unicode(arg.to_string())))
+			}
 			Some(_) => Some(Argument::String(arg)),
 			None => None,
 		}
@@ -256,8 +258,7 @@ impl<'a> Arguments<'a> {
 
 	pub fn channel(&mut self, ctx: &Context, guild_id: u64) -> Option<GuildChannel> {
 		let ch = self.channel_id()?;
-		ctx
-			.cache
+		ctx.cache
 			.guild_channel(ch)
 			.filter(|x| x.guild_id == guild_id)
 	}
@@ -301,8 +302,7 @@ impl<'a> Arguments<'a> {
 
 	pub fn guild_emoji(&mut self, ctx: &Context, guild_id: u64) -> Option<Emoji> {
 		let EmojiType::Discord(emoji) = self.emoji()? else { return None };
-		ctx
-			.cache
+		ctx.cache
 			.guild(guild_id)
 			.and_then(|g| g.emojis.get(&emoji.into()).cloned())
 	}

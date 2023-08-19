@@ -75,8 +75,7 @@ impl Bot {
 			log(&ctx, &msg).await;
 		} else {
 			let server = bot_data.servers.get(
-				msg
-					.guild_id
+				msg.guild_id
 					.expect("Guild did not exist outside of DMs")
 					.as_u64(),
 			)?;

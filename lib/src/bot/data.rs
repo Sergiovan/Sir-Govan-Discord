@@ -85,8 +85,7 @@ pub mod config {
 
 	impl<const N: char> Hall<N> {
 		pub fn get_emoji(&self) -> EmojiType {
-			self
-				.emoji
+			self.emoji
 				.clone()
 				.unwrap_or(EmojiType::Unicode(N.to_string()))
 		}

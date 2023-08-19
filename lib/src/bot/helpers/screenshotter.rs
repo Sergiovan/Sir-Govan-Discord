@@ -92,8 +92,7 @@ impl Screenshotter {
 		width: Option<f64>,
 		height: Option<f64>,
 	) -> Result<Vec<u8>, Box<dyn Error>> {
-		self
-			.tab
+		self.tab
 			.set_bounds(headless_chrome::types::Bounds::Normal {
 				left: None,
 				top: None,
@@ -119,8 +118,7 @@ impl Screenshotter {
 		width: Option<f64>,
 		height: Option<f64>,
 	) -> anyhow::Result<Vec<u8>> {
-		self
-			.tab
+		self.tab
 			.evaluate(
 				&format!(
 					r#"(function(){{
@@ -147,8 +145,7 @@ impl Screenshotter {
 		const MAX_HEIGHT: f64 = 1920_f64;
 		let height = Some(capture_box.height.clamp(min_height, MAX_HEIGHT));
 
-		self
-			.tab
+		self.tab
 			.set_bounds(headless_chrome::types::Bounds::Normal {
 				left: None,
 				top: None,

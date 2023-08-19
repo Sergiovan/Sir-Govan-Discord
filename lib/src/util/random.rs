@@ -50,8 +50,7 @@ pub struct GrabBag<T> {
 
 impl<T> GrabBag<T> {
 	fn total_chance(&self) -> Ratio<ChanceType> {
-		self
-			.tiers
+		self.tiers
 			.last()
 			.map(|x| x.rarity)
 			.unwrap_or(Ratio::default())
@@ -88,7 +87,11 @@ impl<T> GrabBag<T> {
 		self.pick_biased_or(bias, &self.default)
 	}
 
-	pub fn pick_biased_or<'a, R: Into<Ratio<ChanceType>>>(&'a self, bias: R, default: &'a T) -> &'a T {
+	pub fn pick_biased_or<'a, R: Into<Ratio<ChanceType>>>(
+		&'a self,
+		bias: R,
+		default: &'a T,
+	) -> &'a T {
 		self.inner_pick(bias.into()).unwrap_or(default)
 	}
 }
