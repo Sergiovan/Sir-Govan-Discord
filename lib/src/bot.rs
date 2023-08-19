@@ -39,13 +39,18 @@ impl Bot {
 		*self.shard_manager.write().await = Some(shard_manager)
 	}
 
-	pub async fn init_screenshotter(&self) -> bool {
-		let screenshotter = Screenshotter::new().ok_or_log("Could not load screenshotter data");
+	pub async fn get_screenshotter(&self) -> tokio::sync::RwLockReadGuard<Option<Screenshotter>> {
+		{
+			let lock = self.screenshotter.read().await;
+			if lock.is_some() {
+				return lock;
+			}
+		}
 
-		let res = screenshotter.is_some();
+		let screenshotter = Screenshotter::new().ok_or_log("Could not load screenshotter data");
 
 		*self.screenshotter.write().await = screenshotter;
 
-		res
+		self.screenshotter.read().await
 	}
 }

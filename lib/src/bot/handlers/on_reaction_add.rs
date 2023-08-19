@@ -52,12 +52,16 @@ impl Bot {
 		}
 
 		enum Action {
+			DarkSouls(DarkSoulsType),
+			Retweet {
+				with_context: bool,
+				verified_role: Option<u64>,
+			},
 			Pin {
 				destination_id: u64,
 				required: usize,
 				emoji_override: Option<EmojiType>,
 			},
-			DarkSouls(DarkSoulsType),
 			None,
 		}
 
@@ -128,6 +132,14 @@ impl Bot {
 					EmojiType::Unicode(ref code) => match code.as_str() {
 						data::emoji::FIRE_HEART => Action::DarkSouls(DarkSoulsType::FireHeart),
 						data::emoji::HEADSTONE => Action::DarkSouls(DarkSoulsType::Headstone),
+						data::emoji::REPEAT => Action::Retweet {
+							with_context: true,
+							verified_role: server.no_context.as_ref().map(|c| c.role),
+						},
+						data::emoji::REPEAT_ONCE => Action::Retweet {
+							with_context: false,
+							verified_role: server.no_context.as_ref().map(|c| c.role),
+						},
 						_ => Action::None,
 					},
 					EmojiType::Discord(_) => Action::None,
@@ -215,6 +227,27 @@ impl Bot {
 					.await
 					.log_if_err("Sending donk blonk failed");
 				None
+			}
+			Action::Retweet {
+				with_context,
+				verified_role,
+			} => {
+				let pin_lock = self.pin_lock.lock().await;
+				if !pin_lock
+					.locked_react(
+						&ctx,
+						&msg,
+						&add_reaction,
+						None,
+						Some(std::time::Duration::from_secs(60 * 30)),
+					)
+					.await
+				{
+					return None;
+				}
+
+				self.maybe_retweet(ctx, msg, add_reaction, with_context, verified_role)
+					.await
 			}
 			Action::Pin {
 				destination_id,

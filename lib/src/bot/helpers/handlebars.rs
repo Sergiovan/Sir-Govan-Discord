@@ -48,9 +48,9 @@ pub struct TweetData {
 	pub year: String,
 	pub client: String,
 	pub any_numbers: bool,
-	pub retweets: String,
-	pub quotes: String,
-	pub likes: String,
+	pub retweets: Option<String>,
+	pub quotes: Option<String>,
+	pub likes: Option<String>,
 	pub more_tweets: Vec<TweetMoreData>,
 
 	pub theme: Option<TweetTheme>,
