@@ -1,3 +1,7 @@
+use lazy_static::lazy_static;
+
+use crate::util::random::{GrabBag, GrabBagBuilder, GrabBagTier};
+
 pub struct Handlebar<'a> {
 	handlebar: handlebars::Handlebars<'a>,
 }
@@ -7,10 +11,23 @@ impl<'a> Handlebar<'a> {
 	const FAKE_TWITTER: &str = "fake_twitter";
 
 	pub fn new() -> anyhow::Result<Handlebar<'a>> {
+		use crate::data::config;
+		use std::path::Path;
 		let mut handlebar = handlebars::Handlebars::new();
 
-		handlebar.register_template_file(Self::ALWAYS_SUNNY, "res/html/titlecard.hbs")?;
-		handlebar.register_template_file(Self::FAKE_TWITTER, "res/html/tweet.hbs")?;
+		handlebar.register_template_file(
+			Self::ALWAYS_SUNNY,
+			Path::new(config::RESOURCE_PATH)
+				.join(config::HTML_DIR)
+				.join(config::ALWAYS_SUNNY_HBS),
+		)?;
+
+		handlebar.register_template_file(
+			Self::FAKE_TWITTER,
+			Path::new(config::RESOURCE_PATH)
+				.join(config::HTML_DIR)
+				.join(config::FAKE_TWITTER_HBS),
+		)?;
 
 		Ok(Handlebar { handlebar })
 	}
@@ -22,6 +39,16 @@ impl<'a> Handlebar<'a> {
 	pub fn twitter(&self, data: TweetData) -> Result<String, handlebars::RenderError> {
 		self.handlebar.render(Self::FAKE_TWITTER, &data)
 	}
+}
+
+lazy_static! {
+	static ref TWEET_THEME_GRAB_BAG: GrabBag<TweetTheme> = GrabBagBuilder::new()
+		.rare(GrabBagTier::maybe_rare(Some(vec![
+			TweetTheme::Light,
+			TweetTheme::Dark
+		])))
+		.finish(Some(TweetTheme::Dim), None)
+		.unwrap();
 }
 
 #[derive(serde::Serialize)]

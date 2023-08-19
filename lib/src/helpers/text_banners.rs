@@ -401,7 +401,7 @@ async fn create_caption_data(
 				base: &str,
 				filename: &str,
 			) -> Option<std::path::PathBuf> {
-				let path = path::Path::new(config::DATA_PATH)
+				let path = path::Path::new(config::RESOURCE_PATH)
 					.join(config::SAVED_DIR)
 					.join(base)
 					.join(filename);
@@ -445,7 +445,7 @@ async fn create_caption_data(
 			}
 
 			lazy_static! {
-				static ref FALLBACK_IMAGE: path::PathBuf = path::Path::new(config::DATA_PATH)
+				static ref FALLBACK_IMAGE: path::PathBuf = path::Path::new(config::RESOURCE_PATH)
 					.join(config::MEDIA_DIR)
 					.join(config::FALLBACK_IMAGE);
 			}

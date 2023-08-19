@@ -1,0 +1,18 @@
+# For string names see lib/src/data/strings
+[string_name]
+	# Value used if no other can be chosen
+	default = "Default value"
+	# Ratio modifier for chances [numerator, denominator]
+	# e.g if [1, 2] then all odds are halved. Letting the total odds go above 100% will cause an error
+	modifier = [1, 1] 
+
+	# Common choices. Chance = 75%
+	common = ["Common", "Choices"]
+	# Uncommon choices. Chance = 20%
+	uncommon = ["Uncommon", "Choices"]
+	# Rare choices. Chance = 4%
+	rare = ["Rare", "Choices"] 
+	# Mythical choices. Chance = 0.99%
+	mythical = ["Mythical", "Choices"] 
+	# WTF choices. Chance = 0.01%
+	wtf = ["WTF", "Choices"] 

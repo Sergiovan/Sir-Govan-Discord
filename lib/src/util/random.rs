@@ -4,6 +4,7 @@ use rand::{
 	seq::SliceRandom,
 	Rng,
 };
+use thiserror::Error;
 
 pub fn from_range<T, R>(range: R) -> T
 where
@@ -25,8 +26,15 @@ pub fn pick_or<'a, T>(elems: &'a Vec<T>, default: &'a T) -> &'a T {
 	elems.choose(&mut rand::thread_rng()).unwrap_or(default)
 }
 
-type ChanceType = u32;
+pub type ChanceType = u32;
 const CHANGE_GRANULARITY: u32 = 1_000_000;
+
+pub const DEFAULT_CHANCE_TOTAL: ChanceType = 10000; // 100%
+pub const COMMON_CHANCE: Ratio<ChanceType> = Ratio::new_raw(7500, DEFAULT_CHANCE_TOTAL); // 75%
+pub const UNCOMMON_CHANCE: Ratio<ChanceType> = Ratio::new_raw(2000, DEFAULT_CHANCE_TOTAL); // 20%
+pub const RARE_CHANCE: Ratio<ChanceType> = Ratio::new_raw(400, DEFAULT_CHANCE_TOTAL); // 4%
+pub const MYTHICAL_CHANCE: Ratio<ChanceType> = Ratio::new_raw(99, DEFAULT_CHANCE_TOTAL); // 0.99%
+pub const WTF_CHANCE: Ratio<ChanceType> = Ratio::new_raw(1, DEFAULT_CHANCE_TOTAL); // 0.01%
 
 pub struct GrabBagTier<T> {
 	elems: Vec<T>,
@@ -34,17 +42,48 @@ pub struct GrabBagTier<T> {
 }
 
 impl<T> GrabBagTier<T> {
-	pub fn maybe_new(elems: Vec<T>, rarity: Ratio<ChanceType>) -> Option<GrabBagTier<T>> {
-		if elems.is_empty() || rarity == Ratio::default() {
+	pub fn maybe_new(elems: Option<Vec<T>>, rarity: Ratio<ChanceType>) -> Option<GrabBagTier<T>> {
+		let vec = elems?;
+		if vec.is_empty() || rarity == Ratio::default() {
 			None
 		} else {
-			Some(GrabBagTier { elems, rarity })
+			Some(GrabBagTier { elems: vec, rarity })
 		}
+	}
+
+	pub fn maybe_common(elems: Option<Vec<T>>) -> Option<GrabBagTier<T>> {
+		Self::maybe_new(elems, COMMON_CHANCE.reduced())
+	}
+
+	pub fn maybe_uncommon(elems: Option<Vec<T>>) -> Option<GrabBagTier<T>> {
+		Self::maybe_new(elems, UNCOMMON_CHANCE.reduced())
+	}
+
+	pub fn maybe_rare(elems: Option<Vec<T>>) -> Option<GrabBagTier<T>> {
+		Self::maybe_new(elems, RARE_CHANCE.reduced())
+	}
+
+	pub fn maybe_mythical(elems: Option<Vec<T>>) -> Option<GrabBagTier<T>> {
+		Self::maybe_new(elems, MYTHICAL_CHANCE.reduced())
+	}
+
+	pub fn maybe_wtf(elems: Option<Vec<T>>) -> Option<GrabBagTier<T>> {
+		Self::maybe_new(elems, WTF_CHANCE.reduced())
 	}
 }
 
+static_assertions::const_assert_eq!(
+	DEFAULT_CHANCE_TOTAL,
+	*COMMON_CHANCE.numer()
+		+ *UNCOMMON_CHANCE.numer()
+		+ *RARE_CHANCE.numer()
+		+ *MYTHICAL_CHANCE.numer()
+		+ *WTF_CHANCE.numer()
+);
+
+#[derive(Default)]
 pub struct GrabBag<T> {
-	default: T,
+	default: Option<T>,
 	tiers: Vec<GrabBagTier<T>>,
 }
 
@@ -75,16 +114,24 @@ impl<T> GrabBag<T> {
 		None
 	}
 
-	pub fn pick(&self) -> &T {
-		self.pick_or(&self.default)
+	pub fn raw_pick(&self) -> Option<&T> {
+		self.inner_pick(Ratio::new(1, 1))
+	}
+
+	pub fn pick(&self) -> Option<&T> {
+		self.raw_pick().or(self.default.as_ref())
 	}
 
 	pub fn pick_or<'a>(&'a self, default: &'a T) -> &'a T {
-		self.inner_pick(Ratio::new(1, 1)).unwrap_or(default)
+		self.raw_pick().unwrap_or(default)
 	}
 
-	pub fn pick_biased<R: Into<Ratio<ChanceType>>>(&self, bias: R) -> &T {
-		self.pick_biased_or(bias, &self.default)
+	pub fn raw_pick_biased<R: Into<Ratio<ChanceType>>>(&self, bias: R) -> Option<&T> {
+		self.inner_pick(bias.into())
+	}
+
+	pub fn pick_biased<R: Into<Ratio<ChanceType>>>(&self, bias: R) -> Option<&T> {
+		self.raw_pick_biased(bias).or(self.default.as_ref())
 	}
 
 	pub fn pick_biased_or<'a, R: Into<Ratio<ChanceType>>>(
@@ -92,18 +139,18 @@ impl<T> GrabBag<T> {
 		bias: R,
 		default: &'a T,
 	) -> &'a T {
-		self.inner_pick(bias.into()).unwrap_or(default)
+		self.raw_pick_biased(bias).unwrap_or(default)
 	}
 }
 
-impl<'a> From<&'a GrabBag<String>> for &'a str {
-	fn from(value: &'a GrabBag<String>) -> Self {
-		value.pick()
+#[derive(Debug, Clone, Error)]
+pub struct GrabBagBuilderError(Ratio<ChanceType>);
+
+impl std::fmt::Display for GrabBagBuilderError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "Ratio was greater than 1: {}", self.0)
 	}
 }
-
-#[derive(Debug, Clone)]
-pub struct GrabBagBuilderError;
 
 pub struct GrabBagBuilder<
 	T,
@@ -113,7 +160,6 @@ pub struct GrabBagBuilder<
 	const MYTHICAL: bool,
 	const WTF: bool,
 > {
-	total_chance: ChanceType,
 	common: Option<GrabBagTier<T>>,
 	uncommon: Option<GrabBagTier<T>>,
 	rare: Option<GrabBagTier<T>>,
@@ -121,16 +167,9 @@ pub struct GrabBagBuilder<
 	wtf: Option<GrabBagTier<T>>,
 }
 
-impl<T, const A: bool, const B: bool, const C: bool, const D: bool, const E: bool>
-	GrabBagBuilder<T, A, B, C, D, E>
-{
-	pub fn new(chances: ChanceType) -> GrabBagBuilder<T, false, false, false, false, false> {
-		if chances == 0 {
-			panic!("Total chance cannot be 0");
-		}
-
+impl<T> GrabBagBuilder<T, false, false, false, false, false> {
+	pub fn new() -> GrabBagBuilder<T, false, false, false, false, false> {
 		GrabBagBuilder {
-			total_chance: chances,
 			common: None,
 			uncommon: None,
 			rare: None,
@@ -138,12 +177,21 @@ impl<T, const A: bool, const B: bool, const C: bool, const D: bool, const E: boo
 			wtf: None,
 		}
 	}
+}
 
+impl<T> Default for GrabBagBuilder<T, false, false, false, false, false> {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
+impl<T, const A: bool, const B: bool, const C: bool, const D: bool, const E: bool>
+	GrabBagBuilder<T, A, B, C, D, E>
+{
 	fn blink<const AA: bool, const BB: bool, const CC: bool, const DD: bool, const EE: bool>(
 		self,
 	) -> GrabBagBuilder<T, AA, BB, CC, DD, EE> {
 		GrabBagBuilder {
-			total_chance: self.total_chance,
 			common: self.common,
 			uncommon: self.uncommon,
 			rare: self.rare,
@@ -152,7 +200,11 @@ impl<T, const A: bool, const B: bool, const C: bool, const D: bool, const E: boo
 		}
 	}
 
-	pub fn finish(self, default: T) -> Result<GrabBag<T>, GrabBagBuilderError> {
+	pub fn finish(
+		self,
+		default: Option<T>,
+		chance_modifier: Option<Ratio<ChanceType>>,
+	) -> Result<GrabBag<T>, GrabBagBuilderError> {
 		let mut collected: Ratio<ChanceType> = 0.into();
 		let res = GrabBag {
 			default,
@@ -166,7 +218,7 @@ impl<T, const A: bool, const B: bool, const C: bool, const D: bool, const E: boo
 			.into_iter()
 			.flatten()
 			.map(move |x| {
-				collected += x.rarity;
+				collected += x.rarity * chance_modifier.unwrap_or(Ratio::new(1, 1));
 
 				GrabBagTier {
 					elems: x.elems,
@@ -177,7 +229,7 @@ impl<T, const A: bool, const B: bool, const C: bool, const D: bool, const E: boo
 		};
 
 		if res.total_chance() > Ratio::new(1, 1) {
-			Err(GrabBagBuilderError)
+			Err(GrabBagBuilderError(res.total_chance()))
 		} else {
 			Ok(res)
 		}

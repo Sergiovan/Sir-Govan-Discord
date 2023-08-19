@@ -2,6 +2,7 @@ pub mod config;
 pub mod emoji;
 pub mod regex;
 pub mod servers;
+pub mod strings;
 
 use std::collections::{HashMap, HashSet};
 
@@ -10,6 +11,8 @@ pub use servers::Hall;
 pub use servers::NoContext;
 
 use crate::util::random;
+
+use thiserror::Error;
 
 #[derive(Debug)]
 pub struct Channels {
@@ -79,9 +82,51 @@ impl From<servers::Server> for Server {
 	}
 }
 
+#[derive(Debug, Error)]
+pub struct StringsConversionError {
+	original: random::GrabBagBuilderError,
+	string_name: String,
+}
+
+impl std::fmt::Display for StringsConversionError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(
+			f,
+			"Error while converting {}: {}",
+			self.string_name, self.original
+		)
+	}
+}
+
+type StringBag = random::GrabBag<String>;
+
+#[derive(Default)]
+pub struct Strings {
+	nickname: StringBag,
+}
+
+macro_rules! convert {
+	($value:expr, $($iden:ident),*) => {
+    Strings {
+      $($iden: $value.$iden.try_into().map_err(|e| StringsConversionError{
+        original: e, string_name: stringify!($iden).to_string()
+      })?,)*
+    }
+  };
+}
+
+impl TryFrom<strings::Strings> for Strings {
+	type Error = StringsConversionError;
+
+	fn try_from(value: strings::Strings) -> Result<Self, Self::Error> {
+		Ok(convert!(value, nickname))
+	}
+}
+
 pub struct BotData {
 	pub servers: HashMap<u64, Server>,
 	pub beta: bool,
+	pub strings: Strings,
 
 	no_context_strings: Vec<String>,
 }
@@ -91,6 +136,7 @@ impl BotData {
 		BotData {
 			servers: HashMap::new(),
 			beta,
+			strings: Strings::default(),
 			no_context_strings: vec![],
 		}
 	}
@@ -99,7 +145,7 @@ impl BotData {
 		use std::fs;
 		use std::path::Path;
 
-		let settings_path = Path::new(config::DATA_PATH).join(config::SETTINGS_FILE);
+		let settings_path = Path::new(config::RESOURCE_PATH).join(config::SETTINGS_FILE);
 		let data = fs::read_to_string(settings_path)?;
 
 		let servers: servers::Servers = toml::from_str(&data)?;
@@ -119,11 +165,24 @@ impl BotData {
 		use std::fs;
 		use std::path::Path;
 
-		let settings_path = Path::new(config::DATA_PATH).join(config::NO_CONTEXT_FILE);
+		let settings_path = Path::new(config::RESOURCE_PATH).join(config::NO_CONTEXT_FILE);
 		let data = fs::read_to_string(settings_path)?;
 		let data = data.lines();
 
 		self.no_context_strings = data.map(str::to_string).collect();
+
+		Ok(())
+	}
+
+	pub fn load_strings(&mut self) -> anyhow::Result<()> {
+		use std::fs;
+		use std::path::Path;
+
+		let strings_path = Path::new(config::RESOURCE_PATH).join(config::STRINGS_FILE);
+		let data = fs::read_to_string(strings_path)?;
+
+		let strings: strings::Strings = toml::from_str(&data)?;
+		self.strings = strings.try_into()?;
 
 		Ok(())
 	}

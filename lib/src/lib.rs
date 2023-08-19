@@ -24,12 +24,16 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 
 	let mut bot_data = BotData::new(beta);
 
+	// TODO Separate these into their own check function
 	bot_data
 		.load_servers()
 		.ok_or_log("Could not load servers file")?;
 	bot_data
 		.load_no_context()
 		.ok_or_log("Could not load No Context Roles")?;
+	bot_data
+		.load_strings()
+		.ok_or_log("Could not load Strings")?;
 
 	let bot = std::sync::Arc::new(Bot::new(bot_data));
 
