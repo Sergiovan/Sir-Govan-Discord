@@ -10,12 +10,8 @@ use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
-	pub async fn on_reaction_add(
-		&self,
-		ctx: Context,
-		add_reaction: Reaction,
-	) -> Option<Infallible> {
-		let reactor = add_reaction.user(&ctx).await.unwrap_or_log(&format!(
+	pub async fn on_reaction_add(&self, ctx: Context, add_reaction: Reaction) -> Option<Infallible> {
+		let reactor = add_reaction.user(&ctx).await.ok_or_log(&format!(
 			"Could not determine reactor for reaction {:?}",
 			add_reaction
 		))?;
@@ -24,13 +20,10 @@ impl Bot {
 			return None;
 		}
 
-		let msg = add_reaction
-			.message(&ctx.http)
-			.await
-			.unwrap_or_log(&format!(
-				"Message {} that was reacted to with {} could not be fetched",
-				add_reaction.message_id, add_reaction.emoji
-			))?;
+		let msg = add_reaction.message(&ctx.http).await.ok_or_log(&format!(
+			"Message {} that was reacted to with {} could not be fetched",
+			add_reaction.message_id, add_reaction.emoji
+		))?;
 
 		if !msg.guild_cached(&ctx).await {
 			return None;
@@ -42,7 +35,7 @@ impl Bot {
 
 		// So, msg.is_private() won't work because messages fetched through the REST API don't come with
 		// a guild_id, which means msg.is_private() will always be true
-		let this_channel = msg.channel(&ctx).await.unwrap_or_log(&format!(
+		let this_channel = msg.channel(&ctx).await.ok_or_log(&format!(
 			"Message {}'s channel {} could not be fetched",
 			msg.id, msg.channel_id
 		))?;
@@ -141,7 +134,7 @@ impl Bot {
 		match action {
 			Action::None => None,
 			Action::DarkSouls(souls_type) => {
-				use crate::bot::functionality::text_banners;
+				use crate::bot::helpers::text_banners;
 				let pin_lock = self.pin_lock.lock().await;
 				if !pin_lock
 					.locked_react(
@@ -209,7 +202,7 @@ impl Bot {
 
 				let data = text_banners::create_image(&msg.content, &preset, gradient)
 					.await
-					.unwrap_or_log("Error creating Dark Souls banner")?;
+					.ok_or_log("Error creating Dark Souls banner")?;
 				this_channel
 					.send_message(&ctx, |b| {
 						b.add_file((data.as_bytes(), "donk_blonk.png"))
@@ -229,7 +222,10 @@ impl Bot {
 					None => match ctx.http.get_channel(destination_id).await {
 						Ok(Channel::Guild(channel)) => channel,
 						Ok(c) => {
-							logger::error(&format!("Channel {} for hall emoji {} is misconfigured, not a guild channel: {}", destination_id, add_reaction.emoji, c));
+							logger::error(&format!(
+								"Channel {} for hall emoji {} is misconfigured, not a guild channel: {}",
+								destination_id, add_reaction.emoji, c
+							));
 							return None;
 						}
 						Err(e) => {
@@ -246,7 +242,8 @@ impl Bot {
 					return None;
 				}
 
-				self.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
+				self
+					.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
 					.await;
 				None
 			}

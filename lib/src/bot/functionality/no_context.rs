@@ -12,7 +12,8 @@ impl Bot {
 		server.no_context.as_ref().is_some_and(|nc| {
 			ctx.cache.guild_channel(nc.channel).is_some_and(|c| {
 				c.guild_id == server.id
-					&& c.permissions_for_user(ctx, ctx.cache.current_user())
+					&& c
+						.permissions_for_user(ctx, ctx.cache.current_user())
 						.is_ok_and(|p| p.send_messages())
 			}) && ctx.cache.role(server.id, nc.role).is_some()
 		}) && msg.content.len() <= 280
@@ -50,7 +51,7 @@ impl Bot {
 				b.content(&msg.content)
 			})
 			.await
-			.unwrap_or_log(&format!(
+			.ok_or_log(&format!(
 				"Could not post message {} to {}",
 				msg.id, channel.name
 			))?;
@@ -72,7 +73,8 @@ impl Bot {
 		}
 
 		let new_role_name = self.data.read().await.random_no_context();
-		role.edit(&ctx, |r| r.name(&new_role_name))
+		role
+			.edit(&ctx, |r| r.name(&new_role_name))
 			.await
 			.log_if_err(&format!(
 				"Could not rename no-context role {} from {} to {}",

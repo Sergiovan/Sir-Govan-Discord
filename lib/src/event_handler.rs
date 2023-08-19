@@ -25,8 +25,7 @@ impl EventHandler for BotEventHandler {
 			let bot = self.bot.clone();
 			tokio::spawn(async move {
 				loop {
-					_ = tokio::time::timeout(tokio::time::Duration::from_secs(300), bot.periodic())
-						.await;
+					_ = tokio::time::timeout(tokio::time::Duration::from_secs(300), bot.periodic()).await;
 				}
 			});
 		}

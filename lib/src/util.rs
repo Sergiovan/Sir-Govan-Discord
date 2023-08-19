@@ -24,7 +24,7 @@ pub enum UniqueColorError {
 // Traits and Impls
 pub trait ResultErrorHandler<T> {
 	fn log_if_err(self, msg: &str);
-	fn unwrap_or_log(self, msg: &str) -> Option<T>;
+	fn ok_or_log(self, msg: &str) -> Option<T>;
 }
 
 impl<T, E: std::fmt::Display> ResultErrorHandler<T> for Result<T, E> {
@@ -37,7 +37,7 @@ impl<T, E: std::fmt::Display> ResultErrorHandler<T> for Result<T, E> {
 		}
 	}
 
-	fn unwrap_or_log(self, msg: &str) -> Option<T> {
+	fn ok_or_log(self, msg: &str) -> Option<T> {
 		match self {
 			Ok(t) => Some(t),
 			Err(e) => {

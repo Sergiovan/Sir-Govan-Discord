@@ -34,7 +34,8 @@ impl Bot {
 		{
 			let mut bot_data = bot_data.write().await;
 			bot_data.servers.extend(
-				data.servers
+				data
+					.servers
 					.into_iter()
 					.filter(|server| server.beta == is_beta)
 					.map(|server| (server.id, server.into())),

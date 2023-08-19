@@ -400,11 +400,7 @@ async fn create_caption_data(
 		async fn convert(self) -> LineElement {
 			use crate::bot::data::config;
 
-			async fn url_to_filesystem(
-				url: &str,
-				base: &str,
-				filename: &str,
-			) -> Option<std::path::PathBuf> {
+			async fn url_to_filesystem(url: &str, base: &str, filename: &str) -> Option<std::path::PathBuf> {
 				let path = path::Path::new(config::DATA_PATH)
 					.join(config::SAVED_DIR)
 					.join(base)
@@ -415,17 +411,17 @@ async fn create_caption_data(
 				}
 
 				let request = reqwest::get(url).await;
-				let res = request.unwrap_or_log(&format!("Could not find {}", url))?;
+				let res = request.ok_or_log(&format!("Could not find {}", url))?;
 				let data = res
 					.bytes()
 					.await
-					.unwrap_or_log(&format!("Could not convert data from {} to bytes", url))?;
+					.ok_or_log(&format!("Could not convert data from {} to bytes", url))?;
 
 				let parent = path
 					.parent()
 					.log_if_none(&format!("{:?} has no parent", path))?;
 
-				fs::create_dir_all(parent).unwrap_or_log(&format!(
+				fs::create_dir_all(parent).ok_or_log(&format!(
 					"Could not create directories in {}",
 					parent.display()
 				))?;
@@ -445,7 +441,7 @@ async fn create_caption_data(
 
 				tokio::fs::write(&path, data)
 					.await
-					.unwrap_or_log(&format!("Could not write data to {}", path.display()))?;
+					.ok_or_log(&format!("Could not write data to {}", path.display()))?;
 
 				Some(path)
 			}
@@ -840,10 +836,7 @@ fn draw_caption(
 					data,
 					None,
 					skia_safe::Rect::new(x, top, x + width, top + height / Y_SCALE),
-					skia_safe::SamplingOptions::new(
-						skia_safe::FilterMode::Linear,
-						skia_safe::MipmapMode::Linear,
-					),
+					skia_safe::SamplingOptions::new(skia_safe::FilterMode::Linear, skia_safe::MipmapMode::Linear),
 					paint,
 				);
 				x += width;

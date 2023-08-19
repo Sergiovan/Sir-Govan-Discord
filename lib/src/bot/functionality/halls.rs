@@ -7,9 +7,8 @@ use serenity::builder::CreateMessage;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
+use crate::util::random;
 use crate::util::{self, logger, ResultErrorHandler};
-use rand::distributions::Uniform;
-use rand::prelude::*;
 
 impl Bot {
 	pub async fn maybe_pin(
@@ -23,7 +22,7 @@ impl Bot {
 	) -> Option<Infallible> {
 		let perms = dest
 			.permissions_for_user(&ctx, ctx.cache.current_user())
-			.unwrap_or_log(&format!(
+			.ok_or_log(&format!(
 				"Could not get permissions for self in {}",
 				dest.name
 			))?;
@@ -45,7 +44,6 @@ impl Bot {
 
 		if can_pin {
 			const FALLBACK: &str = "https://twemoji.maxcdn.com/v/latest/72x72/2049.png";
-			let color_range = Uniform::from(0..0x10);
 
 			let pin_data = PinData {
 				icon_url: if let Some(emoji) = override_icon {
@@ -62,9 +60,9 @@ impl Bot {
 						_ => FALLBACK.to_string(),
 					}
 				},
-				r: color_range.sample(&mut rand::thread_rng()) * 0x10, // TODO Use own random number generator
-				g: color_range.sample(&mut rand::thread_rng()) * 0x10,
-				b: color_range.sample(&mut rand::thread_rng()) * 0x10,
+				r: random::from_range(0..0x10) * 0x10,
+				g: random::from_range(0..0x10) * 0x10,
+				b: random::from_range(0..0x10) * 0x10,
 				message_url: msg.link(),
 				author: msg.author.name.clone(),
 				author_avatar: msg
@@ -105,7 +103,8 @@ impl Bot {
 					Embed::Nothing
 				},
 			};
-			dest.send_message(&ctx, |b| self.make_pin(b, pin_data))
+			dest
+				.send_message(&ctx, |b| self.make_pin(b, pin_data))
 				.await
 				.log_if_err(&format!(
 					"Error while sending pin of {} to {}",
