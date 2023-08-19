@@ -1,5 +1,6 @@
 pub mod config;
 pub mod emoji;
+pub mod regex;
 pub mod servers;
 
 use std::collections::{HashMap, HashSet};

@@ -1,5 +1,7 @@
 use serenity::model::prelude::*;
-use serenity::{async_trait, prelude::*};
+use serenity::prelude::*;
+
+use async_trait::async_trait;
 
 use super::commander::Arguments;
 use crate::bot::Bot;

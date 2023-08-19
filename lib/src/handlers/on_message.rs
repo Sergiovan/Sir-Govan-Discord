@@ -1,7 +1,8 @@
+use crate::prelude::*;
+
 use std::convert::Infallible;
 
 use crate::bot::Bot;
-use crate::util::{logger, random, CacheGuild};
 
 use colored::Colorize;
 use serenity::model::prelude::*;
@@ -96,7 +97,7 @@ impl Bot {
 
 			// From here on we're for sure allowed to listen into messages
 
-			if self.can_remove_context(&ctx, &msg, server) && random::one_in(100) {
+			if self.can_remove_context(&ctx, &msg, server) && util::random::one_in(100) {
 				self.remove_context(&ctx, &msg, server).await;
 			}
 

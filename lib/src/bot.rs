@@ -5,7 +5,7 @@ use super::commands::commander::Commander;
 use super::data::BotData;
 use super::helpers::react_locks::ReactSafety;
 use super::helpers::screenshotter::Screenshotter;
-use super::util::ResultErrorHandler;
+use super::util::traits::ResultExt;
 use std::sync::Arc;
 
 pub struct Bot {

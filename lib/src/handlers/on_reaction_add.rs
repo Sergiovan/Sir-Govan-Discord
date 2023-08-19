@@ -1,10 +1,9 @@
+use crate::prelude::*;
+
 use std::convert::Infallible;
 
 use crate::bot::Bot;
-use crate::data;
 use crate::data::EmojiType;
-use crate::util;
-use crate::util::{logger, CacheGuild, ResultErrorHandler};
 
 use serenity::model::prelude::*;
 use serenity::prelude::*;

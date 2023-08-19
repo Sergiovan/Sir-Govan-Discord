@@ -5,7 +5,7 @@ use serenity::prelude::*;
 
 use crate::bot::Bot;
 use crate::data::Server;
-use crate::util::{NickOrName, ResultErrorHandler};
+use crate::util::traits::ResultExt;
 
 impl Bot {
 	pub fn can_remove_context(&self, ctx: &Context, msg: &Message, server: &Server) -> bool {
@@ -60,13 +60,13 @@ impl Bot {
 				member.add_role(&ctx, role.id).await.log_if_err(&format!(
 					"Could not add no-context role {} to user {}",
 					role.id,
-					member.get_name()
+					member.display_name()
 				));
 			} else {
 				member.remove_role(&ctx, role.id).await.log_if_err(&format!(
 					"Could not remove no-context role {} from user {}",
 					role.id,
-					member.get_name()
+					member.display_name()
 				));
 			}
 		}

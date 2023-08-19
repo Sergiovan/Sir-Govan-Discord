@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::util::{MatchMap, OptionErrorHandler, ResultErrorHandler};
+use crate::prelude::*;
 
 use skia_safe;
 
@@ -380,8 +380,6 @@ async fn create_caption_data(
 	type_face: &skia_safe::Typeface,
 	font: &skia_safe::Font,
 ) -> Option<CaptionData> {
-	use crate::util;
-
 	let letter_spacing = preset.text_spacing / 4_f32;
 
 	let lines = text.split('\n').map(|s| s.trim());
@@ -428,8 +426,6 @@ async fn create_caption_data(
 					parent.display()
 				))?;
 
-				use crate::util::logger;
-
 				match image::load_from_memory_with_format(&data, image::ImageFormat::Png) {
 					Ok(_) => (),
 					Err(e) => {
@@ -467,7 +463,7 @@ async fn create_caption_data(
 					)
 				}
 				LineElementRaw::DiscordEmoji(emoji) => {
-					let regex_match = util::DISCORD_EMOJI_REGEX
+					let regex_match = crate::data::regex::DISCORD_EMOJI_REGEX
 						.captures(&emoji)
 						.expect("Emoji was not a match?");
 					let animated = !regex_match.get(1).unwrap().is_empty();
@@ -544,7 +540,7 @@ async fn create_caption_data(
 
 	for line in lines.into_iter() {
 		let parts: Vec<AsyncElementConverter> = line
-			.match_map(&util::EMOJI_REGEX, |(string, is_match)| {
+			.match_map(&crate::data::regex::EMOJI_REGEX, |(string, is_match)| {
 				if is_match {
 					match string.chars().next().unwrap() {
 						'0'..='9' => {
@@ -559,13 +555,16 @@ async fn create_caption_data(
 					}
 				} else {
 					string
-						.match_map(&util::DISCORD_EMOJI_REGEX, |(string, is_match)| {
-							if is_match {
-								AsyncElementConverter::discord_emoji(string)
-							} else {
-								AsyncElementConverter::string(string)
-							}
-						})
+						.match_map(
+							&crate::data::regex::DISCORD_EMOJI_REGEX,
+							|(string, is_match)| {
+								if is_match {
+									AsyncElementConverter::discord_emoji(string)
+								} else {
+									AsyncElementConverter::string(string)
+								}
+							},
+						)
 						.collect()
 				}
 			})

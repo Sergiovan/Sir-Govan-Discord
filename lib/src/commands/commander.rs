@@ -3,12 +3,11 @@ use crate::data::EmojiType;
 use std::collections::HashMap;
 use std::convert::Infallible;
 
-use regex::Regex;
-
 use num_bigint::BigInt;
-use once_cell::sync::Lazy;
 use serenity::model::prelude::*;
-use serenity::{async_trait, prelude::*};
+use serenity::prelude::*;
+
+use async_trait::async_trait;
 
 use std::collections::VecDeque;
 
@@ -122,22 +121,6 @@ impl<'a> Arguments<'a> {
 	}
 
 	pub fn try_arg(&mut self) -> Option<Argument<'a>> {
-		static IS_EMOJI: Lazy<Regex> = Lazy::new(|| {
-			{
-				Regex::new(concat!(
-					"^[",
-					"\u{01F600}-\u{01F64F}", // emoticons
-					"\u{01F300}-\u{01F5FF}", // symbols & pictographs
-					"\u{01F680}-\u{01F6FF}", // transport & map symbols
-					"\u{01F1E0}-\u{01F1FF}", // flags (iOS)
-					"\u{002702}-\u{0027B0}",
-					"\u{0024C2}-\u{01F251}",
-					"]+$",
-				))
-			}
-			.expect("Regex failed")
-		});
-
 		let arg = self.args.front()?;
 
 		let chars = arg.chars().collect::<Vec<_>>();
@@ -202,7 +185,7 @@ impl<'a> Arguments<'a> {
 					Some(_) | None => Some(Argument::String(arg)),
 				}
 			} // Maybe Channel, Role, User
-			Some(_) if IS_EMOJI.is_match(arg) => {
+			Some(_) if crate::data::regex::EMOJI_REGEX.is_match(arg) => {
 				Some(Argument::Emoji(EmojiType::Unicode(arg.to_string())))
 			}
 			Some(_) => Some(Argument::String(arg)),

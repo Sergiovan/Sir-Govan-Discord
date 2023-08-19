@@ -4,6 +4,7 @@ pub(crate) mod commands;
 pub(crate) mod functionality;
 pub(crate) mod handlers;
 pub(crate) mod helpers;
+pub(crate) mod prelude;
 
 pub mod bot;
 pub mod data;
@@ -17,7 +18,7 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 	use data::BotData;
 	use event_handler::BotEventHandler;
 	use util::logger;
-	use util::ResultErrorHandler;
+	use util::traits::ResultExt;
 
 	tracing_subscriber::fmt::init();
 

@@ -1,8 +1,8 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
-use crate::util::{logger, ResultErrorHandler};
+use crate::prelude::*;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
+
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::{oneshot, RwLock};
 

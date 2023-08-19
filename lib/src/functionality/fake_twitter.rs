@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use crate::bot::Bot;
 
 use crate::helpers::handlebars::TweetData;
-use crate::util::{OptionErrorHandler, ResultErrorHandler};
+use crate::util::traits::{OptionExt, ResultExt};
 
 use serenity::model::prelude::*;
 use serenity::prelude::*;

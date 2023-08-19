@@ -1,10 +1,13 @@
+use crate::prelude::*;
+
 use std::convert::Infallible;
 
 use crate::bot::Bot;
 use crate::commands::commander::Command;
-use crate::util::{self, logger, NickOrName, ResultErrorHandler, UniqueColorError};
 use serenity::model::prelude::*;
-use serenity::{async_trait, prelude::*};
+use serenity::prelude::*;
+
+use async_trait::async_trait;
 
 use super::commander::Arguments;
 
@@ -27,26 +30,26 @@ fn color<'a>(
 		.await
 		.ok_or_log(&format!("Could not fetch member from message {}", msg.id))?;
 
-	let top_role = match util::get_unique_color(ctx, &member) {
+	let top_role = match member.get_unique_color(ctx) {
 		Ok(r) => r,
 		Err(e) => match e {
-			UniqueColorError::GuildMissing => {
+			util::traits::UniqueColorError::GuildMissing => {
 				logger::error(&format!(
 					"Error finding guild from member {} ({})",
-					member.get_name(),
+					member.display_name(),
 					member.user.id
 				));
 				return None;
 			}
-			UniqueColorError::RolesMissing => {
+			util::traits::UniqueColorError::RolesMissing => {
 				logger::error(&format!(
 					"Error getting roles from member {} ({})",
-					member.get_name(),
+					member.display_name(),
 					member.user.id
 				));
 				return None;
 			}
-			UniqueColorError::NoColoredRole => {
+			util::traits::UniqueColorError::NoColoredRole => {
 				msg.reply(&ctx, "It seems you have no proper role to color")
 					.await
 					.log_if_err(&format!("Error replying to {}", msg.id));
@@ -98,7 +101,7 @@ fn color<'a>(
 					logger::error(&format!(
 						"Could not change role {} for {} to color #{:06X}: {}",
 						top_role.name,
-						member.get_name(),
+						member.display_name(),
 						color,
 						e
 					));

@@ -1,7 +1,7 @@
 use crate::bot::Bot;
 use crate::util::logger;
 
-use serenity::async_trait;
+use async_trait::async_trait;
 use serenity::json::Value;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
