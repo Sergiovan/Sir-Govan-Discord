@@ -9,7 +9,6 @@ use lazy_static::lazy_static;
 
 pub struct Screenshotter {
 	browser: Browser,
-	tab: Arc<headless_chrome::Tab>,
 	handlebars: super::handlebars::Handlebar<'static>,
 }
 
@@ -73,13 +72,9 @@ impl Screenshotter {
 			.build()?;
 
 		let browser = Browser::new(launch_options)?;
-		let tab = browser.new_tab()?;
-
-		tab.set_default_timeout(std::time::Duration::from_secs(10));
 
 		Ok(Screenshotter {
 			browser,
-			tab,
 			handlebars,
 		})
 	}
@@ -92,18 +87,18 @@ impl Screenshotter {
 		width: Option<f64>,
 		height: Option<f64>,
 	) -> Result<Vec<u8>, Box<dyn Error>> {
-		self.tab
-			.set_bounds(headless_chrome::types::Bounds::Normal {
-				left: None,
-				top: None,
-				width: width.or(Some(1920_f64)),
-				height: height.or(Some(1920_f64)),
-			})?;
+		let tab = self.browser.new_tab()?;
 
-		self.tab.navigate_to(page)?.wait_until_navigated()?;
+		tab.set_bounds(headless_chrome::types::Bounds::Normal {
+			left: None,
+			top: None,
+			width: width.or(Some(1920_f64)),
+			height: height.or(Some(1920_f64)),
+		})?;
 
-		let bytes = self
-			.tab
+		tab.navigate_to(page)?.wait_until_navigated()?;
+
+		let bytes = tab
 			.wait_for_element("body")
 			.expect("No body to capture")
 			.capture_screenshot(Page::CaptureScreenshotFormatOption::Png)?;
@@ -118,23 +113,23 @@ impl Screenshotter {
 		width: Option<f64>,
 		height: Option<f64>,
 	) -> anyhow::Result<Vec<u8>> {
-		self.tab
-			.evaluate(
-				&format!(
-					r#"(function(){{
+		let tab = self.browser.new_tab()?;
+		tab.evaluate(
+			&format!(
+				r#"(function(){{
       let html = `{}`;
 
       document.open();
       document.write(html);
       document.close();
     }})()"#,
-					html
-				),
-				false,
-			)
-			.expect("Could not load js");
+				html
+			),
+			false,
+		)
+		.expect("Could not load js");
 
-		let capture = self.tab.wait_for_element(capture)?;
+		let capture = tab.wait_for_element(capture)?;
 		let capture_box = capture.get_box_model()?;
 
 		let min_width = width.unwrap_or(0_f64);
@@ -145,16 +140,27 @@ impl Screenshotter {
 		const MAX_HEIGHT: f64 = 1920_f64;
 		let height = Some(capture_box.height.clamp(min_height, MAX_HEIGHT));
 
-		self.tab
-			.set_bounds(headless_chrome::types::Bounds::Normal {
-				left: None,
-				top: None,
-				width,
-				height,
-			})?;
+		tab.set_bounds(headless_chrome::types::Bounds::Normal {
+			left: None,
+			top: None,
+			width,
+			height,
+		})?;
 
 		let bytes = capture.capture_screenshot(Page::CaptureScreenshotFormatOption::Png)?;
 
 		Ok(bytes)
+	}
+
+	pub async fn twitter(
+		&self,
+		tweet_data: super::handlebars::TweetData,
+	) -> anyhow::Result<Vec<u8>> {
+		let html = self.handlebars.twitter(tweet_data)?;
+
+		tokio::join!(async move {
+			self.screenshot_from_html(&html, ".fake-twitter", Some(510.0), Some(10.0))
+		})
+		.0
 	}
 }

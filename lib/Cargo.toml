@@ -33,6 +33,7 @@ thiserror = "1.0.47"
 itertools = "0.11.0"
 async-trait = "0.1.73"
 static_assertions = "1.1.0"
+html-escape = "0.2.13"
 
 [dependencies.openssl]
 version = "*"

@@ -35,4 +35,16 @@ impl TryFrom<SingleString> for StringBag {
 #[derive(Deserialize)]
 pub struct Strings {
 	pub nickname: SingleString,
+
+	pub tweet_retweeter: SingleString,
+	pub tweet_fact_check: SingleString,
+	pub tweet_month: SingleString,
+	pub tweet_client: SingleString,
+	pub tweet_esoteric_amount_prefix: SingleString,
+	pub tweet_esoteric_amount_suffix: SingleString,
+	pub tweet_amount_symbol: SingleString,
+	pub tweet_esoteric_time: SingleString,
+	pub tweet_username: SingleString,
+	pub tweet_extra_reply: SingleString,
+	pub tweet_extra_text: SingleString,
 }

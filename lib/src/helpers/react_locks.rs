@@ -165,20 +165,13 @@ impl ReactSafety {
 		self.finished.store(true, Ordering::Relaxed);
 
 		let timers = std::mem::take(&mut *self.timers.write().await);
-		futures::future::join_all(
-			timers
-				.into_iter()
-				.map(|s| {
-					s.map(|s| {
-						if !s.channel.is_closed() {
-							_ = s.channel.send(()); // It is unimportant if the send is successful or not
-						}
-						s.handle
-					})
-				})
-				.filter(Option::is_none)
-				.map(Option::unwrap),
-		)
+
+		futures::future::join_all(timers.into_iter().flatten().map(|s| {
+			if !s.channel.is_closed() {
+				_ = s.channel.send(()); // It is unimportant if the send is successful or not
+			}
+			s.handle
+		}))
 		.await;
 	}
 }

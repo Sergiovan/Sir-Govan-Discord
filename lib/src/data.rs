@@ -102,7 +102,19 @@ type StringBag = random::GrabBag<String>;
 
 #[derive(Default)]
 pub struct Strings {
-	nickname: StringBag,
+	pub nickname: StringBag,
+
+	pub tweet_retweeter: StringBag,
+	pub tweet_fact_check: StringBag,
+	pub tweet_month: StringBag,
+	pub tweet_client: StringBag,
+	pub tweet_esoteric_amount_prefix: StringBag,
+	pub tweet_esoteric_amount_suffix: StringBag,
+	pub tweet_amount_symbol: StringBag,
+	pub tweet_esoteric_time: StringBag,
+	pub tweet_username: StringBag,
+	pub tweet_extra_reply: StringBag,
+	pub tweet_extra_text: StringBag,
 }
 
 macro_rules! convert {
@@ -119,7 +131,21 @@ impl TryFrom<strings::Strings> for Strings {
 	type Error = StringsConversionError;
 
 	fn try_from(value: strings::Strings) -> Result<Self, Self::Error> {
-		Ok(convert!(value, nickname))
+		Ok(convert!(
+			value,
+			nickname,
+			tweet_retweeter,
+			tweet_fact_check,
+			tweet_month,
+			tweet_client,
+			tweet_esoteric_amount_prefix,
+			tweet_esoteric_amount_suffix,
+			tweet_amount_symbol,
+			tweet_esoteric_time,
+			tweet_username,
+			tweet_extra_reply,
+			tweet_extra_text
+		))
 	}
 }
 

@@ -103,7 +103,7 @@ impl<T> GrabBag<T> {
 		if bias == Ratio::default() {
 			return None;
 		}
-		let choice = Self::picking_ratio() * bias;
+		let choice = Self::picking_ratio() * bias.recip();
 
 		for tier in self.tiers.iter() {
 			if choice < tier.rarity {

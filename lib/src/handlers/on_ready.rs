@@ -1,13 +1,14 @@
 use std::convert::Infallible;
 
 use crate::bot::Bot;
+use crate::prelude::ResultExt;
 use crate::util::logger;
 
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
-	pub async fn on_ready(&self, _ctx: Context, ready: Ready) -> Option<Infallible> {
+	pub async fn on_ready(&self, ctx: Context, ready: Ready) -> Option<Infallible> {
 		logger::debug("Getting ready...");
 
 		// TODO Randomize self

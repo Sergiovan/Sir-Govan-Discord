@@ -42,7 +42,7 @@ impl<'a> Handlebar<'a> {
 }
 
 lazy_static! {
-	static ref TWEET_THEME_GRAB_BAG: GrabBag<TweetTheme> = GrabBagBuilder::new()
+	pub static ref TWEET_THEME_GRAB_BAG: GrabBag<TweetTheme> = GrabBagBuilder::new()
 		.rare(GrabBagTier::maybe_rare(Some(vec![
 			TweetTheme::Light,
 			TweetTheme::Dark
@@ -51,7 +51,7 @@ lazy_static! {
 		.unwrap();
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 pub enum TweetTheme {
 	#[serde(rename = "dim")]
 	Dim,
