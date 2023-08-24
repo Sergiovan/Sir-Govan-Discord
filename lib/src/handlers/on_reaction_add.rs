@@ -248,8 +248,13 @@ impl Bot {
 					return None;
 				}
 
-				self.maybe_retweet(ctx, msg, add_reaction, with_context, verified_role)
+				if let Err(e) = self
+					.maybe_retweet(&ctx, &msg, add_reaction, with_context, verified_role)
 					.await
+				{
+					e.get_messages().report(&ctx, &msg).await;
+				}
+				None
 			}
 			Action::AlwaysSunny => {
 				let pin_lock = self.pin_lock.lock().await;

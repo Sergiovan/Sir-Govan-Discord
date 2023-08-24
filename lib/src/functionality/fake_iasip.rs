@@ -8,67 +8,68 @@ use crate::helpers::discord_content_conversion::{ContentConverter, ContentOrigin
 use crate::bot::Bot;
 
 #[derive(thiserror::Error, Debug)]
-pub enum MaybeIasipError {
-	#[error("dicord api error {0}")]
-	DiscordError(#[from] serenity::Error),
-	#[error("not currently in a guild channel")]
-	NotInGuild,
+pub enum FakeIasipError {
 	#[error("generic error {0}")]
 	GenericError(#[from] anyhow::Error),
-	#[error("error getting ids from message")]
-	ConverterError,
+	#[error("dicord api error {0}")]
+	DiscordError(#[from] serenity::Error),
 	#[error("io error {0}")]
 	IoError(#[from] std::io::Error),
+	#[error("ffmpeg returned {0:?}")]
+	FfmpegError(Option<i32>),
+	#[error("error getting ids from message")]
+	ConverterError,
+	#[error("not currently in a guild channel")]
+	NotInGuild,
+	#[error("screenshotter error")]
+	ScreenshotterError,
 }
 
-impl Reportable for MaybeIasipError {
+impl Reportable for FakeIasipError {
 	fn get_messages(&self) -> ReportMsgs {
 		let to_logger = Some(self.to_string());
 		let to_user: Option<String> = match self {
-			Self::DiscordError(..) => Some("Having some trouble with that".into()),
-			Self::NotInGuild => Some("You're not in a guild".into()),
 			Self::GenericError(..) => {
 				Some("Someone sneezed really hard and startled me, sorry".into())
 			}
-			Self::ConverterError => Some("I am having trouble reading your message".into()),
+			Self::DiscordError(..) => Some("Having some trouble with that".into()),
 			Self::IoError(..) => Some("I'm too full of soup for that right now".into()),
+			Self::FfmpegError(..) => Some("My video editor broke".into()),
+			Self::ConverterError => Some("I am having trouble reading your message".into()),
+			Self::NotInGuild => Some("You're not in a guild".into()),
+			Self::ScreenshotterError => Some("My camera broke".into()),
 		};
 		ReportMsgs { to_logger, to_user }
 	}
 }
 
 impl Bot {
-	pub async fn maybe_iasip(&self, ctx: &Context, msg: &Message) -> Result<(), MaybeIasipError> {
-		#[derive(thiserror::Error, Debug)]
-		enum StringifyError {
-			#[error("channel {0} was not guild channel")]
-			ChannelNotInGuild(u64),
-		}
-
-		async fn stringify_content(
-			ctx: &Context,
-			content: ContentOriginal,
-		) -> anyhow::Result<String> {
+	pub async fn maybe_iasip(&self, ctx: &Context, msg: &Message) -> Result<(), FakeIasipError> {
+		async fn stringify_content(ctx: &Context, content: ContentOriginal) -> String {
 			match content {
-				ContentOriginal::User(id) => Ok(format!("@{}", id.to_user(&ctx).await?.name)),
-				ContentOriginal::Channel(id) => Ok(format!(
+				ContentOriginal::User(id) => format!(
+					"@{}",
+					id.to_user(&ctx)
+						.await
+						.map_or("Unknown User".to_string(), |u| u.name)
+				),
+				ContentOriginal::Channel(id) => format!(
 					"#{}",
 					id.to_channel(&ctx)
-						.await?
-						.guild()
-						.ok_or(StringifyError::ChannelNotInGuild(id.into()))?
-						.name
-				)),
-				ContentOriginal::Role(id) => Ok(format!(
+						.await
+						.map_or("Unknown Channel".to_string(), |c| c
+							.guild()
+							.map_or("Unknown Channel".to_string(), |c| c.name))
+				),
+				ContentOriginal::Role(id) => format!(
 					"@{}",
 					id.to_role_cached(ctx)
-						.map(|role| role.name.clone())
-						.unwrap_or("@Unknown Role".to_string())
-				)),
-				ContentOriginal::Emoji(id) => Ok(format!(
+						.map_or("@Unknown Role".to_string(), |role| role.name)
+				),
+				ContentOriginal::Emoji(id) => format!(
 					r#"<img class="emoji" height="72" width="72" src="{}">"#,
 					util::url_from_discord_emoji(id.into(), false)
-				)),
+				),
 			}
 		}
 
@@ -76,7 +77,7 @@ impl Bot {
 			.channel(&ctx)
 			.await?
 			.guild()
-			.ok_or(MaybeIasipError::NotInGuild)?;
+			.ok_or(FakeIasipError::NotInGuild)?;
 
 		// Clean content
 		let mut converter = ContentConverter::new(msg.content.clone())
@@ -89,17 +90,7 @@ impl Bot {
 		let futures = ids.into_iter().map(|e| stringify_content(ctx, e));
 		let replacements = futures::future::join_all(futures).await;
 
-		if replacements.iter().any(|r| r.is_err()) {
-			replacements
-				.into_iter()
-				.for_each(|r| r.log_if_err("Error finding id"));
-			return Err(MaybeIasipError::ConverterError);
-		}
-
-		let replacements = replacements
-			.into_iter()
-			.map(|r| r.unwrap())
-			.collect::<Vec<_>>();
+		let replacements = replacements.into_iter().collect::<Vec<_>>();
 		converter.transform(|s| html_escape::encode_safe(&s).to_string());
 		converter.replace(&replacements)?;
 
@@ -151,7 +142,9 @@ impl Bot {
 
 			{
 				let screenshotter = self.get_screenshotter().await;
-				let screenshotter = screenshotter.as_ref().unwrap(); // TODO error checks
+				let screenshotter = screenshotter
+					.as_ref()
+					.ok_or(FakeIasipError::ScreenshotterError)?;
 
 				let episode = screenshotter
 					.always_sunny(AlwaysSunnyData { text: content })
@@ -176,7 +169,7 @@ impl Bot {
 			cmd.arg("-r").arg("1/3"); // Output framerate (1/3 for optimal speed)
 			cmd.arg(&episode_video); // Output
 
-			cmd.spawn()?.wait().await?;
+			let mut episode_handle = cmd.spawn()?;
 
 			let mut cmd = tokio::process::Command::new("ffmpeg");
 			cmd.stdout(std::process::Stdio::null())
@@ -190,7 +183,19 @@ impl Bot {
 			cmd.arg("-r").arg("1/4"); // Output framerate (1/3 for optimal speed)
 			cmd.arg(&title_video); // Output
 
-			cmd.spawn()?.wait().await?;
+			let mut title_handle = cmd.spawn()?;
+
+			let (episode_result, title_result) =
+				tokio::join!(episode_handle.wait(), title_handle.wait());
+
+			let episode_result = episode_result?;
+			if !episode_result.success() {
+				return Err(FakeIasipError::FfmpegError(episode_result.code()));
+			}
+			let title_result = title_result?;
+			if !title_result.success() {
+				return Err(FakeIasipError::FfmpegError(title_result.code()));
+			}
 
 			let mut cmd = tokio::process::Command::new("ffmpeg");
 			cmd.stdout(std::process::Stdio::null())
