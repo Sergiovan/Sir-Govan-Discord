@@ -27,6 +27,9 @@ scripts/install-*.sh
 ffmpeg-concat-files.txt
 logs*/
 res/saved/
+target-docker/
+perf.*
+res/tmp*
 
 # Added by cargo
 target/
