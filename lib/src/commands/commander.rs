@@ -53,6 +53,7 @@ impl Commander {
 	pub fn register_all(&mut self) {
 		self.register_command(&super::color::Color);
 		self.register_command(&super::quit::Quit);
+		self.register_command(&super::role::Role);
 	}
 
 	pub fn register_command<T: Command + 'static>(&mut self, command: &'static T) {

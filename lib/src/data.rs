@@ -216,4 +216,11 @@ impl BotData {
 	pub fn random_no_context(&self) -> String {
 		random::pick_or(&self.no_context_strings, &"No context".to_string()).clone()
 	}
+
+	pub fn no_context_index(&self, role_name: &str) -> (Option<usize>, usize) {
+		(
+			self.no_context_strings.iter().position(|r| r == role_name),
+			self.no_context_strings.len(),
+		)
+	}
 }

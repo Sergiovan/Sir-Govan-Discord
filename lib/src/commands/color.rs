@@ -16,7 +16,7 @@ use sirgovan_macros::command;
 use rand::Rng;
 
 #[command(aliases = ["colour"])]
-fn color<'a>(
+async fn color<'a>(
 	&self,
 	ctx: &Context,
 	msg: &'a Message,
