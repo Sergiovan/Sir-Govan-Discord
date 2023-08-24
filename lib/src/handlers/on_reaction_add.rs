@@ -218,9 +218,15 @@ impl Bot {
 					None
 				};
 
-				let data = text_banners::create_image(&msg.content, &preset, gradient)
-					.await
-					.ok_or_log("Error creating Dark Souls banner")?;
+				let data = match text_banners::create_image(&msg.content, &preset, gradient).await {
+					Ok(data) => data,
+					Err(e) => {
+						logger::error(&format!("Error creating Dark Souls banner: {}", e));
+						msg.reply_report(&ctx, "My paintbrush broke").await;
+						return None;
+					}
+				};
+
 				this_channel
 					.send_message(&ctx, |b| {
 						b.add_file((data.as_bytes(), "donk_blonk.png"))
@@ -306,8 +312,12 @@ impl Bot {
 					return None;
 				}
 
-				self.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
-					.await;
+				if let Err(e) = self
+					.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
+					.await
+				{
+					e.get_messages().log();
+				}
 				None
 			}
 		}

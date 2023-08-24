@@ -1,7 +1,5 @@
 use crate::prelude::*;
 
-use std::convert::Infallible;
-
 use crate::bot::Bot;
 use crate::data::EmojiType;
 
@@ -10,6 +8,25 @@ use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 use crate::util::random;
+
+#[derive(thiserror::Error, Debug)]
+pub enum HallError {
+	#[error("generic error {0}")]
+	GenericError(#[from] anyhow::Error),
+	#[error("dicord api error {0}")]
+	DiscordError(#[from] serenity::Error),
+	#[error("no permission to post in hall {0}")]
+	NoPermission(String),
+}
+
+impl Reportable for HallError {
+	fn get_messages(&self) -> ReportMsgs {
+		ReportMsgs {
+			to_logger: Some(self.to_string()),
+			to_user: None,
+		}
+	}
+}
 
 impl Bot {
 	pub async fn maybe_pin(
@@ -20,20 +37,11 @@ impl Bot {
 		dest: GuildChannel,
 		required: usize,
 		override_icon: Option<EmojiType>,
-	) -> Option<Infallible> {
-		let perms = dest
-			.permissions_for_user(&ctx, ctx.cache.current_user())
-			.ok_or_log(&format!(
-				"Could not get permissions for self in {}",
-				dest.name
-			))?;
+	) -> Result<(), HallError> {
+		let perms = dest.permissions_for_user(&ctx, ctx.cache.current_user())?;
 
 		if !perms.send_messages() {
-			logger::error(&format!(
-				"Cannot pin to {}: No permission to send messages",
-				dest.name
-			));
-			return None; // Unspeakable channel
+			return Err(HallError::NoPermission(dest.name));
 		}
 
 		let can_pin = {
@@ -105,14 +113,10 @@ impl Bot {
 				},
 			};
 			dest.send_message(&ctx, |b| self.make_pin(b, pin_data))
-				.await
-				.log_if_err(&format!(
-					"Error while sending pin of {} to {}",
-					msg.id, dest.name
-				));
+				.await?;
 		};
 
-		None
+		Ok(())
 	}
 
 	fn make_pin<'a, 'b>(
