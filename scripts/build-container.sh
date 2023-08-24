@@ -16,5 +16,6 @@ docker buildx use rust-compiler
 # docker buildx inspect --bootstrap # Check everything is ok
 
 # Does this need a --platform linux/arm64??
-docker buildx build -t "sirgovan-compiler" $THIS_DIRECTORY/../docker --load
+# Run with --no-cache if needed
+docker buildx build -t "sirgovan-compiler" ${THIS_DIRECTORY}/../docker --load $1
 docker tag sirgovan-compiler ghcr.io/sergiovan/sirgovan-compiler:latest
