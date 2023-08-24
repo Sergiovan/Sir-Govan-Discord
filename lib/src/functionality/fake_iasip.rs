@@ -3,27 +3,124 @@ use image::EncodableLayout;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-use std::convert::Infallible;
+use crate::helpers::discord_content_conversion::{ContentConverter, ContentOriginal};
 
 use crate::bot::Bot;
 
+#[derive(thiserror::Error, Debug)]
+pub enum MaybeIasipError {
+	#[error("dicord api error {0}")]
+	DiscordError(#[from] serenity::Error),
+	#[error("not currently in a guild channel")]
+	NotInGuild,
+	#[error("generic error {0}")]
+	GenericError(#[from] anyhow::Error),
+	#[error("error getting ids from message")]
+	ConverterError,
+	#[error("io error {0}")]
+	IoError(#[from] std::io::Error),
+}
+
+impl Reportable for MaybeIasipError {
+	fn get_messages(&self) -> ReportMsgs {
+		let to_logger = Some(self.to_string());
+		let to_user: Option<String> = match self {
+			Self::DiscordError(..) => Some("Having some trouble with that".into()),
+			Self::NotInGuild => Some("You're not in a guild".into()),
+			Self::GenericError(..) => {
+				Some("Someone sneezed really hard and startled me, sorry".into())
+			}
+			Self::ConverterError => Some("I am having trouble reading your message".into()),
+			Self::IoError(..) => Some("I'm too full of soup for that right now".into()),
+		};
+		ReportMsgs { to_logger, to_user }
+	}
+}
+
 impl Bot {
-	pub async fn maybe_iasip(
-		&self,
-		ctx: Context,
-		msg: Message,
-		reaction: Reaction,
-	) -> Option<Infallible> {
+	pub async fn maybe_iasip(&self, ctx: &Context, msg: &Message) -> Result<(), MaybeIasipError> {
+		#[derive(thiserror::Error, Debug)]
+		enum StringifyError {
+			#[error("channel {0} was not guild channel")]
+			ChannelNotInGuild(u64),
+		}
+
+		async fn stringify_content(
+			ctx: &Context,
+			content: ContentOriginal,
+		) -> anyhow::Result<String> {
+			match content {
+				ContentOriginal::UserId(id) => Ok(format!("@{}", id.to_user(&ctx).await?.name)),
+				ContentOriginal::ChannelId(id) => Ok(format!(
+					"#{}",
+					id.to_channel(&ctx)
+						.await?
+						.guild()
+						.ok_or(StringifyError::ChannelNotInGuild(id.into()))?
+						.name
+				)),
+				ContentOriginal::RoleId(id) => Ok(format!(
+					"@{}",
+					id.to_role_cached(ctx)
+						.map(|role| role.name.clone())
+						.unwrap_or("@Unknown Role".to_string())
+				)),
+				ContentOriginal::EmojiId(id) => Ok(format!(
+					r#"<img class="emoji" height="72" width="72" src="{}">"#,
+					util::url_from_discord_emoji(id.into(), false)
+				)),
+			}
+		}
+
 		let channel = msg
 			.channel(&ctx)
-			.await
-			.ok_or_log("Could not fetch message channels")?
+			.await?
 			.guild()
-			.log_if_none("Message was not in guild")?;
+			.ok_or(MaybeIasipError::NotInGuild)?;
 
 		// Clean content
-		let content = msg.content_safe(&ctx); // TODO Images and proper cleaning
-									  // Pick song name
+		let mut converter = ContentConverter::new(msg.content.clone())
+			.user()
+			.channel()
+			.emoji()
+			.role();
+
+		let ids = converter.take()?;
+		let futures = ids.into_iter().map(|e| stringify_content(ctx, e));
+		let replacements = futures::future::join_all(futures).await;
+
+		if replacements.iter().any(|r| r.is_err()) {
+			replacements
+				.into_iter()
+				.for_each(|r| r.log_if_err("Error finding id"));
+			return Err(MaybeIasipError::ConverterError);
+		}
+
+		let replacements = replacements
+			.into_iter()
+			.map(|r| r.unwrap())
+			.collect::<Vec<_>>();
+		converter.transform(|s| html_escape::encode_safe(&s).to_string());
+		converter.replace(&replacements)?;
+
+		let content = converter.finish();
+		let content =
+			data::regex::EMOJI_REGEX.replace_all(&content, |capture: &regex::Captures| {
+				let emoji = capture.get(0).unwrap().as_str();
+				match emoji.chars().next().unwrap() {
+					'©' => return emoji.to_string(),
+					'®' => return emoji.to_string(),
+					'™' => return emoji.to_string(),
+					_ => (),
+				}
+				format!(
+					r#"<img class="emoji" src="{}">"#,
+					util::url_from_unicode_emoji(emoji)
+				)
+			});
+		let content = format!(r#""{content}""#);
+
+		// Pick song name
 		let song_name = std::path::Path::new(data::config::RESOURCE_PATH)
 			.join(data::config::MEDIA_DIR)
 			.join("tempsens.ogg"); // TODO Put tempsens in data::config
@@ -31,7 +128,7 @@ impl Bot {
 		let show_name = "It's Always Sunny in Here".to_string(); // TODO Proper name pick
 
 		let video = {
-			let tmpdir = tempdir::TempDir::new("video").ok()?;
+			let tmpdir = tempdir::TempDir::new("video")?;
 			// println!("{}", tmpdir.path().display());
 
 			// TODO Get images, idk
@@ -50,23 +147,23 @@ impl Bot {
 			let concat_file_path = tmpdir.path().join("ffmpeg-concat-files.txt");
 			let final_output = tmpdir.path().join("final.mp4");
 
-			std::fs::write(&concat_file_path, concat_file).ok()?;
+			std::fs::write(&concat_file_path, concat_file)?;
 
 			{
 				let screenshotter = self.get_screenshotter().await;
 				let screenshotter = screenshotter.as_ref().unwrap(); // TODO error checks
 
 				let episode = screenshotter
-					.always_sunny(AlwaysSunnyData { text: content })
-					.await
-					.ok()?;
+					.always_sunny(AlwaysSunnyData {
+						text: content.into(),
+					})
+					.await?;
 				let title = screenshotter
 					.always_sunny(AlwaysSunnyData { text: show_name })
-					.await
-					.ok()?;
+					.await?;
 
-				std::fs::write(&episode_image, episode).ok()?;
-				std::fs::write(&title_image, title).ok()?;
+				std::fs::write(&episode_image, episode)?;
+				std::fs::write(&title_image, title)?;
 			};
 
 			let mut cmd = tokio::process::Command::new("ffmpeg");
@@ -81,7 +178,7 @@ impl Bot {
 			cmd.arg("-r").arg("1/3"); // Output framerate (1/3 for optimal speed)
 			cmd.arg(&episode_video); // Output
 
-			cmd.spawn().ok()?.wait().await.ok()?;
+			cmd.spawn()?.wait().await?;
 
 			let mut cmd = tokio::process::Command::new("ffmpeg");
 			cmd.stdout(std::process::Stdio::null())
@@ -95,7 +192,7 @@ impl Bot {
 			cmd.arg("-r").arg("1/4"); // Output framerate (1/3 for optimal speed)
 			cmd.arg(&title_video); // Output
 
-			cmd.spawn().ok()?.wait().await.ok()?;
+			cmd.spawn()?.wait().await?;
 
 			let mut cmd = tokio::process::Command::new("ffmpeg");
 			cmd.stdout(std::process::Stdio::null())
@@ -117,23 +214,22 @@ impl Bot {
 			cmd.arg("-r").arg("1"); // 1 fps
 			cmd.arg(&final_output);
 
-			cmd.spawn().ok()?.wait().await.ok()?;
+			cmd.spawn()?.wait().await?;
 
-			std::fs::read(&final_output).ok()?
+			std::fs::read(&final_output)?
 		};
 
 		channel
 			.send_message(&ctx, |b| {
-				b.reference_message(&msg)
+				b.reference_message(msg)
 					.allowed_mentions(|b| b.empty_users())
 					.add_file(AttachmentType::Bytes {
 						data: std::borrow::Cow::Borrowed(video.as_bytes()),
 						filename: "iasip.mp4".to_string(),
 					})
 			})
-			.await
-			.ok()?;
+			.await?;
 
-		return None;
+		Ok(())
 	}
 }

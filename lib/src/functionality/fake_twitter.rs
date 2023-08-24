@@ -379,8 +379,8 @@ impl Bot {
 		let screenshotter = screenshotter.as_ref();
 
 		let Some(screenshotter) = screenshotter else {
-      msg.reply(&ctx, "I could not connect to the Infinitely Tall Cylinder Earth Twitter servers. Please try again later")
-        .await.ok_or_log(&format!("Could not reply to {}", msg.id));
+      msg.reply_report(&ctx, "I could not connect to the Infinitely Tall Cylinder Earth Twitter servers. Please try again later")
+        .await;
       return None;
     };
 
@@ -397,8 +397,8 @@ impl Bot {
 			.ok_or_log("Contextual messages could not be fetched")?;
 
 		if messages.is_empty() {
-			msg.reply(&ctx, "I could not access the Infinitely Tall Cylinder Earth Twitter API. Please try again later")
-      .await.ok_or_log(&format!("Could not reply to {}", msg.id))?;
+			msg.reply_report(&ctx, "I could not access the Infinitely Tall Cylinder Earth Twitter API. Please try again later")
+      .await;
 			return None;
 		}
 
@@ -422,12 +422,11 @@ impl Bot {
 			.log_if_none("Error creating data from message");
 
 		if tweet_data.is_none() {
-			msg.reply(
+			msg.reply_report(
 				&ctx,
 				"I was not allowed to gather data for your tweet. Please try again later",
 			)
-			.await
-			.ok_or_log(&format!("Could not reply to {}", msg.id));
+			.await;
 			return None;
 		}
 
@@ -462,7 +461,7 @@ impl Bot {
 			Ok(data) => data,
 			Err(e) => {
 				logger::error(&format!("Could not screenshot twitter: {}", e));
-				msg.reply(&ctx, "My camera broke. Sorry about that. But your tweet reached the Infinitely Tall Cylinder Earth at least").await.ok_or_log(&format!("Could not reply to {}", msg.id));
+				msg.reply_report(&ctx, "My camera broke. Sorry about that. But your tweet reached the Infinitely Tall Cylinder Earth at least").await;
 				return None;
 			}
 		};

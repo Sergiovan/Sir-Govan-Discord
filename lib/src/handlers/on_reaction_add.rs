@@ -266,7 +266,10 @@ impl Bot {
 					return None;
 				}
 
-				self.maybe_iasip(ctx, msg, add_reaction).await
+				if let Err(e) = self.maybe_iasip(&ctx, &msg).await {
+					e.get_messages().report(&ctx, &msg).await;
+				}
+				None
 			}
 			Action::Pin {
 				destination_id,

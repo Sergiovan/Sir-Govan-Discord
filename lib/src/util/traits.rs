@@ -145,6 +145,28 @@ impl MemberExt for Member {
 	}
 }
 
+#[async_trait]
+pub trait MessageExt {
+	async fn reply_report(
+		&self,
+		cache_http: impl serenity::http::CacheHttp,
+		content: impl std::fmt::Display + Send,
+	);
+}
+
+#[async_trait]
+impl MessageExt for Message {
+	async fn reply_report(
+		&self,
+		cache_http: impl serenity::http::CacheHttp,
+		content: impl std::fmt::Display + Send,
+	) {
+		self.reply(cache_http, content)
+			.await
+			.log_if_err(&format!("Could not reply to message {}", self.id));
+	}
+}
+
 pub trait MatchMap {
 	fn match_map<'a, F, T>(
 		&'a self,
@@ -185,4 +207,35 @@ impl<S: AsRef<str>> MatchMap for S {
 
 		pieces.into_iter().map(f)
 	}
+}
+
+pub struct ReportMsgs {
+	pub to_logger: Option<String>,
+	pub to_user: Option<String>,
+}
+
+impl ReportMsgs {
+	pub fn log(self) -> ReportMsgs {
+		if let Some(ref to_logger) = self.to_logger {
+			logger::debug(to_logger);
+		}
+
+		self
+	}
+
+	pub async fn send(self, ctx: &Context, msg: &Message) -> ReportMsgs {
+		if let Some(ref to_user) = self.to_user {
+			msg.reply_report(ctx, to_user).await;
+		}
+
+		self
+	}
+
+	pub async fn report(self, ctx: &Context, msg: &Message) {
+		self.log().send(ctx, msg).await;
+	}
+}
+
+pub trait Reportable {
+	fn get_messages(&self) -> ReportMsgs;
 }
