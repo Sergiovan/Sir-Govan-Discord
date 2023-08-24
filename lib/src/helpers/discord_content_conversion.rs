@@ -1,21 +1,20 @@
-use crate::data::Strings;
-use crate::prelude::*;
 use serenity::model::prelude::*;
-use serenity::prelude::*;
+
 pub enum ContentOriginal {
-	UserId(UserId),
-	ChannelId(ChannelId),
-	RoleId(RoleId),
-	EmojiId(EmojiId),
+	User(UserId),
+	Channel(ChannelId),
+	Role(RoleId),
+	Emoji(EmojiId),
 }
 
+#[allow(dead_code)]
 impl ContentOriginal {
 	pub fn id(&self) -> u64 {
 		match self {
-			Self::UserId(id) => id.0,
-			Self::ChannelId(id) => id.0,
-			Self::RoleId(id) => id.0,
-			Self::EmojiId(id) => id.0,
+			Self::User(id) => id.0,
+			Self::Channel(id) => id.0,
+			Self::Role(id) => id.0,
+			Self::Emoji(id) => id.0,
 		}
 	}
 }
@@ -119,7 +118,7 @@ impl ContentConverter {
 						Some('&') if self.role => {
 							chars.next();
 							if let Some(id) = consume_id(&mut chars) {
-								res.push(ContentOriginal::RoleId(id.into()));
+								res.push(ContentOriginal::Role(id.into()));
 
 								new.push_str(pre_loop);
 								chars.update();
@@ -131,7 +130,7 @@ impl ContentConverter {
 						}
 						_ if self.user => {
 							if let Some(id) = consume_id(&mut chars) {
-								res.push(ContentOriginal::UserId(id.into()));
+								res.push(ContentOriginal::User(id.into()));
 
 								new.push_str(pre_loop);
 								chars.update();
@@ -145,7 +144,7 @@ impl ContentConverter {
 					},
 					'#' if self.channel => {
 						if let Some(id) = consume_id(&mut chars) {
-							res.push(ContentOriginal::ChannelId(id.into()));
+							res.push(ContentOriginal::Channel(id.into()));
 
 							new.push_str(pre_loop);
 							chars.update();
@@ -160,7 +159,7 @@ impl ContentConverter {
 							chars.next();
 							if consume_emoji_name(&mut chars) {
 								if let Some(id) = consume_id(&mut chars) {
-									res.push(ContentOriginal::EmojiId(id.into()));
+									res.push(ContentOriginal::Emoji(id.into()));
 
 									new.push_str(pre_loop);
 									chars.update();
@@ -175,7 +174,7 @@ impl ContentConverter {
 					':' if self.emoji => {
 						if consume_emoji_name(&mut chars) {
 							if let Some(id) = consume_id(&mut chars) {
-								res.push(ContentOriginal::EmojiId(id.into()));
+								res.push(ContentOriginal::Emoji(id.into()));
 
 								new.push_str(pre_loop);
 								chars.update();
@@ -262,7 +261,7 @@ impl<'a> StringSearch<'a> {
 	}
 
 	pub fn as_str(&self) -> &'a str {
-		unsafe { std::str::from_utf8_unchecked(&self.string[self.end..].as_bytes()) }
+		&self.string[self.end..]
 	}
 
 	pub fn update(&mut self) {

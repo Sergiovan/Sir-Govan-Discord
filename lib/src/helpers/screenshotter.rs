@@ -3,7 +3,6 @@ use std::error::Error;
 use anyhow::bail;
 use headless_chrome::protocol::cdp::Page;
 use headless_chrome::Browser;
-use std::sync::Arc;
 
 use lazy_static::lazy_static;
 

@@ -50,8 +50,8 @@ impl Bot {
 			content: ContentOriginal,
 		) -> anyhow::Result<String> {
 			match content {
-				ContentOriginal::UserId(id) => Ok(format!("@{}", id.to_user(&ctx).await?.name)),
-				ContentOriginal::ChannelId(id) => Ok(format!(
+				ContentOriginal::User(id) => Ok(format!("@{}", id.to_user(&ctx).await?.name)),
+				ContentOriginal::Channel(id) => Ok(format!(
 					"#{}",
 					id.to_channel(&ctx)
 						.await?
@@ -59,13 +59,13 @@ impl Bot {
 						.ok_or(StringifyError::ChannelNotInGuild(id.into()))?
 						.name
 				)),
-				ContentOriginal::RoleId(id) => Ok(format!(
+				ContentOriginal::Role(id) => Ok(format!(
 					"@{}",
 					id.to_role_cached(ctx)
 						.map(|role| role.name.clone())
 						.unwrap_or("@Unknown Role".to_string())
 				)),
-				ContentOriginal::EmojiId(id) => Ok(format!(
+				ContentOriginal::Emoji(id) => Ok(format!(
 					r#"<img class="emoji" height="72" width="72" src="{}">"#,
 					util::url_from_discord_emoji(id.into(), false)
 				)),
@@ -154,9 +154,7 @@ impl Bot {
 				let screenshotter = screenshotter.as_ref().unwrap(); // TODO error checks
 
 				let episode = screenshotter
-					.always_sunny(AlwaysSunnyData {
-						text: content.into(),
-					})
+					.always_sunny(AlwaysSunnyData { text: content })
 					.await?;
 				let title = screenshotter
 					.always_sunny(AlwaysSunnyData { text: show_name })

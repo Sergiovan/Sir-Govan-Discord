@@ -1,6 +1,4 @@
-use crate::util::random::{
-	self, ChanceType, GrabBag, GrabBagBuilder, GrabBagBuilderError, GrabBagTier,
-};
+use crate::util::random::{ChanceType, GrabBag, GrabBagBuilder, GrabBagBuilderError, GrabBagTier};
 use num_rational::Ratio;
 
 use serde::Deserialize;
