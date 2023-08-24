@@ -32,7 +32,7 @@ impl<'a> Handlebar<'a> {
 		Ok(Handlebar { handlebar })
 	}
 
-	pub fn always_sunny(&self, data: ()) -> Result<String, handlebars::RenderError> {
+	pub fn always_sunny(&self, data: AlwaysSunnyData) -> Result<String, handlebars::RenderError> {
 		self.handlebar.render(Self::ALWAYS_SUNNY, &data)
 	}
 
@@ -100,4 +100,9 @@ pub struct TweetMoreData {
 
 	pub reply_to: Option<String>,
 	pub image: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct AlwaysSunnyData {
+	pub text: String,
 }

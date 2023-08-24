@@ -61,6 +61,7 @@ impl Bot {
 				required: usize,
 				emoji_override: Option<EmojiType>,
 			},
+			AlwaysSunny,
 			None,
 		}
 
@@ -139,6 +140,7 @@ impl Bot {
 							with_context: false,
 							verified_role: server.no_context.as_ref().map(|c| c.role),
 						},
+						data::emoji::_VIOLIN => Action::AlwaysSunny,
 						_ => Action::None,
 					},
 					EmojiType::Discord(_) => Action::None,
@@ -248,6 +250,23 @@ impl Bot {
 
 				self.maybe_retweet(ctx, msg, add_reaction, with_context, verified_role)
 					.await
+			}
+			Action::AlwaysSunny => {
+				let pin_lock = self.pin_lock.lock().await;
+				if !pin_lock
+					.locked_react(
+						&ctx,
+						&msg,
+						&add_reaction,
+						None,
+						Some(std::time::Duration::from_secs(60 * 30)),
+					)
+					.await
+				{
+					return None;
+				}
+
+				self.maybe_iasip(ctx, msg, add_reaction).await
 			}
 			Action::Pin {
 				destination_id,

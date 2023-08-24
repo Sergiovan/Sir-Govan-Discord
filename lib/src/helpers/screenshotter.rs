@@ -133,11 +133,11 @@ impl Screenshotter {
 		let capture_box = capture.get_box_model()?;
 
 		let min_width = width.unwrap_or(0_f64);
-		const MAX_WIDTH: f64 = 1080_f64;
+		const MAX_WIDTH: f64 = 1920_f64;
 		let width = Some(capture_box.width.clamp(min_width, MAX_WIDTH));
 
 		let min_height = height.unwrap_or(0_f64);
-		const MAX_HEIGHT: f64 = 1920_f64;
+		const MAX_HEIGHT: f64 = 1080_f64;
 		let height = Some(capture_box.height.clamp(min_height, MAX_HEIGHT));
 
 		tab.set_bounds(headless_chrome::types::Bounds::Normal {
@@ -162,5 +162,14 @@ impl Screenshotter {
 			self.screenshot_from_html(&html, ".fake-twitter", Some(510.0), Some(10.0))
 		})
 		.0
+	}
+
+	pub async fn always_sunny(
+		&self,
+		always_sunny_data: super::handlebars::AlwaysSunnyData,
+	) -> anyhow::Result<Vec<u8>> {
+		let html = self.handlebars.always_sunny(always_sunny_data)?;
+
+		tokio::join!(async move { self.screenshot_from_html(&html, ".container", None, None) }).0
 	}
 }
