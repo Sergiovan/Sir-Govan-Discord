@@ -429,10 +429,11 @@ async fn create_caption_data(
 				match image::load_from_memory_with_format(&data, image::ImageFormat::Png) {
 					Ok(_) => (),
 					Err(e) => {
-						logger::error(&format!(
+						logger::error_fmt!(
 							"Image from {} does not have the correct format: {}",
-							url, e
-						));
+							url,
+							e
+						);
 						return None;
 					}
 				}

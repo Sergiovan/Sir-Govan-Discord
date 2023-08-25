@@ -61,7 +61,7 @@ impl Bot {
 				String::new()
 			};
 
-			logger::info(&format!(
+			logger::info_fmt!(
 				"{} @ {}: {}{}{}{}",
 				author.cyan(),
 				channel.cyan(),
@@ -69,7 +69,7 @@ impl Bot {
 				attachments.yellow(),
 				embeds.yellow(),
 				stickers.yellow()
-			));
+			);
 		}
 
 		if msg.is_private() {

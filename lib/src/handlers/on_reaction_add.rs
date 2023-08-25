@@ -221,7 +221,7 @@ impl Bot {
 				let data = match text_banners::create_image(&msg.content, &preset, gradient).await {
 					Ok(data) => data,
 					Err(e) => {
-						logger::error(&format!("Error creating Dark Souls banner: {}", e));
+						logger::error_fmt!("Error creating Dark Souls banner: {}", e);
 						msg.reply_report(&ctx, "My paintbrush broke").await;
 						return None;
 					}
@@ -292,17 +292,18 @@ impl Bot {
 					None => match ctx.http.get_channel(destination_id).await {
 						Ok(Channel::Guild(channel)) => channel,
 						Ok(c) => {
-							logger::error(&format!(
+							logger::error_fmt!(
 								"Channel {} for hall emoji {} is misconfigured, not a guild channel: {}",
 								destination_id, add_reaction.emoji, c
-							));
+              );
 							return None;
 						}
 						Err(e) => {
-							logger::error(&format!(
+							logger::error_fmt!(
 								"Error when fetching channel {}: {}",
-								destination_id, e
-							));
+								destination_id,
+								e
+							);
 							return None;
 						}
 					},

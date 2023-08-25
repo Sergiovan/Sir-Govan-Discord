@@ -16,7 +16,7 @@ impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
 		match self {
 			Ok(_) => (),
 			Err(e) => {
-				logger::error(&format!("{}: {}", msg, e));
+				logger::error_fmt!("{}: {}", msg, e);
 			}
 		}
 	}
@@ -25,7 +25,7 @@ impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
 		match self {
 			Ok(t) => Some(t),
 			Err(e) => {
-				logger::error(&format!("{}: {}", msg, e));
+				logger::error_fmt!("{}: {}", msg, e);
 				None
 			}
 		}
@@ -65,12 +65,12 @@ impl CacheGuild for Message {
 				)
 				.await
 			{
-				logger::error(&format!(
+				logger::error_fmt!(
 					"Could not get guild information for {} from message {}: {}",
 					self.guild_id.unwrap(),
 					self.id,
 					e
-				));
+				);
 				return false;
 			}
 		}
@@ -84,10 +84,12 @@ impl CacheGuild for GuildChannel {
 	async fn guild_cached(&self, ctx: &Context) -> bool {
 		if self.guild(ctx).is_none() {
 			if let Err(e) = ctx.http.get_guild(*self.guild_id.as_u64()).await {
-				logger::error(&format!(
+				logger::error_fmt!(
 					"Could not get guild information for {} from channel {}: {}",
-					self.id, self.guild_id, e
-				));
+					self.id,
+					self.guild_id,
+					e,
+				);
 				return false;
 			}
 		}
@@ -350,7 +352,7 @@ pub struct ReportMsgs {
 impl ReportMsgs {
 	pub fn log(self) -> ReportMsgs {
 		if let Some(ref to_logger) = self.to_logger {
-			logger::debug(to_logger);
+			logger::error(to_logger);
 		}
 
 		self

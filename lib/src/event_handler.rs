@@ -40,9 +40,9 @@ impl EventHandler for BotEventHandler {
 		logger::debug("Reconnected :)");
 	}
 
-	async fn unknown(&self, _ctx: Context, _name: String, _raw: Value) {
+	async fn unknown(&self, _ctx: Context, name: String, raw: Value) {
 		// TODO
-		logger::debug("wtf");
+		logger::debug_fmt!("Unknown event {} occurred: {}", name, raw);
 	}
 
 	async fn message(&self, ctx: Context, msg: Message) {

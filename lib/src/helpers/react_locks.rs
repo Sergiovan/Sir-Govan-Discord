@@ -35,10 +35,7 @@ impl ReactSafety {
 	) -> Vec<User> {
 		// First get the emoji for sure
 		if let ReactionType::Custom { name: None, .. } = reaction.emoji {
-			logger::error(&format!(
-				"Emoji from reaction was incomplete: {}",
-				reaction.emoji
-			));
+			logger::error_fmt!("Emoji from reaction was incomplete: {}", reaction.emoji);
 			return vec![];
 		};
 
@@ -64,10 +61,12 @@ impl ReactSafety {
 					res.extend(filtered);
 				}
 				Err(e) => {
-					logger::error(&format!(
+					logger::error_fmt!(
 						"Could not get {} reactions from {}: {}",
-						reaction.emoji, msg.id, e
-					));
+						reaction.emoji,
+						msg.id,
+						e
+					);
 					return res;
 				}
 			};
@@ -95,12 +94,12 @@ impl ReactSafety {
 		}
 
 		let Some(msg_reactions) = msg
-            .reactions
-            .iter()
-            .find(|x| x.reaction_type == reaction.emoji)
-        else {
-            return false; // No reactions to speak of, cannot pin
-        };
+			.reactions
+			.iter()
+			.find(|x| x.reaction_type == reaction.emoji)
+		else {
+			return false; // No reactions to speak of, cannot pin
+		};
 
 		if msg_reactions.me {
 			return false; // No reactions if I've already reacted
@@ -132,10 +131,12 @@ impl ReactSafety {
 					true
 				}
 				Err(e) => {
-					logger::error(&format!(
+					logger::error_fmt!(
 						"Error while adding {} reaction to {}: {}",
-						reaction.emoji, msg.id, e
-					));
+						reaction.emoji,
+						msg.id,
+						e
+					);
 					false
 				}
 			}

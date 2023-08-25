@@ -15,6 +15,43 @@ lazy_static! {
 	static ref ERROR_TEXT: String = format!("[{:7}]", "ERROR".red());
 }
 
+#[macro_export]
+macro_rules! debug_fmt {
+  ($($tt:tt)*) => {
+    $crate::util::logger::debug(&format!($($tt)*));
+  };
+}
+
+#[macro_export]
+macro_rules! info_fmt {
+  ($($tt:tt)*) => {
+    $crate::util::logger::info(&format!($($tt)*));
+  };
+}
+
+#[macro_export]
+macro_rules! warning_fmt {
+  ($($tt:tt)*) => {
+    $crate::util::logger::warning(&format!($($tt)*));
+  };
+}
+
+#[macro_export]
+macro_rules! error_fmt {
+  ($($tt:tt)*) => {
+    $crate::util::logger::error(&format!($($tt)*));
+  };
+}
+
+#[allow(unused_imports)]
+pub(crate) use debug_fmt;
+#[allow(unused_imports)]
+pub(crate) use error_fmt;
+#[allow(unused_imports)]
+pub(crate) use info_fmt;
+#[allow(unused_imports)]
+pub(crate) use warning_fmt;
+
 pub fn debug(text: &str) {
 	print_message(Utc::now(), &DEBUG_TEXT, text);
 }

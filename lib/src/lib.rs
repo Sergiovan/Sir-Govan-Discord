@@ -68,13 +68,13 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 	}
 
 	if let Err(why) = client.start().await {
-		logger::error(&format!("Client error: {:?}", why));
+		logger::error_fmt!("Client error: {:?}", why);
 	}
 
 	match tokio::time::timeout(tokio::time::Duration::from_secs(60), bot.shutdown()).await {
 		Ok(_) => (),
 		Err(e) => {
-			logger::error(&format!("Could not close down bot before a minute: {}", e));
+			logger::error_fmt!("Could not close down bot before a minute: {}", e);
 		}
 	}
 
