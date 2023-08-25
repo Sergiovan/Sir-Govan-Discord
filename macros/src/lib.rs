@@ -1,6 +1,7 @@
 extern crate proc_macro;
 
-use quote::{quote, quote_spanned};
+use proc_macro_error::{proc_macro_error, Diagnostic};
+use quote::quote;
 use syn::parse::Parse;
 use syn::punctuated::Punctuated;
 use syn::{bracketed, token, Token};
@@ -43,6 +44,7 @@ impl Parse for CommandArguments {
 	}
 }
 
+#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn command(
 	args: proc_macro::TokenStream,
@@ -50,23 +52,37 @@ pub fn command(
 ) -> proc_macro::TokenStream {
 	let args = syn::parse_macro_input!(args as CommandArguments);
 	let input = syn::parse_macro_input!(item as syn::ItemFn);
-	let function_name = input.sig.ident;
 
-	let function_name_str = function_name.to_string();
-	let mut name_chars = function_name_str.chars();
-	let capitalized_name = match name_chars.next() {
+	if input.sig.asyncness.is_none() {
+		Diagnostic::spanned(
+			input.sig.ident.span(),
+			proc_macro_error::Level::Error,
+			"Function must be async".to_string(),
+		)
+		.emit();
+		return quote! { #input }.into();
+	}
+
+	let function_name = input.sig.ident.to_string();
+
+	let mut name_chars = function_name.chars();
+	let type_name = match name_chars.next() {
 		None => {
-			return quote_spanned! {
-				function_name.span() => compile_error!("Expected function name");
-			}
-			.into()
+			Diagnostic::spanned(
+				input.sig.ident.span(),
+				proc_macro_error::Level::Error,
+				"Expected function name".to_string(),
+			)
+			.emit();
+			return quote! { #input }.into();
 		}
-		Some(c) => c.to_uppercase().collect::<String>() + name_chars.as_str(),
+		Some(c) => quote::format_ident!(
+			"{}{}",
+			c.to_uppercase().collect::<String>(),
+			name_chars.as_str()
+		),
 	};
 
-	let type_name = syn::Ident::new(&capitalized_name, function_name.span());
-
-	let stringified = syn::LitStr::new(&function_name.to_string(), function_name.span());
 	let aliases = args.aliases.unwrap_or(vec![]);
 
 	let function_generics = input.sig.generics;
@@ -81,7 +97,7 @@ pub fn command(
 		#[async_trait]
 		impl Command for #type_name {
 			fn name() -> &'static str {
-				#stringified
+				#function_name
 			}
 
 			fn aliases() -> &'static [&'static str] {
