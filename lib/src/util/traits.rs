@@ -98,31 +98,44 @@ impl CacheGuild for GuildChannel {
 }
 
 #[derive(Debug, Error)]
-pub enum UniqueColorError {
+pub enum UniqueRoleError {
 	#[error("could not find guild")]
 	GuildMissing,
 	#[error("could not get roles")]
 	RolesMissing,
 	#[error("member does not have any colored roles")]
-	NoColoredRole,
+	NoUniqueRole,
+}
+
+impl Reportable for UniqueRoleError {
+	fn get_messages(&self) -> ReportMsgs {
+		let to_logger = Some(self.to_string());
+		let to_user: Option<String> = match self {
+			Self::GuildMissing => None,
+			Self::RolesMissing => None,
+			Self::NoUniqueRole => Some("You do not have a unique role".into()),
+		};
+
+		ReportMsgs { to_logger, to_user }
+	}
 }
 
 pub trait MemberExt {
-	fn get_unique_color(&self, ctx: &Context) -> Result<Role, UniqueColorError>;
+	fn get_unique_role(&self, ctx: &Context) -> Result<Role, UniqueRoleError>;
 }
 
 impl MemberExt for Member {
-	fn get_unique_color(&self, ctx: &Context) -> Result<Role, UniqueColorError> {
+	fn get_unique_role(&self, ctx: &Context) -> Result<Role, UniqueRoleError> {
 		use serenity::utils::Colour;
 
 		let guild = match ctx.cache.guild(self.guild_id) {
 			Some(g) => g,
-			None => return Err(UniqueColorError::GuildMissing),
+			None => return Err(UniqueRoleError::GuildMissing),
 		};
 
 		let mut roles = match self.roles(ctx) {
 			Some(r) => r,
-			None => return Err(UniqueColorError::RolesMissing),
+			None => return Err(UniqueRoleError::RolesMissing),
 		};
 
 		roles.sort_by_key(|r| r.position);
@@ -141,7 +154,7 @@ impl MemberExt for Member {
 			}
 		}
 
-		Err(UniqueColorError::NoColoredRole)
+		Err(UniqueRoleError::NoUniqueRole)
 	}
 }
 

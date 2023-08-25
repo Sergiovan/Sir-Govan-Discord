@@ -30,10 +30,10 @@ async fn color<'a>(
 		.await
 		.ok_or_log(&format!("Could not fetch member from message {}", msg.id))?;
 
-	let top_role = match member.get_unique_color(ctx) {
+	let top_role = match member.get_unique_role(ctx) {
 		Ok(r) => r,
 		Err(e) => match e {
-			util::traits::UniqueColorError::GuildMissing => {
+			util::traits::UniqueRoleError::GuildMissing => {
 				logger::error(&format!(
 					"Error finding guild from member {} ({})",
 					member.display_name(),
@@ -41,7 +41,7 @@ async fn color<'a>(
 				));
 				return None;
 			}
-			util::traits::UniqueColorError::RolesMissing => {
+			util::traits::UniqueRoleError::RolesMissing => {
 				logger::error(&format!(
 					"Error getting roles from member {} ({})",
 					member.display_name(),
@@ -49,10 +49,9 @@ async fn color<'a>(
 				));
 				return None;
 			}
-			util::traits::UniqueColorError::NoColoredRole => {
-				msg.reply(&ctx, "It seems you have no proper role to color")
-					.await
-					.log_if_err(&format!("Error replying to {}", msg.id));
+			util::traits::UniqueRoleError::NoUniqueRole => {
+				msg.reply_report(ctx, "It seems you have no proper role to color")
+					.await;
 				return None;
 			}
 		},

@@ -12,7 +12,7 @@ use std::convert::Infallible;
 use sirgovan_macros::command;
 
 #[command]
-fn quit<'a>(
+async fn quit<'a>(
 	&self,
 	_ctx: &Context,
 	msg: &'a Message,
