@@ -1,19 +1,49 @@
-use crate::prelude::*;
+use std::num::ParseIntError;
 
-use std::convert::Infallible;
+use crate::{prelude::*, util::traits::UniqueRoleError};
 
 use crate::bot::Bot;
-use crate::commands::commander::Command;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-use async_trait::async_trait;
-
-use super::commander::Arguments;
+use super::commander::{Arguments, CommandResult};
 
 use sirgovan_macros::command;
 
 use rand::Rng;
+
+#[derive(thiserror::Error, Debug)]
+enum ColorError {
+	#[error("")]
+	NotInGuild,
+	#[error("could not get member from {0}: {1}")]
+	MemberFailure(UserId, #[source] anyhow::Error),
+	#[error("{0}")]
+	NoUniqueRole(#[from] UniqueRoleError),
+	#[error("")]
+	ParseIntError(#[from] ParseIntError),
+	#[error("")]
+	HexTooLarge,
+	#[error("could not change role {1} for {2} to color #{3:06X}: {0}")]
+	RoleEditError(#[source] serenity::Error, RoleId, UserId, u64),
+}
+
+impl Reportable for ColorError {
+	fn to_user(&self) -> Option<String> {
+		match self {
+			Self::MemberFailure(..) => {
+				Some("The Discord API is being funny, please try again later".into())
+			}
+			Self::NoUniqueRole(e) => e.to_user(),
+			Self::ParseIntError(..) => Some("That is an invalid hex number".into()),
+			Self::HexTooLarge => Some("That hex is too large".into()),
+			Self::RoleEditError(..) => {
+				Some("Something went wrong. Could not change your role color".into())
+			}
+			_ => None,
+		}
+	}
+}
 
 #[command(aliases = ["colour"])]
 async fn color<'a>(
@@ -22,52 +52,25 @@ async fn color<'a>(
 	msg: &'a Message,
 	mut words: Arguments<'a>,
 	_bot: &Bot,
-) -> Option<Infallible> {
-	msg.guild_id?;
+) -> CommandResult<ColorError> {
+	msg.guild_id.ok_or(ColorError::NotInGuild)?;
 
 	let member = msg
 		.member(ctx)
 		.await
-		.ok_or_log(&format!("Could not fetch member from message {}", msg.id))?;
+		.map_err(|e| ColorError::MemberFailure(msg.author.id, e.into()))?;
 
-	let top_role = match member.get_unique_role(ctx) {
-		Ok(r) => r,
-		Err(e) => match e {
-			util::traits::UniqueRoleError::GuildMissing => {
-				logger::error(&format!(
-					"Error finding guild from member {} ({})",
-					member.display_name(),
-					member.user.id
-				));
-				return None;
-			}
-			util::traits::UniqueRoleError::RolesMissing => {
-				logger::error(&format!(
-					"Error getting roles from member {} ({})",
-					member.display_name(),
-					member.user.id
-				));
-				return None;
-			}
-			util::traits::UniqueRoleError::NoUniqueRole => {
-				msg.reply_report(ctx, "It seems you have no proper role to color")
-					.await;
-				return None;
-			}
-		},
-	};
+	let top_role = member.get_unique_role(ctx)?;
 
 	let color = words.string();
 
 	match color {
 		None => {
-			// We say
-			msg.reply(
-				&ctx,
+			msg.reply_report(
+				ctx,
 				&format!("Your current color is #{:06X}", top_role.colour.0),
 			)
-			.await
-			.ok_or_log(&format!("Error replying to {}", msg.id))?;
+			.await;
 		}
 		Some(s) => {
 			let color = if s.to_lowercase() == "random" {
@@ -75,45 +78,26 @@ async fn color<'a>(
 				rand::thread_rng().gen_range(0x000000..0xFFFFFF)
 			} else {
 				let numbers = s.trim_start_matches('#');
-				let Ok(hash) = u32::from_str_radix(numbers, 16) else {
-                        msg.reply(&ctx, "That's an invalid hex").await.log_if_err(&format!("Error replying to {}", msg.id));
-                        return None;
-                    };
+				let hash = u32::from_str_radix(numbers, 16)?;
+
 				if hash > 0xFFFFFF {
-					msg.reply(&ctx, "That hex is too large")
-						.await
-						.log_if_err(&format!("Error replying to {}", msg.id));
-					return None;
+					return Err(ColorError::HexTooLarge);
 				}
+
 				hash
 			};
 
-			match top_role.edit(&ctx, |e| e.colour(color as u64)).await {
-				Ok(r) => msg
-					.reply(
-						&ctx,
-						&format!("Done. Your new color is #{:06X}", r.colour.0),
-					)
-					.await
-					.ok_or_log(&format!("Error replying to {}", msg.id))?,
-				Err(e) => {
-					logger::error(&format!(
-						"Could not change role {} for {} to color #{:06X}: {}",
-						top_role.name,
-						member.display_name(),
-						color,
-						e
-					));
-					msg.reply(
-						&ctx,
-						"Something went wrong. Could not change your role color",
-					)
-					.await
-					.ok_or_log(&format!("Error replying to {}", msg.id))?
-				}
-			};
+			let r = top_role
+				.edit(&ctx, |e| e.colour(color as u64))
+				.await
+				.map_err(|e| {
+					ColorError::RoleEditError(e, top_role.id, member.user.id, color as u64)
+				})?;
+
+			msg.reply_report(ctx, &format!("Done. Your new color is #{:06X}", r.colour.0))
+				.await;
 		}
 	}
 
-	None
+	Ok(())
 }

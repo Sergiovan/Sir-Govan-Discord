@@ -5,7 +5,6 @@ use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 use regex::Regex;
-use thiserror::Error;
 
 pub trait ResultExt<T> {
 	fn log_if_err(self, msg: &str);
@@ -97,23 +96,23 @@ impl CacheGuild for GuildChannel {
 	}
 }
 
-#[derive(Debug, Error)]
+#[derive(thiserror::Error, Debug)]
 pub enum UniqueRoleError {
-	#[error("could not find guild")]
-	GuildMissing,
-	#[error("could not get roles")]
-	RolesMissing,
-	#[error("member does not have any colored roles")]
-	NoUniqueRole,
+	#[error("could not find guild for {0}")]
+	GuildMissing(UserId),
+	#[error("could not get roles for {0}")]
+	RolesMissing(UserId),
+	#[error("member {0} does not have any colored roles")]
+	NoUniqueRole(UserId),
 }
 
 impl Reportable for UniqueRoleError {
 	fn get_messages(&self) -> ReportMsgs {
 		let to_logger = Some(self.to_string());
 		let to_user: Option<String> = match self {
-			Self::GuildMissing => None,
-			Self::RolesMissing => None,
-			Self::NoUniqueRole => Some("You do not have a unique role".into()),
+			Self::GuildMissing(..) => None,
+			Self::RolesMissing(..) => None,
+			Self::NoUniqueRole(..) => Some("It seems you have no proper role to color".into()),
 		};
 
 		ReportMsgs { to_logger, to_user }
@@ -128,15 +127,14 @@ impl MemberExt for Member {
 	fn get_unique_role(&self, ctx: &Context) -> Result<Role, UniqueRoleError> {
 		use serenity::utils::Colour;
 
-		let guild = match ctx.cache.guild(self.guild_id) {
-			Some(g) => g,
-			None => return Err(UniqueRoleError::GuildMissing),
-		};
+		let guild = ctx
+			.cache
+			.guild(self.guild_id)
+			.ok_or(UniqueRoleError::GuildMissing(self.user.id))?;
 
-		let mut roles = match self.roles(ctx) {
-			Some(r) => r,
-			None => return Err(UniqueRoleError::RolesMissing),
-		};
+		let mut roles = self
+			.roles(ctx)
+			.ok_or(UniqueRoleError::RolesMissing(self.user.id))?;
 
 		roles.sort_by_key(|r| r.position);
 
@@ -154,7 +152,7 @@ impl MemberExt for Member {
 			}
 		}
 
-		Err(UniqueRoleError::NoUniqueRole)
+		Err(UniqueRoleError::NoUniqueRole(self.user.id))
 	}
 }
 
@@ -177,6 +175,128 @@ impl MessageExt for Message {
 		self.reply(cache_http, content)
 			.await
 			.log_if_err(&format!("Could not reply to message {}", self.id));
+	}
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum SetIconError {
+	#[error("{0}")]
+	UrlParseError(#[source] anyhow::Error),
+	#[error("{0}")]
+	ReqwestError(#[from] reqwest::Error),
+	#[error("{0}")]
+	ImageError(#[from] image::ImageError),
+	#[error("{0}")]
+	EditRoleError(#[source] anyhow::Error),
+}
+
+#[async_trait]
+pub trait RoleExt {
+	async fn set_icon(
+		&self,
+		ctx: &Context,
+		guild_id: GuildId,
+		url: &str,
+	) -> Result<(), SetIconError>;
+
+	async fn set_unicode_icon(
+		&self,
+		ctx: &Context,
+		guild_id: GuildId,
+		emoji: &str,
+	) -> Result<(), SetIconError>;
+
+	async fn reset_icon(&self, ctx: &Context, guild_id: GuildId) -> Result<(), SetIconError>;
+}
+
+#[async_trait]
+impl RoleExt for Role {
+	async fn set_icon(
+		&self,
+		ctx: &Context,
+		guild_id: GuildId,
+		url: &str,
+	) -> Result<(), SetIconError> {
+		let url = reqwest::Url::parse(url).map_err(|e| SetIconError::UrlParseError(e.into()))?;
+
+		let bytes = reqwest::get(url).await?.bytes().await?;
+		let bytes = match image::guess_format(&bytes) {
+			Ok(image::ImageFormat::Png) => bytes.into_iter().collect::<Vec<_>>(),
+			_ => {
+				use image::EncodableLayout;
+				use image::GenericImageView;
+				use image::ImageEncoder;
+
+				let buffer = image::load_from_memory(bytes.as_bytes())?;
+				let (w, h) = buffer.dimensions();
+
+				let mut png = Vec::new();
+				let encoder = image::codecs::png::PngEncoder::new(&mut png);
+
+				encoder.write_image(buffer.as_bytes(), w, h, buffer.color())?;
+
+				png
+			}
+		};
+
+		let mut encoded = openssl::base64::encode_block(&bytes);
+		encoded.insert_str(0, "data:image/png;base64,");
+
+		// I do it like this because `.icon` is async so I can't use it inside an `.edit_role` lambda
+		let mut edit_role = serenity::builder::EditRole::new(self);
+
+		edit_role
+			.0
+			.insert("unicode_emoji", serenity::json::Value::Null);
+		edit_role.0.insert("icon", encoded.into());
+
+		let map = serenity::json::hashmap_to_json_map(edit_role.0);
+
+		ctx.http
+			.as_ref()
+			.edit_role(guild_id.into(), self.id.into(), &map, None)
+			.await
+			.map(|_| ())
+			.map_err(|e| SetIconError::EditRoleError(e.into()))
+	}
+
+	async fn set_unicode_icon(
+		&self,
+		ctx: &Context,
+		guild_id: GuildId,
+		emoji: &str,
+	) -> Result<(), SetIconError> {
+		let mut edit_role = serenity::builder::EditRole::new(self);
+
+		edit_role.0.insert("unicode_emoji", emoji.into());
+		edit_role.0.insert("icon", serenity::json::Value::Null);
+
+		let map = serenity::json::hashmap_to_json_map(edit_role.0);
+
+		ctx.http
+			.as_ref()
+			.edit_role(guild_id.into(), self.id.into(), &map, None)
+			.await
+			.map(|_| ())
+			.map_err(|e| SetIconError::EditRoleError(e.into()))
+	}
+
+	async fn reset_icon(&self, ctx: &Context, guild_id: GuildId) -> Result<(), SetIconError> {
+		// I do it like this because there's no other way lmfao
+		let mut edit_role = serenity::builder::EditRole::new(self);
+		edit_role
+			.0
+			.insert("unicode_emoji", serenity::json::Value::Null);
+		edit_role.0.insert("icon", serenity::json::Value::Null);
+
+		let map = serenity::json::hashmap_to_json_map(edit_role.0);
+
+		ctx.http
+			.as_ref()
+			.edit_role(guild_id.into(), self.id.into(), &map, None)
+			.await
+			.map(|_| ())
+			.map_err(|e| SetIconError::EditRoleError(e.into()))
 	}
 }
 
@@ -249,6 +369,22 @@ impl ReportMsgs {
 	}
 }
 
-pub trait Reportable {
-	fn get_messages(&self) -> ReportMsgs;
+pub trait Reportable: std::error::Error + Sync + Send {
+	fn to_logger(&self) -> Option<String> {
+		use std::ops::Not;
+
+		let err_msg = self.to_string();
+		err_msg.is_empty().not().then_some(err_msg)
+	}
+
+	fn to_user(&self) -> Option<String> {
+		None
+	}
+
+	fn get_messages(&self) -> ReportMsgs {
+		ReportMsgs {
+			to_logger: self.to_logger(),
+			to_user: self.to_user(),
+		}
+	}
 }

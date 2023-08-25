@@ -1,7 +1,7 @@
 use crate::bot::Bot;
 use crate::data::EmojiType;
+use crate::util::traits::Reportable;
 use std::collections::HashMap;
-use std::convert::Infallible;
 
 use num_bigint::BigInt;
 use serenity::model::prelude::*;
@@ -10,6 +10,16 @@ use serenity::prelude::*;
 use async_trait::async_trait;
 
 use std::collections::VecDeque;
+
+#[derive(thiserror::Error, Debug)]
+pub enum DefaultCommandError {
+	#[error("DefaultCommandError: {0}")]
+	DefaultError(#[from] anyhow::Error),
+}
+
+impl Reportable for DefaultCommandError {}
+
+pub type CommandResult<E = DefaultCommandError> = Result<(), E>;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -30,7 +40,7 @@ pub trait Command: Send + Sync {
 		msg: &'a Message,
 		mut args: Arguments<'a>,
 		bot: &Bot,
-	) -> Option<Infallible>;
+	) -> Result<(), Box<dyn Reportable>>;
 }
 
 pub struct Commander {
@@ -80,7 +90,9 @@ impl Commander {
 			.expect("Non-empty arguments didn't return string");
 
 		if let Some(c) = self.commands.get(first) {
-			c.execute(ctx, msg, words, bot).await;
+			if let Err(e) = c.execute(ctx, msg, words, bot).await {
+				e.get_messages().report(ctx, msg).await;
+			};
 		}
 	}
 }
@@ -286,7 +298,9 @@ impl<'a> Arguments<'a> {
 	}
 
 	pub fn guild_emoji(&mut self, ctx: &Context, guild_id: u64) -> Option<Emoji> {
-		let EmojiType::Discord(emoji) = self.emoji()? else { return None };
+		let EmojiType::Discord(emoji) = self.emoji()? else {
+			return None;
+		};
 		ctx.cache
 			.guild(guild_id)
 			.and_then(|g| g.emojis.get(&emoji.into()).cloned())

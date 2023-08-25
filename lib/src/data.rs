@@ -23,8 +23,8 @@ pub struct Channels {
 impl From<servers::Channels> for Channels {
 	fn from(value: servers::Channels) -> Self {
 		Channels {
-			allowed_commands: HashSet::from_iter(value.allowed_commands.into_iter()),
-			disallowed_listen: HashSet::from_iter(value.disallowed_listen.into_iter()),
+			allowed_commands: HashSet::from_iter(value.allowed_commands),
+			disallowed_listen: HashSet::from_iter(value.disallowed_listen),
 		}
 	}
 }

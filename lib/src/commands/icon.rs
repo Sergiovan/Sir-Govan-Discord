@@ -1,15 +1,51 @@
 use crate::prelude::*;
 
-use std::convert::Infallible;
-
-use super::commander::{Arguments, Command};
+use super::commander::{Arguments, CommandResult};
 use crate::bot::Bot;
-use async_trait::async_trait;
-use image::EncodableLayout;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
+use util::traits::SetIconError;
 
 use sirgovan_macros::command;
+
+#[derive(thiserror::Error, Debug)]
+enum IconError {
+	#[error("")]
+	NotInGuild,
+	#[error("could not get guild from id {0}: {1}")]
+	GuildNotInList(GuildId, #[source] anyhow::Error),
+	#[error("")]
+	GuildNotPremium,
+	#[error("could not get member from {0}: {1}")]
+	MemberFailure(UserId, #[source] anyhow::Error),
+	#[error("{0}")]
+	UniqueRoleError(#[from] util::traits::UniqueRoleError),
+	#[error("could not set icon of {1} to image from {2}: {0}")]
+	IconSetError(#[source] SetIconError, RoleId, String),
+	#[error("could not reset icon for {1}: {0}")]
+	IconResetError(#[source] SetIconError, UserId),
+}
+
+impl Reportable for IconError {
+	fn to_user(&self) -> Option<String> {
+		match self {
+			Self::GuildNotPremium => Some("This guild does not have access to this feature".into()),
+			Self::MemberFailure(..) => {
+				Some("The Discord API is being funny, please try again later".into())
+			}
+			Self::UniqueRoleError(e) => e.to_user(),
+			Self::IconSetError(e, ..) => match e {
+				SetIconError::UrlParseError(..) => Some("The url given is invalid".into()),
+				SetIconError::ImageError(..) => Some("I cannot handle this image".into()),
+				_ => Some("I'm having trouble setting your icon to that".into()),
+			},
+			Self::IconResetError(..) => {
+				Some("Could not reset your icon, it is too powerful".into())
+			}
+			_ => None,
+		}
+	}
+}
 
 #[command]
 async fn icon<'a>(
@@ -18,21 +54,19 @@ async fn icon<'a>(
 	msg: &'a Message,
 	mut words: Arguments<'a>,
 	_bot: &Bot,
-) -> Option<Infallible> {
-	let guild_id = msg.guild_id?;
+) -> CommandResult<IconError> {
+	let guild_id = msg.guild_id.ok_or(IconError::NotInGuild)?;
 
 	let guild = guild_id
 		.to_partial_guild(&ctx)
 		.await
-		.ok_or_log(&format!("Could not get guild from id {}", guild_id))?;
+		.map_err(|e| IconError::GuildNotInList(guild_id, e.into()))?;
 
 	let tier = guild.premium_tier;
 
 	match tier {
 		PremiumTier::Tier0 | PremiumTier::Tier1 => {
-			msg.reply_report(ctx, "This guild does not have access to this feature!")
-				.await;
-			return None;
+			return Err(IconError::GuildNotPremium);
 		}
 		_ => (),
 	}
@@ -40,113 +74,9 @@ async fn icon<'a>(
 	let member = msg
 		.member(&ctx)
 		.await
-		.ok_or_log(&format!("Could not get member from {}", msg.author.id))?;
-	let role = match member.get_unique_role(ctx) {
-		Ok(role) => role,
-		Err(e) => {
-			e.get_messages().report(ctx, msg).await;
-			return None;
-		}
-	};
+		.map_err(|e| IconError::MemberFailure(msg.author.id, e.into()))?;
 
-	async fn set_icon(
-		ctx: &Context,
-		role: &Role,
-		guild_id: GuildId,
-		value: &str,
-	) -> anyhow::Result<()> {
-		let url = reqwest::Url::parse(value)?;
-
-		let bytes = reqwest::get(url).await?.bytes().await?;
-		let bytes = match image::guess_format(&bytes) {
-			Ok(image::ImageFormat::Png) => bytes.into_iter().collect::<Vec<_>>(),
-			_ => {
-				use image::GenericImageView;
-				use image::ImageEncoder;
-
-				let buffer = image::load_from_memory(bytes.as_bytes())?;
-				let (w, h) = buffer.dimensions();
-
-				let mut png = Vec::new();
-				let encoder = image::codecs::png::PngEncoder::new(&mut png);
-
-				encoder.write_image(buffer.as_bytes(), w, h, buffer.color())?;
-
-				png
-			}
-		};
-
-		// if url.is_err() {
-		// 	msg.reply_report(ctx, "That is not a valid url or emoji")
-		// 		.await;
-		// };
-
-		let mut encoded = openssl::base64::encode_block(&bytes);
-		encoded.insert_str(0, "data:image/png;base64,");
-
-		// I do it like this because `.icon` is async so I can't use it inside an `.edit_role` lambda
-		let mut edit_role = serenity::builder::EditRole::new(role);
-
-		edit_role
-			.0
-			.insert("unicode_emoji", serenity::json::Value::Null);
-		edit_role.0.insert("icon", encoded.into());
-		// {
-		// 	logger::error(&format!("Could not gather data from url {}: {}", value, e));
-
-		// 	msg.reply_report(ctx, "I had trouble getting image data from that url")
-		// 		.await;
-		// 	return None;
-		// }
-
-		let map = serenity::json::hashmap_to_json_map(edit_role.0);
-
-		ctx.http
-			.as_ref()
-			.edit_role(guild_id.into(), role.id.into(), &map, None)
-			.await
-			.map(|_| ())
-			.map_err(|e| e.into())
-	}
-
-	async fn set_unicode_icon(
-		ctx: &Context,
-		role: &Role,
-		guild_id: GuildId,
-		value: &str,
-	) -> anyhow::Result<()> {
-		let mut edit_role = serenity::builder::EditRole::new(role);
-
-		edit_role.0.insert("unicode_emoji", value.into());
-		edit_role.0.insert("icon", serenity::json::Value::Null);
-
-		let map = serenity::json::hashmap_to_json_map(edit_role.0);
-
-		ctx.http
-			.as_ref()
-			.edit_role(guild_id.into(), role.id.into(), &map, None)
-			.await
-			.map(|_| ())
-			.map_err(|e| e.into())
-	}
-
-	async fn reset_icon(ctx: &Context, role: &Role, guild_id: GuildId) -> anyhow::Result<()> {
-		// I do it like this because there's no other way lmfao
-		let mut edit_role = serenity::builder::EditRole::new(role);
-		edit_role
-			.0
-			.insert("unicode_emoji", serenity::json::Value::Null);
-		edit_role.0.insert("icon", serenity::json::Value::Null);
-
-		let map = serenity::json::hashmap_to_json_map(edit_role.0);
-
-		ctx.http
-			.as_ref()
-			.edit_role(guild_id.into(), role.id.into(), &map, None)
-			.await
-			.map(|_| ())
-			.map_err(|e| e.into())
-	}
+	let role = member.get_unique_role(ctx)?;
 
 	use super::commander::Argument;
 	use data::EmojiType;
@@ -155,58 +85,33 @@ async fn icon<'a>(
 	if let Some(Argument::Emoji(EmojiType::Discord(icon))) = arg {
 		let emoji_id = icon;
 		let icon = util::url_from_discord_emoji(icon, false);
-		if let Err(e) = set_icon(ctx, &role, guild_id, &icon).await {
-			logger::error(&format!(
-				"Could not set icon of {} to image from {}: {}",
-				role.id, icon, e
-			));
-			msg.reply_report(ctx, "I'm having trouble setting your icon to that")
-				.await;
-			return None;
-		} else {
-			msg.reply_report(ctx, &format!("Icon set. Enjoy your <:emoji:{}>", emoji_id))
-				.await;
-		}
+
+		role.set_icon(ctx, guild_id, &icon)
+			.await
+			.map_err(|e| IconError::IconSetError(e, role.id, icon))?;
+
+		msg.reply_report(ctx, &format!("Icon set. Enjoy your <:emoji:{}>", emoji_id))
+			.await;
 	} else if let Some(Argument::Emoji(EmojiType::Unicode(icon))) = arg {
-		match set_unicode_icon(ctx, &role, guild_id, &icon).await {
-			Ok(..) => {
-				msg.reply_report(ctx, &format!("Icon changed. Enjoy your {}", icon))
-					.await
-			}
-			Err(e) => {
-				logger::error(&format!(
-					"Unable to reset icon for {}: {}",
-					member.user.id, e
-				));
-				msg.reply_report(ctx, "Could not reset your icon, it is too powerful")
-					.await;
-			}
-		};
+		role.set_unicode_icon(ctx, guild_id, &icon)
+			.await
+			.map_err(|e| IconError::IconSetError(e, role.id, icon.clone()))?;
+
+		msg.reply_report(ctx, &format!("Icon set. Enjoy your {}", icon))
+			.await
 	} else if let Some(Argument::String(icon)) = arg {
-		if let Err(e) = set_icon(ctx, &role, guild_id, icon).await {
-			logger::error(&format!(
-				"Could not set icon of {} to image from {}: {}",
-				role.id, icon, e
-			));
-			msg.reply_report(ctx, "I'm having trouble setting your icon to that")
-				.await;
-			return None;
-		} else {
-			msg.reply_report(ctx, "Icon set. Enjoy").await;
-		}
+		role.set_icon(ctx, guild_id, icon)
+			.await
+			.map_err(|e| IconError::IconSetError(e, role.id, icon.to_string()))?;
+
+		msg.reply_report(ctx, "Icon set. Enjoy").await;
 	} else if arg.is_none() {
-		match reset_icon(ctx, &role, guild_id).await {
-			Ok(..) => msg.reply_report(ctx, "Icon reset. Woo").await,
-			Err(e) => {
-				logger::error(&format!(
-					"Unable to reset icon for {}: {}",
-					member.user.id, e
-				));
-				msg.reply_report(ctx, "Could not reset your icon, it is too powerful")
-					.await;
-			}
-		};
+		role.reset_icon(ctx, guild_id)
+			.await
+			.map_err(|e| IconError::IconResetError(e, member.user.id))?;
+
+		msg.reply_report(ctx, "Icon reset. Woo").await;
 	}
 
-	None
+	Ok(())
 }

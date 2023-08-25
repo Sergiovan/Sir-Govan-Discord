@@ -44,6 +44,29 @@ impl Parse for CommandArguments {
 	}
 }
 
+// From https://stackoverflow.com/a/71482073
+fn transform_params(params: Punctuated<syn::FnArg, syn::token::Comma>) -> syn::Expr {
+	// 1. Filter the params, so that only typed arguments remain
+	// 2. Extract the ident (in case the pattern type is ident)
+	let idents = params.iter().filter_map(|param| {
+		if let syn::FnArg::Typed(pat_type) = param {
+			if let syn::Pat::Ident(pat_ident) = *pat_type.pat.clone() {
+				return Some(pat_ident.ident);
+			}
+		}
+		None
+	});
+
+	// Add all idents to a Punctuated => param1, param2, ...
+	let mut punctuated: Punctuated<syn::Ident, token::Comma> = Punctuated::new();
+	idents.for_each(|ident| punctuated.push(ident));
+
+	// Generate expression from Punctuated (and wrap with parentheses)
+	let transformed_params = syn::parse_quote!((#punctuated));
+	transformed_params
+}
+
+// TODO Eventually maybe add type checking?
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn command(
@@ -63,9 +86,9 @@ pub fn command(
 		return quote! { #input }.into();
 	}
 
-	let function_name = input.sig.ident.to_string();
+	let function_name_str = input.sig.ident.to_string();
 
-	let mut name_chars = function_name.chars();
+	let mut name_chars = function_name_str.chars();
 	let type_name = match name_chars.next() {
 		None => {
 			Diagnostic::spanned(
@@ -85,27 +108,39 @@ pub fn command(
 
 	let aliases = args.aliases.unwrap_or(vec![]);
 
-	let function_generics = input.sig.generics;
-	let function_parameters = input.sig.inputs;
-	let function_return = input.sig.output;
-	let function_body = input.block;
+	let function_name = input.sig.ident.clone();
+	let function_generics = input.sig.generics.clone();
+	let function_parameters = input.sig.inputs.clone();
+	let as_params = transform_params(input.sig.inputs.clone());
 
 	#[rustfmt::skip]
 	let output = quote! {
+    use async_trait::async_trait;
+    use crate::util::traits::Reportable;
+    use crate::commands::commander::Command;
+
 		pub struct #type_name;
+
+    impl #type_name {
+      #input
+    }
 
 		#[async_trait]
 		impl Command for #type_name {
 			fn name() -> &'static str {
-				#function_name
+				#function_name_str
 			}
 
 			fn aliases() -> &'static [&'static str] {
 				&[#(#aliases),*]
 			}
 
-			async fn execute #function_generics (#function_parameters) #function_return 
-				#function_body
+      #[allow(unused_mut)]
+			async fn execute #function_generics (#function_parameters) -> Result<(), Box<dyn Reportable>> {
+				let res: Result<(), Box<dyn Reportable>> = self.#function_name #as_params 
+          .await.map_err(|e| Box::new(e) as Box<dyn Reportable>);
+        res
+      }
 		}
 	};
 
