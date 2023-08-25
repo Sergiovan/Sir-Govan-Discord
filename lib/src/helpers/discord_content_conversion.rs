@@ -111,8 +111,8 @@ impl ContentConverter {
 
 			if c == '<' {
 				let Some(p) = chars.next() else {
-          break;
-        };
+					break;
+				};
 				match p {
 					'@' if self.role || self.user => match chars.peek() {
 						Some('&') if self.role => {
@@ -210,7 +210,9 @@ impl ContentConverter {
 		let mut chars = self.content.chars();
 
 		loop {
-			let Some(c) = chars.next() else { break; };
+			let Some(c) = chars.next() else {
+				break;
+			};
 			if c == Self::MARKER_START {
 				let num = chars.as_str();
 				let mut i = 0;

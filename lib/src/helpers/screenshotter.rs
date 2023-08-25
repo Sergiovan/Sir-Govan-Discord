@@ -129,7 +129,7 @@ impl Screenshotter {
 		.expect("Could not load js");
 
 		let capture = tab.wait_for_element(capture)?;
-		let mut capture_box = capture.get_box_model()?;
+		let mut capture_box = capture.get_box_model()?.border_viewport();
 
 		let min_width = width.unwrap_or(0_f64);
 		const MAX_WIDTH: f64 = 1920_f64;
@@ -149,7 +149,7 @@ impl Screenshotter {
 		let bytes = tab.capture_screenshot(
 			Page::CaptureScreenshotFormatOption::Png,
 			None,
-			Some(capture_box.border_viewport()),
+			Some(capture_box),
 			false,
 		)?;
 
@@ -162,9 +162,9 @@ impl Screenshotter {
 	) -> anyhow::Result<Vec<u8>> {
 		let html = self.handlebars.twitter(tweet_data)?;
 
-		tokio::join!(
-			async move { self.screenshot_from_html(&html, "body", Some(510.0), Some(10.0)) }
-		)
+		tokio::join!(async move {
+			self.screenshot_from_html(&html, ".fake-twitter", Some(510.0), Some(10.0))
+		})
 		.0
 	}
 

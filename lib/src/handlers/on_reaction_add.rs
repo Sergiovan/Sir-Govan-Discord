@@ -32,10 +32,6 @@ impl Bot {
 			return None;
 		}
 
-		if msg.is_own(&ctx) {
-			return None;
-		}
-
 		// So, msg.is_private() won't work because messages fetched through the REST API don't come with
 		// a guild_id, which means msg.is_private() will always be true
 		let this_channel = msg.channel(&ctx).await.ok_or_log(&format!(
@@ -297,6 +293,11 @@ impl Bot {
 				required,
 				emoji_override,
 			} => {
+				// No pinning your own messages, bot
+				if msg.is_own(&ctx) {
+					return None;
+				}
+
 				let channel = match ctx.cache.guild_channel(destination_id) {
 					Some(channel) => channel,
 					None => match ctx.http.get_channel(destination_id).await {
