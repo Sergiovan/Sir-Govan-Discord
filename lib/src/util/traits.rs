@@ -165,6 +165,8 @@ pub trait MessageExt {
 		cache_http: impl serenity::http::CacheHttp,
 		content: impl std::fmt::Display + Send,
 	);
+
+	fn any_image(&self) -> Option<String>;
 }
 
 #[async_trait]
@@ -177,6 +179,18 @@ impl MessageExt for Message {
 		self.reply(cache_http, content)
 			.await
 			.log_if_err(&format!("Could not reply to message {}", self.id));
+	}
+
+	fn any_image(&self) -> Option<String> {
+		self.attachments
+			.first()
+			.map(|a| a.url.clone())
+			.or_else(|| {
+				self.embeds
+					.first()
+					.and_then(|e| e.image.as_ref().map(|i| i.url.clone()))
+			})
+			.or_else(|| self.sticker_items.first().and_then(|s| s.image_url()))
 	}
 }
 

@@ -174,12 +174,7 @@ impl Bot {
 	) -> anyhow::Result<TweetData> {
 		let guild_id = reaction.guild_id.ok_or(FakeTwitterError::NotInGuild)?;
 
-		let attachment = messages.iter().find_map(|msg| {
-			msg.attachments.first().map(|a| a.url.clone()).or(msg
-				.embeds
-				.first()
-				.and_then(|e| e.image.as_ref().map(|i| i.url.clone()).or(e.url.clone())))
-		});
+		let attachment = messages.iter().find_map(|msg| msg.any_image());
 
 		let content =
 			content_from_msgs(messages, ctx, attachment.as_ref().unwrap_or(&String::new())).await?;
@@ -258,12 +253,7 @@ impl Bot {
 		verified_role: Option<u64>,
 		original_timestamp: Timestamp,
 	) -> anyhow::Result<TweetMoreData> {
-		let attachment = messages.iter().find_map(|msg| {
-			msg.attachments.first().map(|a| a.url.clone()).or(msg
-				.embeds
-				.first()
-				.and_then(|e| e.image.as_ref().map(|i| i.url.clone())))
-		});
+		let attachment = messages.iter().find_map(|msg| msg.any_image());
 
 		let content = content_from_msgs(
 			&messages,
@@ -373,6 +363,15 @@ impl Bot {
 			return Err(FakeTwitterError::NoMessages);
 		}
 
+		lazy_static::lazy_static! {
+		  static ref MAX_TIME_DIFF: chrono::Duration = chrono::Duration::seconds(30);
+		}
+
+		let mut had_image = false;
+		let mut author = UserId(0);
+		let mut group = 0;
+		let mut last_timestamp =
+			chrono::NaiveDateTime::from_timestamp_opt(msg.timestamp.unix_timestamp(), 0).unwrap();
 		let context = messages
 			.into_iter()
 			.rev()
@@ -380,8 +379,33 @@ impl Bot {
 				msg.guild_id = Some(channel.guild_id);
 				msg
 			})
-			.group_by(|e| e.author.id)
+			.group_by(move |msg| {
+				let timestamp =
+					chrono::NaiveDateTime::from_timestamp_opt(msg.timestamp.unix_timestamp(), 0)
+						.unwrap();
+				if msg.author.id != author
+					|| timestamp - last_timestamp > *MAX_TIME_DIFF
+					|| msg.referenced_message.is_some()
+				{
+					had_image = false;
+					author = msg.author.id;
+					group += 1;
+				}
+
+				last_timestamp = timestamp;
+
+				if msg.any_image().is_some() {
+					if had_image {
+						group += 1;
+					} else {
+						had_image = true;
+					}
+				}
+
+				group
+			})
 			.into_iter()
+			.take(10)
 			.map(|i| i.1.collect_vec())
 			.collect_vec();
 
@@ -414,7 +438,7 @@ impl Bot {
 				b.reference_message(msg)
 					.allowed_mentions(|b| b.empty_users())
 					.add_file(AttachmentType::Bytes {
-						data: std::borrow::Cow::Borrowed(data.as_slice()),
+						data: std::borrow::Cow::Borrowed(&data),
 						filename: format!("tweet_by_{}.png", reactor),
 					})
 			})

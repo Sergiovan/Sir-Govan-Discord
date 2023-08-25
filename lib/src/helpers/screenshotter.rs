@@ -129,24 +129,29 @@ impl Screenshotter {
 		.expect("Could not load js");
 
 		let capture = tab.wait_for_element(capture)?;
-		let capture_box = capture.get_box_model()?;
+		let mut capture_box = capture.get_box_model()?;
 
 		let min_width = width.unwrap_or(0_f64);
 		const MAX_WIDTH: f64 = 1920_f64;
-		let width = Some(capture_box.width.clamp(min_width, MAX_WIDTH));
+		capture_box.width = capture_box.width.clamp(min_width, MAX_WIDTH);
 
 		let min_height = height.unwrap_or(0_f64);
 		const MAX_HEIGHT: f64 = 1080_f64;
-		let height = Some(capture_box.height.clamp(min_height, MAX_HEIGHT));
+		capture_box.height = capture_box.height.clamp(min_height, MAX_HEIGHT);
 
 		tab.set_bounds(headless_chrome::types::Bounds::Normal {
 			left: None,
 			top: None,
-			width,
-			height,
+			width: Some(capture_box.width),
+			height: Some(capture_box.height),
 		})?;
 
-		let bytes = capture.capture_screenshot(Page::CaptureScreenshotFormatOption::Png)?;
+		let bytes = tab.capture_screenshot(
+			Page::CaptureScreenshotFormatOption::Png,
+			None,
+			Some(capture_box.border_viewport()),
+			false,
+		)?;
 
 		Ok(bytes)
 	}
@@ -157,9 +162,9 @@ impl Screenshotter {
 	) -> anyhow::Result<Vec<u8>> {
 		let html = self.handlebars.twitter(tweet_data)?;
 
-		tokio::join!(async move {
-			self.screenshot_from_html(&html, ".fake-twitter", Some(510.0), Some(10.0))
-		})
+		tokio::join!(
+			async move { self.screenshot_from_html(&html, "body", Some(510.0), Some(10.0)) }
+		)
 		.0
 	}
 

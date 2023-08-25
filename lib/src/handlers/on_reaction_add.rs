@@ -119,16 +119,9 @@ impl Bot {
 					required,
 					emoji_override: None,
 				}
-			} else if let Some(hall) = server.hall_of_all.as_ref() {
-				let channel_id = hall.channel;
-
-				Action::Pin {
-					destination_id: channel_id,
-					required,
-					emoji_override: None,
-				}
 			} else {
-				match emoji {
+				// One-offs
+				let action = match emoji {
 					EmojiType::Unicode(ref code) => match code.as_str() {
 						data::emoji::FIRE_HEART => Action::DarkSouls(DarkSoulsType::FireHeart),
 						data::emoji::HEADSTONE => Action::DarkSouls(DarkSoulsType::Headstone),
@@ -144,6 +137,23 @@ impl Bot {
 						_ => Action::None,
 					},
 					EmojiType::Discord(_) => Action::None,
+				};
+
+				// Hall-of-all
+				if matches!(action, Action::None) {
+					if let Some(hall_of_all) = server.hall_of_all.as_ref() {
+						let channel_id = hall_of_all.channel;
+
+						Action::Pin {
+							destination_id: channel_id,
+							required,
+							emoji_override: None,
+						}
+					} else {
+						action
+					}
+				} else {
+					action
 				}
 			}
 		};
