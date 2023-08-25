@@ -115,8 +115,29 @@ impl Bot {
 		let song_name = std::path::Path::new(data::config::RESOURCE_PATH)
 			.join(data::config::MEDIA_DIR)
 			.join("tempsens.ogg"); // TODO Put tempsens in data::config
-					   // Pick show name
-		let show_name = "It's Always Sunny in Here".to_string(); // TODO Proper name pick
+
+		let show_name = {
+			let strings = &self.data.read().await.strings;
+			if util::random::one_in(10) {
+				strings.titlecard_show_entire.pick().unwrap().clone()
+			} else {
+				let place_name = if util::random::one_in(5) {
+					channel.name.replace('-', " ")
+				} else {
+					channel
+						.guild(ctx)
+						.map(|g| g.name)
+						.unwrap_or_else(|| channel.name.replace('-', " "))
+				};
+				let mut chars = place_name.chars();
+				let first = chars.next().unwrap();
+				format!(
+					"{} {}",
+					strings.titlecard_show_prefix.pick().unwrap(),
+					first.to_uppercase().chain(chars).collect::<String>()
+				)
+			}
+		};
 
 		let video = {
 			let tmpdir = tempdir::TempDir::new("video")?;

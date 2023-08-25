@@ -115,6 +115,10 @@ pub struct Strings {
 	pub tweet_username: StringBag,
 	pub tweet_extra_reply: StringBag,
 	pub tweet_extra_text: StringBag,
+
+	pub titlecard_song: StringBag,
+	pub titlecard_show_prefix: StringBag,
+	pub titlecard_show_entire: StringBag,
 }
 
 macro_rules! convert {
@@ -144,7 +148,10 @@ impl TryFrom<strings::Strings> for Strings {
 			tweet_esoteric_time,
 			tweet_username,
 			tweet_extra_reply,
-			tweet_extra_text
+			tweet_extra_text,
+			titlecard_song,
+			titlecard_show_prefix,
+			titlecard_show_entire
 		))
 	}
 }

@@ -45,4 +45,8 @@ pub struct Strings {
 	pub tweet_username: SingleString,
 	pub tweet_extra_reply: SingleString,
 	pub tweet_extra_text: SingleString,
+
+	pub titlecard_song: SingleString,
+	pub titlecard_show_prefix: SingleString,
+	pub titlecard_show_entire: SingleString,
 }

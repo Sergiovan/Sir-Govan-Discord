@@ -235,8 +235,10 @@ impl Bot {
 
 				this_channel
 					.send_message(&ctx, |b| {
-						b.add_file((data.as_bytes(), "donk_blonk.png"))
-							.content("I'm the rusty one :)")
+						b.add_file((
+							data.as_bytes(),
+							format!("donk_blonk_{}.png", reactor.name).as_str(),
+						))
 					})
 					.await
 					.log_if_err("Sending donk blonk failed");
