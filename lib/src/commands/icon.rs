@@ -12,17 +12,17 @@ use sirgovan_macros::command;
 enum IconError {
 	#[error("")]
 	NotInGuild,
-	#[error("could not get guild from id {0}: {1}")]
+	#[error("Could not get guild from id {0}: {1}")]
 	GuildNotInList(GuildId, #[source] anyhow::Error),
 	#[error("")]
 	GuildNotPremium,
-	#[error("could not get member from {0}: {1}")]
+	#[error("Could not get member from {0}: {1}")]
 	MemberFailure(UserId, #[source] anyhow::Error),
 	#[error("{0}")]
 	UniqueRoleError(#[from] util::traits::UniqueRoleError),
-	#[error("could not set icon of {1} to image from {2}: {0}")]
+	#[error("Could not set icon of {1} to image from {2}: {0}")]
 	IconSetError(#[source] SetIconError, RoleId, String),
-	#[error("could not reset icon for {1}: {0}")]
+	#[error("Could not reset icon for {1}: {0}")]
 	IconResetError(#[source] SetIconError, UserId),
 }
 

@@ -65,7 +65,18 @@ pub fn warning(text: &str) {
 }
 
 pub fn error(text: &str) {
-	print_message(Utc::now(), &ERROR_TEXT, text);
+	let timestamp = chrono::offset::Utc::now().timestamp_micros().unsigned_abs();
+	let error_code = timestamp.rotate_right(17) ^ timestamp;
+	let error_code = error_code ^ error_code >> 12;
+	let error_code = error_code ^ error_code << 21;
+	let error_code = error_code.wrapping_mul(57436991);
+	let error_code = format!("{:016X}", error_code).red();
+
+	let error_text = format!("{} -> {}", error_code, text);
+
+	eprintln!("{}", error_text);
+
+	print_message(Utc::now(), &ERROR_TEXT, &error_text);
 }
 
 fn print_message(time: DateTime<Utc>, level: &str, text: &str) {

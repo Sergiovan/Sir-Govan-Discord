@@ -122,7 +122,7 @@ impl Screenshotter {
       document.write(html);
       document.close();
     }})()"#,
-				html
+				html.replace('\\', "\\\\").replace('`', "\\`")
 			),
 			false,
 		)

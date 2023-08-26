@@ -61,6 +61,8 @@ impl Bot {
 			None,
 		}
 
+		logger::debug_fmt!("Reaction received: {}", add_reaction.emoji.to_string());
+
 		let action = {
 			let bot_data = self.data.read().await;
 
@@ -74,7 +76,7 @@ impl Bot {
 				return None;
 			}
 
-			let emoji: EmojiType = (&add_reaction.emoji).into();
+			let emoji: EmojiType = EmojiType::from(&add_reaction.emoji);
 			let required = server.pin_amount;
 
 			// Decide what to do here

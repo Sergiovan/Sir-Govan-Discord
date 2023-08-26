@@ -9,19 +9,19 @@ use crate::bot::Bot;
 
 #[derive(thiserror::Error, Debug)]
 pub enum FakeIasipError {
-	#[error("generic error {0}")]
+	#[error("Generic error: {0}")]
 	GenericError(#[from] anyhow::Error),
-	#[error("dicord api error {0}")]
+	#[error("Dicord api error: {0}")]
 	DiscordError(#[from] serenity::Error),
-	#[error("io error {0}")]
+	#[error("Io error: {0}")]
 	IoError(#[from] std::io::Error),
-	#[error("ffmpeg returned {0:?}")]
+	#[error("Ffmpeg returned: {0:?}")]
 	FfmpegError(Option<i32>),
-	#[error("error getting ids from message")]
+	#[error("Error getting ids from message")]
 	ConverterError,
-	#[error("not currently in a guild channel")]
+	#[error("Not currently in a guild channel")]
 	NotInGuild,
-	#[error("screenshotter error")]
+	#[error("Screenshotter error")]
 	ScreenshotterError,
 }
 

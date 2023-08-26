@@ -11,11 +11,11 @@ use sirgovan_macros::command;
 enum RoleError {
 	#[error("")]
 	NotInGuild,
-	#[error("guild not in server list {0}")]
+	#[error("Guild not in server list: {0}")]
 	GuildNotInList(GuildId),
 	#[error("")]
 	GuildMissingRole,
-	#[error("could not get role name for {0}")]
+	#[error("Could not get role name for {0}")]
 	RoleNoName(u64),
 }
 

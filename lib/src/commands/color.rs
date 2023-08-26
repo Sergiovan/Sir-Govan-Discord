@@ -16,7 +16,7 @@ use rand::Rng;
 enum ColorError {
 	#[error("")]
 	NotInGuild,
-	#[error("could not get member from {0}: {1}")]
+	#[error("Could not get member from {0}: {1}")]
 	MemberFailure(UserId, #[source] anyhow::Error),
 	#[error("{0}")]
 	NoUniqueRole(#[from] UniqueRoleError),
@@ -24,7 +24,7 @@ enum ColorError {
 	ParseIntError(#[from] ParseIntError),
 	#[error("")]
 	HexTooLarge,
-	#[error("could not change role {1} for {2} to color #{3:06X}: {0}")]
+	#[error("Could not change role {1} for {2} to color #{3:06X}: {0}")]
 	RoleEditError(#[source] serenity::Error, RoleId, UserId, u64),
 }
 

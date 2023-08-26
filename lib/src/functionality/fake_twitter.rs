@@ -15,15 +15,15 @@ use regex::Regex;
 
 #[derive(thiserror::Error, Debug)]
 pub enum FakeTwitterError {
-	#[error("generic error {0}")]
+	#[error("Generic error: {0}")]
 	GenericError(#[from] anyhow::Error),
-	#[error("dicord api error {0}")]
+	#[error("Discord api error: {0}")]
 	DiscordError(#[from] serenity::Error),
-	#[error("not currently in a guild channel")]
+	#[error("Mot currently in a guild channel")]
 	NotInGuild,
-	#[error("screenshotter error")]
+	#[error("Screenshotter error")]
 	ScreenshotterError,
-	#[error("no messages to tweet")]
+	#[error("No messages to tweet")]
 	NoMessages,
 }
 

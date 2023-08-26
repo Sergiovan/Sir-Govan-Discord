@@ -11,11 +11,11 @@ use crate::util::random;
 
 #[derive(thiserror::Error, Debug)]
 pub enum HallError {
-	#[error("generic error {0}")]
+	#[error("Generic error: {0}")]
 	GenericError(#[from] anyhow::Error),
-	#[error("dicord api error {0}")]
+	#[error("Discord api error: {0}")]
 	DiscordError(#[from] serenity::Error),
-	#[error("no permission to post in hall {0}")]
+	#[error("No permission to post in hall {0}")]
 	NoPermission(String),
 }
 
