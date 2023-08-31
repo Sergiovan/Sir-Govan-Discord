@@ -12,14 +12,14 @@ struct PinTask {
 }
 
 pub struct ReactSafety {
-	finished: AtomicBool,
+	bot_finished: AtomicBool,
 	timers: RwLock<Vec<Option<PinTask>>>,
 }
 
 impl Default for ReactSafety {
 	fn default() -> Self {
 		ReactSafety {
-			finished: AtomicBool::new(false),
+			bot_finished: AtomicBool::new(false),
 			timers: RwLock::new(Vec::new()),
 		}
 	}
@@ -82,31 +82,43 @@ impl ReactSafety {
 	pub async fn locked_react(
 		&self,
 		ctx: &Context,
-		msg: &Message,
+		msg: MessageId,
+		channel: ChannelId,
 		reaction: &Reaction,
 		required: Option<usize>,
 		timeout: Option<std::time::Duration>,
 	) -> bool {
 		// The only way to access this function is by locking HallSafety, so we're, well, safe
 
-		if self.finished.load(Ordering::Relaxed) {
+		if self.bot_finished.load(Ordering::Relaxed) {
+			logger::error("Tried to pin-lock while cleaning up");
 			return false;
 		}
+
+		let msg = match ctx.http.get_message(channel.into(), msg.0).await {
+			Ok(msg) => msg,
+			Err(e) => {
+				logger::error_fmt!("Fetching msg {} from {} did not work: {}", msg, channel, e);
+				return false;
+			}
+		};
 
 		let Some(msg_reactions) = msg
 			.reactions
 			.iter()
 			.find(|x| x.reaction_type == reaction.emoji)
 		else {
+			logger::error("Called locked-react on message with no reactions");
 			return false; // No reactions to speak of, cannot pin
 		};
 
 		if msg_reactions.me {
+			logger::error("I already reacted to this");
 			return false; // No reactions if I've already reacted
 		}
 
 		let reactors = self
-			.get_reactors(ctx, msg, reaction, required.unwrap_or(0))
+			.get_reactors(ctx, &msg, reaction, required.unwrap_or(0))
 			.await;
 
 		if reactors.len() >= required.unwrap_or(0) {
@@ -141,6 +153,7 @@ impl ReactSafety {
 				}
 			}
 		} else {
+			logger::error_fmt!("Not enough reactors: {} < {:?}", reactors.len(), required);
 			false
 		}
 	}
@@ -163,7 +176,7 @@ impl ReactSafety {
 	}
 
 	pub async fn terminate(&self) {
-		self.finished.store(true, Ordering::Relaxed);
+		self.bot_finished.store(true, Ordering::Relaxed);
 
 		let timers = std::mem::take(&mut *self.timers.write().await);
 

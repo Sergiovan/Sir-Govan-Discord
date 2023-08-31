@@ -368,10 +368,14 @@ pub async fn create_image(
 	canvas.restore();
 
 	let encoding = skia_safe::EncodedImageFormat::PNG;
-	Ok(surface
+	let res = Ok(surface
 		.image_snapshot()
 		.encode(None, encoding, Some(100))
-		.unwrap())
+		.unwrap());
+
+	skia_safe::graphics::purge_all_caches();
+
+	res
 }
 
 async fn create_caption_data(

@@ -1,3 +1,5 @@
+use std::ops::Not;
+
 use crate::prelude::*;
 
 use crate::bot::Bot;
@@ -47,7 +49,14 @@ impl Bot {
 		let can_pin = {
 			let hall_safety = self.pin_lock.lock().await;
 			hall_safety
-				.locked_react(&ctx, &msg, &reaction, Some(required), None)
+				.locked_react(
+					&ctx,
+					msg.id,
+					msg.channel_id,
+					&reaction,
+					Some(required),
+					None,
+				)
 				.await
 		};
 
@@ -79,11 +88,7 @@ impl Bot {
 					.avatar_url()
 					.clone()
 					.unwrap_or(msg.author.default_avatar_url()),
-				content: if msg.content.is_empty() {
-					None
-				} else {
-					Some(msg.content)
-				},
+				content: msg.content.is_empty().not().then_some(msg.content),
 				timestamp: msg.timestamp,
 				message_id: *msg.id.as_u64(),
 				channel_id: *msg.channel_id.as_u64(),
@@ -112,8 +117,11 @@ impl Bot {
 					Embed::Nothing
 				},
 			};
+
 			dest.send_message(&ctx, |b| self.make_pin(b, pin_data))
 				.await?;
+		} else {
+			logger::error("Pin lock failed");
 		};
 
 		Ok(())

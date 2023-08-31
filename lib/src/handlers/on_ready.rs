@@ -7,8 +7,11 @@ use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 impl Bot {
-	pub async fn on_ready(&self, _ctx: Context, ready: Ready) -> Option<Infallible> {
+	pub async fn on_ready(&self, ctx: Context, ready: Ready) -> Option<Infallible> {
 		logger::debug("Getting ready...");
+
+		ctx.cache
+			.set_max_messages(10_000_000 / std::mem::size_of::<Message>());
 
 		// TODO Randomize self
 

@@ -14,6 +14,25 @@ impl Bot {
 		ctx: Context,
 		add_reaction: Reaction,
 	) -> Option<Infallible> {
+		let this_channel = add_reaction.channel(&ctx).await.ok_or_log(&format!(
+			"Reaction on {}'s channel {} could not be fetched",
+			add_reaction.message_id, add_reaction.channel_id
+		))?;
+
+		let this_channel = this_channel.guild()?;
+
+		let bot_data = self.data.read().await;
+
+		let server = bot_data.servers.get(this_channel.guild_id.as_u64())?;
+
+		if server
+			.channels
+			.disallowed_listen
+			.contains(&this_channel.id.into())
+		{
+			return None;
+		}
+
 		let reactor = add_reaction.user(&ctx).await.ok_or_log(&format!(
 			"Could not determine reactor for reaction {:?}",
 			add_reaction
@@ -31,15 +50,6 @@ impl Bot {
 		if !msg.guild_cached(&ctx).await {
 			return None;
 		}
-
-		// So, msg.is_private() won't work because messages fetched through the REST API don't come with
-		// a guild_id, which means msg.is_private() will always be true
-		let this_channel = msg.channel(&ctx).await.ok_or_log(&format!(
-			"Message {}'s channel {} could not be fetched",
-			msg.id, msg.channel_id
-		))?;
-
-		let this_channel = this_channel.guild()?;
 
 		enum DarkSoulsType {
 			FireHeart,
@@ -64,18 +74,6 @@ impl Bot {
 		logger::debug_fmt!("Reaction received: {}", add_reaction.emoji.to_string());
 
 		let action = {
-			let bot_data = self.data.read().await;
-
-			let server = bot_data.servers.get(this_channel.guild_id.as_u64())?;
-
-			if server
-				.channels
-				.disallowed_listen
-				.contains(msg.channel_id.as_u64())
-			{
-				return None;
-			}
-
 			let emoji: EmojiType = EmojiType::from(&add_reaction.emoji);
 			let required = server.pin_amount;
 
@@ -165,7 +163,8 @@ impl Bot {
 				if !pin_lock
 					.locked_react(
 						&ctx,
-						&msg,
+						msg.id,
+						msg.channel_id,
 						&add_reaction,
 						None,
 						Some(std::time::Duration::from_secs(60 * 30)),
@@ -254,7 +253,8 @@ impl Bot {
 				if !pin_lock
 					.locked_react(
 						&ctx,
-						&msg,
+						msg.id,
+						msg.channel_id,
 						&add_reaction,
 						None,
 						Some(std::time::Duration::from_secs(60 * 30)),
@@ -277,7 +277,8 @@ impl Bot {
 				if !pin_lock
 					.locked_react(
 						&ctx,
-						&msg,
+						msg.id,
+						msg.channel_id,
 						&add_reaction,
 						None,
 						Some(std::time::Duration::from_secs(60 * 30)),
@@ -299,6 +300,7 @@ impl Bot {
 			} => {
 				// No pinning your own messages, bot
 				if msg.is_own(&ctx) {
+					logger::error("Message is own");
 					return None;
 				}
 
@@ -325,6 +327,11 @@ impl Bot {
 				};
 
 				if !channel.guild_cached(&ctx).await {
+					logger::error_fmt!(
+						"Could not get guild {} from {}",
+						channel.guild_id,
+						channel.id
+					);
 					return None;
 				}
 
