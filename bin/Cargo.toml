@@ -6,7 +6,12 @@ edition = "2021"
 [dependencies]
 sirgovan-lib = { version = "*", path = "../lib"}
 dotenv = "0.15.0"
+console-subscriber = { version = "*", optional = true }
+tracing-subscriber = "0.3.17"
 
 [dependencies.tokio]
-version = "1.29.1"
-features = ["macros", "signal", "rt-multi-thread"] 
+version = "1.32.0"
+features = ["macros", "signal", "rt-multi-thread"]
+
+[features]
+tokio_debug = ["dep:console-subscriber", "tokio/full", "tokio/tracing"]

@@ -1,26 +1,41 @@
 use crate::prelude::*;
+use serenity::http::CacheHttp;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tokio::sync::{oneshot, RwLock};
+use tokio::sync::RwLock;
 
 struct PinTask {
-	pub channel: oneshot::Sender<()>,
-	pub handle: tokio::task::JoinHandle<()>,
+	pub start: std::time::Instant,
+	pub duration: std::time::Duration,
+	pub reaction: Reaction,
+}
+
+impl PinTask {
+	pub async fn resolve(self, ctx: &impl CacheHttp) {
+		self.reaction.delete(&ctx).await.log_if_err(&format!(
+			"Could not delete reaction {} from {}",
+			self.reaction.emoji, self.reaction.message_id
+		));
+	}
+
+	pub fn finished(&self) -> bool {
+		self.start + self.duration < std::time::Instant::now()
+	}
 }
 
 pub struct ReactSafety {
 	bot_finished: AtomicBool,
-	timers: RwLock<Vec<Option<PinTask>>>,
+	tasks: RwLock<Vec<Option<PinTask>>>,
 }
 
 impl Default for ReactSafety {
 	fn default() -> Self {
 		ReactSafety {
 			bot_finished: AtomicBool::new(false),
-			timers: RwLock::new(Vec::new()),
+			tasks: RwLock::new(Vec::new()),
 		}
 	}
 }
@@ -125,19 +140,10 @@ impl ReactSafety {
 			match msg.react(&ctx, reaction.emoji.clone()).await {
 				Ok(reaction) => {
 					if timeout.is_some() {
-						let (send, recv) = oneshot::channel();
-						let http = ctx.http.clone();
-						let handle = tokio::spawn(async move {
-							_ = tokio::time::timeout(timeout.unwrap(), recv).await;
-							reaction.delete(&http).await.log_if_err(&format!(
-								"Could not delete reaction {} from {}",
-								reaction.emoji, reaction.message_id
-							));
-						});
-
-						self.timers.write().await.push(Some(PinTask {
-							channel: send,
-							handle,
+						self.tasks.write().await.push(Some(PinTask {
+							start: std::time::Instant::now(),
+							duration: timeout.unwrap(),
+							reaction,
 						}));
 					}
 					true
@@ -158,34 +164,29 @@ impl ReactSafety {
 		}
 	}
 
-	pub async fn cleanup(&mut self) {
-		let mut lock = self.timers.write().await;
+	pub async fn cleanup(&mut self, ctx: &impl CacheHttp) {
+		let mut lock = self.tasks.write().await;
 
-		let mut tail = lock.len();
-		for i in 0..lock.len() {
-			if lock[i].as_ref().is_some_and(|s| s.handle.is_finished()) {
-				lock[i] = None;
-				lock.swap(i, tail - 1);
-				tail -= 1;
-				if tail <= i {
-					break;
-				}
+		let mut vec = Vec::new();
+
+		lock.retain_mut(|t| {
+			if t.as_ref().is_some_and(|t| t.finished()) {
+				let t = t.take().unwrap();
+				vec.push(t.resolve(ctx));
+				false
+			} else {
+				t.is_some()
 			}
-		}
-		lock.truncate(tail);
+		});
+
+		futures::future::join_all(vec.into_iter()).await;
 	}
 
-	pub async fn terminate(&self) {
+	pub async fn terminate(&self, ctx: &impl CacheHttp) {
 		self.bot_finished.store(true, Ordering::Relaxed);
 
-		let timers = std::mem::take(&mut *self.timers.write().await);
+		let timers = std::mem::take(&mut *self.tasks.write().await);
 
-		futures::future::join_all(timers.into_iter().flatten().map(|s| {
-			if !s.channel.is_closed() {
-				_ = s.channel.send(()); // It is unimportant if the send is successful or not
-			}
-			s.handle
-		}))
-		.await;
+		futures::future::join_all(timers.into_iter().flatten().map(|t| t.resolve(ctx))).await;
 	}
 }

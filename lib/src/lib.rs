@@ -20,8 +20,6 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 	use util::logger;
 	use util::traits::ResultExt;
 
-	tracing_subscriber::fmt::init();
-
 	let mut bot_data = BotData::new(beta);
 
 	// TODO Separate these into their own check function
@@ -55,6 +53,7 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 
 	let shard_manager = client.shard_manager.clone();
 	bot.set_shard_manager(shard_manager).await;
+	bot.set_cache_and_http(client.cache_and_http.clone()).await;
 
 	{
 		let bot = bot.clone();

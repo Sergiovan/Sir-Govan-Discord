@@ -23,13 +23,8 @@ impl EventHandler for BotEventHandler {
 	async fn ready(&self, ctx: Context, ready: Ready) {
 		{
 			let bot = self.bot.clone();
-			tokio::spawn(async move {
-				loop {
-					tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
 
-					bot.periodic().await;
-				}
-			});
+			self.bot.periodic.lock().await.spawn_periodic(bot);
 		}
 
 		self.bot.on_ready(ctx, ready).await;
