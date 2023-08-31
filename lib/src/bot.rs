@@ -7,7 +7,7 @@ use super::commands::commander::Commander;
 use super::data::BotData;
 use super::helpers::react_locks::ReactSafety;
 use super::helpers::screenshotter::Screenshotter;
-use super::util::traits::ResultExt;
+use crate::util::traits::ResultExt;
 use std::sync::Arc;
 
 pub struct Bot {
@@ -54,7 +54,9 @@ impl Bot {
 			}
 		}
 
-		let screenshotter = Screenshotter::new().ok_or_log("Could not load screenshotter data");
+		let screenshotter = Screenshotter::new()
+			.await
+			.ok_or_log("Could not load screenshotter data");
 
 		*self.screenshotter.write().await = screenshotter;
 

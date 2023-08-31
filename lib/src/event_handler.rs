@@ -21,12 +21,6 @@ impl BotEventHandler {
 #[async_trait]
 impl EventHandler for BotEventHandler {
 	async fn ready(&self, ctx: Context, ready: Ready) {
-		{
-			let bot = self.bot.clone();
-
-			self.bot.periodic.lock().await.spawn_periodic(bot);
-		}
-
 		self.bot.on_ready(ctx, ready).await;
 	}
 

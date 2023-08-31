@@ -1,157 +1,123 @@
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 use anyhow::bail;
-use headless_chrome::protocol::cdp::Page;
-use headless_chrome::Browser;
 
+use fantoccini::wd::Capabilities;
 use lazy_static::lazy_static;
 
 pub struct Screenshotter {
-	browser: Browser,
+	client: fantoccini::Client,
 	handlebars: super::handlebars::Handlebar<'static>,
 }
 
 impl Screenshotter {
-	pub fn new() -> Result<Screenshotter, anyhow::Error> {
-		use std::ffi::OsStr;
-
+	pub async fn new() -> Result<Screenshotter, anyhow::Error> {
 		lazy_static! {
-			static ref ARGS: Vec<&'static OsStr> = vec![
-				OsStr::new("--autoplay-policy=user-gesture-required"),
-				OsStr::new("--disable-background-networking"),
-				OsStr::new("--disable-background-timer-throttling"),
-				OsStr::new("--disable-backgrounding-occluded-windows"),
-				OsStr::new("--disable-breakpad"),
-				OsStr::new("--disable-client-side-phishing-detection"),
-				OsStr::new("--disable-component-update"),
-				OsStr::new("--disable-default-apps"),
-				OsStr::new("--disable-dev-shm-usage"),
-				OsStr::new("--disable-domain-reliability"),
-				OsStr::new("--disable-extensions"),
-				OsStr::new("--disable-features=AudioServiceOutOfProcess"),
-				OsStr::new("--disable-hang-monitor"),
-				OsStr::new("--disable-ipc-flooding-protection"),
-				OsStr::new("--disable-notifications"),
-				OsStr::new("--disable-offer-store-unmasked-wallet-cards"),
-				OsStr::new("--disable-popup-blocking"),
-				OsStr::new("--disable-print-preview"),
-				OsStr::new("--disable-prompt-on-repost"),
-				OsStr::new("--disable-renderer-backgrounding"),
-				OsStr::new("--disable-setuid-sandbox"),
-				OsStr::new("--disable-speech-api"),
-				OsStr::new("--disable-sync"),
-				OsStr::new("--hide-scrollbars"),
-				OsStr::new("--ignore-gpu-blacklist"),
-				OsStr::new("--metrics-recording-only"),
-				OsStr::new("--mute-audio"),
-				OsStr::new("--no-default-browser-check"),
-				OsStr::new("--no-first-run"),
-				OsStr::new("--no-pings"),
-				OsStr::new("--no-sandbox"),
-				OsStr::new("--no-zygote"),
-				OsStr::new("--disable-gpu"),
-				OsStr::new("--password-store=basic"),
-				OsStr::new("--use-gl=swiftshader"),
-				OsStr::new("--use-mock-keychain"),
+			static ref ARGS: Vec<&'static str> = vec![
+				"--autoplay-policy=user-gesture-required",
+				"--disable-background-networking",
+				"--disable-background-timer-throttling",
+				"--disable-backgrounding-occluded-windows",
+				"--disable-breakpad",
+				"--disable-client-side-phishing-detection",
+				"--disable-component-update",
+				"--disable-default-apps",
+				"--disable-dev-shm-usage",
+				"--disable-domain-reliability",
+				"--disable-extensions",
+				"--disable-features=AudioServiceOutOfProcess",
+				"--disable-hang-monitor",
+				"--disable-ipc-flooding-protection",
+				"--disable-notifications",
+				"--disable-offer-store-unmasked-wallet-cards",
+				"--disable-popup-blocking",
+				"--disable-print-preview",
+				"--disable-prompt-on-repost",
+				"--disable-renderer-backgrounding",
+				"--disable-setuid-sandbox",
+				"--disable-speech-api",
+				"--disable-sync",
+				"--hide-scrollbars",
+				"--ignore-gpu-blacklist",
+				"--metrics-recording-only",
+				"--mute-audio",
+				"--no-default-browser-check",
+				"--no-first-run",
+				"--no-pings",
+				"--headless=new",
+				"--no-sandbox",
+				// "--no-zygote",
+				"--disable-gpu",
+				"--password-store=basic",
+				"--use-gl=swiftshader",
+				"--use-mock-keychain",
 			];
 		}
 
 		let handlebars = super::handlebars::Handlebar::new()?;
 
-		let executable = match headless_chrome::browser::default_executable() {
-			Ok(exe) => exe,
-			Err(e) => bail!("{}", e),
-		};
+		let capability_array = ARGS
+			.iter()
+			.map(|s| format!(r#""{}""#, s))
+			.collect::<Vec<_>>()
+			.join(", ");
 
-		let launch_options = headless_chrome::LaunchOptions::default_builder()
-			.path(Some(executable))
-			.sandbox(false)
-			.idle_browser_timeout(std::time::Duration::from_secs(u64::MAX))
-			.args(ARGS.clone())
-			.build()?;
+		let cap: Capabilities = serde_json::from_str(&format!(
+			r#"{{"browserName":"chrome", "goog:chromeOptions":{{"args":[{}]}}}}"#,
+			capability_array
+		))
+		.unwrap();
 
-		let browser = Browser::new(launch_options)?;
+		let c = fantoccini::ClientBuilder::native()
+			.capabilities(cap)
+			.connect("http://localhost:9515")
+			.await?;
 
 		Ok(Screenshotter {
-			browser,
+			client: c,
 			handlebars,
 		})
 	}
 }
 
 impl Screenshotter {
-	pub fn take_screenshot(
-		&self,
-		page: &str,
-		width: Option<f64>,
-		height: Option<f64>,
-	) -> Result<Vec<u8>, Box<dyn Error>> {
-		let tab = self.browser.new_tab()?;
-
-		tab.set_bounds(headless_chrome::types::Bounds::Normal {
-			left: None,
-			top: None,
-			width: width.or(Some(1920_f64)),
-			height: height.or(Some(1920_f64)),
-		})?;
-
-		tab.navigate_to(page)?.wait_until_navigated()?;
-
-		let bytes = tab
-			.wait_for_element("body")
-			.expect("No body to capture")
-			.capture_screenshot(Page::CaptureScreenshotFormatOption::Png)?;
-
-		Ok(bytes)
-	}
-
-	pub fn screenshot_from_html(
+	pub async fn screenshot_from_html(
 		&self,
 		html: &str,
 		capture: &str,
 		width: Option<f64>,
 		height: Option<f64>,
 	) -> anyhow::Result<Vec<u8>> {
-		let tab = self.browser.new_tab()?;
-		tab.evaluate(
-			&format!(
-				r#"(function(){{
-      let html = `{}`;
+		let html = openssl::base64::encode_block(html.as_bytes());
 
-      document.open();
-      document.write(html);
-      document.close();
-    }})()"#,
-				html.replace('\\', "\\\\").replace('`', "\\`")
-			),
-			false,
-		)
-		.expect("Could not load js");
+		self.client
+			.goto(&format!("data:text/html;base64,{}", html))
+			.await?;
 
-		let capture = tab.wait_for_element(capture)?;
-		let mut capture_box = capture.get_box_model()?.border_viewport();
+		let elem = self
+			.client
+			.wait()
+			.for_element(fantoccini::Locator::Css(capture))
+			.await?;
 
+		let (x, y, w, h) = elem.rectangle().await?;
+
+		const HEADER_SIZE: f64 = 123_f64;
 		let min_width = width.unwrap_or(0_f64);
 		const MAX_WIDTH: f64 = 1920_f64;
-		capture_box.width = capture_box.width.clamp(min_width, MAX_WIDTH);
-
 		let min_height = height.unwrap_or(0_f64);
-		const MAX_HEIGHT: f64 = 1080_f64;
-		capture_box.height = capture_box.height.clamp(min_height, MAX_HEIGHT);
+		const MAX_HEIGHT: f64 = 1080_f64 + HEADER_SIZE; // To account for top bar
 
-		tab.set_bounds(headless_chrome::types::Bounds::Normal {
-			left: None,
-			top: None,
-			width: Some(capture_box.width),
-			height: Some(capture_box.height),
-		})?;
+		self.client
+			.set_window_rect(
+				0,
+				0,
+				w.clamp(min_width, MAX_WIDTH) as u32,
+				(h + HEADER_SIZE).clamp(min_height, MAX_HEIGHT) as u32,
+			)
+			.await?;
 
-		let bytes = tab.capture_screenshot(
-			Page::CaptureScreenshotFormatOption::Png,
-			None,
-			Some(capture_box),
-			false,
-		)?;
+		let bytes = elem.screenshot().await?;
 
 		Ok(bytes)
 	}
@@ -162,10 +128,8 @@ impl Screenshotter {
 	) -> anyhow::Result<Vec<u8>> {
 		let html = self.handlebars.twitter(tweet_data)?;
 
-		tokio::join!(async move {
-			self.screenshot_from_html(&html, ".fake-twitter", Some(510.0), Some(10.0))
-		})
-		.0
+		self.screenshot_from_html(&html, ".fake-twitter", None, None)
+			.await
 	}
 
 	pub async fn always_sunny(
@@ -174,6 +138,7 @@ impl Screenshotter {
 	) -> anyhow::Result<Vec<u8>> {
 		let html = self.handlebars.always_sunny(always_sunny_data)?;
 
-		tokio::join!(async move { self.screenshot_from_html(&html, ".container", None, None) }).0
+		self.screenshot_from_html(&html, ".container", None, None)
+			.await
 	}
 }

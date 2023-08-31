@@ -35,6 +35,13 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 
 	let bot = std::sync::Arc::new(Bot::new(bot_data));
 
+	let mut chrome_driver = tokio::process::Command::new("chromedriver")
+		.stdout(std::process::Stdio::null())
+		.stderr(std::process::Stdio::null())
+		.arg("--silent")
+		.spawn()
+		.ok()?;
+
 	// Set gateway intents, which decides what events the bot will be notified about
 	let intents = GatewayIntents::GUILDS
 		| GatewayIntents::GUILD_MESSAGES
@@ -54,6 +61,8 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 	let shard_manager = client.shard_manager.clone();
 	bot.set_shard_manager(shard_manager).await;
 	bot.set_cache_and_http(client.cache_and_http.clone()).await;
+	_ = bot.get_screenshotter().await;
+	bot.periodic.lock().await.spawn_periodic(bot.clone());
 
 	{
 		let bot = bot.clone();
@@ -76,6 +85,8 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 			logger::error_fmt!("Could not close down bot before a minute: {}", e);
 		}
 	}
+
+	chrome_driver.kill().await.ok()?;
 
 	None
 }
