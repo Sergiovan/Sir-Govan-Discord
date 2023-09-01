@@ -41,7 +41,7 @@ impl Bot {
 			let author = if mine {
 				"me".to_string()
 			} else {
-				msg.author.tag()
+				msg.author.name.clone()
 			};
 
 			let channel = match msg.channel(&ctx).await {
