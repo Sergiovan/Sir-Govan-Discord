@@ -48,12 +48,12 @@ impl<T> OptionExt<T> for Option<T> {
 
 #[async_trait]
 pub trait CacheGuild {
-	async fn guild_cached(&self, ctx: &Context) -> bool;
+	async fn guild_cached(&self, ctx: &Context) -> anyhow::Result<()>;
 }
 
 #[async_trait]
 impl CacheGuild for Message {
-	async fn guild_cached(&self, ctx: &Context) -> bool {
+	async fn guild_cached(&self, ctx: &Context) -> anyhow::Result<()> {
 		if self.guild_id.is_some() && self.guild(ctx).is_none() {
 			if let Err(e) = ctx
 				.http
@@ -65,36 +65,33 @@ impl CacheGuild for Message {
 				)
 				.await
 			{
-				logger::error_fmt!(
+				anyhow::bail!(
 					"Could not get guild information for {} from message {}: {}",
 					self.guild_id.unwrap(),
 					self.id,
 					e
 				);
-				return false;
 			}
 		}
 
-		true
+		Ok(())
 	}
 }
 
 #[async_trait]
 impl CacheGuild for GuildChannel {
-	async fn guild_cached(&self, ctx: &Context) -> bool {
+	async fn guild_cached(&self, ctx: &Context) -> anyhow::Result<()> {
 		if self.guild(ctx).is_none() {
 			if let Err(e) = ctx.http.get_guild(*self.guild_id.as_u64()).await {
-				logger::error_fmt!(
+				anyhow::bail!(
 					"Could not get guild information for {} from channel {}: {}",
 					self.id,
 					self.guild_id,
 					e,
 				);
-				return false;
 			}
 		}
-
-		true
+		Ok(())
 	}
 }
 

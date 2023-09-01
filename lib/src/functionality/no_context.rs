@@ -1,11 +1,19 @@
-use std::convert::Infallible;
-
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
 use crate::bot::Bot;
 use crate::data::Server;
-use crate::util::traits::ResultExt;
+use crate::prelude::Reportable;
+
+#[derive(thiserror::Error, Debug)]
+pub enum NoContextError {
+	#[error("Misconfigured servers {0}")]
+	MisconfiguredServers(u64),
+	#[error("Discord api error: {0}")]
+	DiscordError(#[from] serenity::Error),
+}
+
+impl Reportable for NoContextError {}
 
 impl Bot {
 	pub fn can_remove_context(&self, ctx: &Context, msg: &Message, server: &Server) -> bool {
@@ -23,19 +31,19 @@ impl Bot {
 		ctx: &Context,
 		msg: &Message,
 		server: &Server,
-	) -> Option<Infallible> {
+	) -> Result<(), NoContextError> {
 		let no_context = server
 			.no_context
 			.as_ref()
-			.expect("Server didn't have no-context");
+			.ok_or(NoContextError::MisconfiguredServers(server.id))?;
 		let channel = ctx
 			.cache
 			.guild_channel(no_context.channel)
-			.expect("Channel didn't exist");
+			.ok_or(NoContextError::MisconfiguredServers(server.id))?;
 		let role = ctx
 			.cache
 			.role(channel.guild_id, no_context.role)
-			.expect("Role didn't exist");
+			.ok_or(NoContextError::MisconfiguredServers(server.id))?;
 
 		channel
 			.send_message(&ctx, |b| {
@@ -49,36 +57,19 @@ impl Bot {
 
 				b.content(&msg.content)
 			})
-			.await
-			.ok_or_log(&format!(
-				"Could not post message {} to {}",
-				msg.id, channel.name
-			))?;
+			.await?;
 
 		for (id, member) in channel.guild(ctx).unwrap().members.iter_mut() {
 			if id == &msg.author.id {
-				member.add_role(&ctx, role.id).await.log_if_err(&format!(
-					"Could not add no-context role {} to user {}",
-					role.id,
-					member.display_name()
-				));
+				member.add_role(&ctx, role.id).await?;
 			} else {
-				member.remove_role(&ctx, role.id).await.log_if_err(&format!(
-					"Could not remove no-context role {} from user {}",
-					role.id,
-					member.display_name()
-				));
+				member.remove_role(&ctx, role.id).await?;
 			}
 		}
 
 		let new_role_name = self.data.read().await.random_no_context();
-		role.edit(&ctx, |r| r.name(&new_role_name))
-			.await
-			.log_if_err(&format!(
-				"Could not rename no-context role {} from {} to {}",
-				role.id, role.name, new_role_name
-			));
+		role.edit(&ctx, |r| r.name(&new_role_name)).await?;
 
-		None
+		Ok(())
 	}
 }

@@ -340,7 +340,7 @@ impl Bot {
 		&self,
 		ctx: &Context,
 		msg: &Message,
-		reaction: Reaction,
+		reaction: &Reaction,
 		with_context: bool,
 		verified_role: Option<u64>,
 	) -> Result<(), FakeTwitterError> {
@@ -412,7 +412,7 @@ impl Bot {
 		let first = context.first().ok_or(FakeTwitterError::NoMessages)?;
 
 		let mut tweet_data = self
-			.tweet_data_from_message(ctx, first, &reaction, verified_role)
+			.tweet_data_from_message(ctx, first, reaction, verified_role)
 			.await?;
 
 		let reactor = reaction.user(&ctx).await?;

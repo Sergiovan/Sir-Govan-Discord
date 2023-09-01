@@ -1,18 +1,37 @@
 use crate::prelude::*;
 
-use std::convert::Infallible;
-
 use crate::bot::Bot;
 
 use colored::Colorize;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-impl Bot {
-	pub async fn on_message(&self, ctx: Context, msg: Message) -> Option<Infallible> {
-		if !msg.guild_cached(&ctx).await {
-			return None;
+#[derive(thiserror::Error, Debug)]
+pub enum OnMessageError {
+	#[error("Generic error: {0}")]
+	GenericError(#[from] anyhow::Error),
+	#[error("")]
+	NotAValidGuild,
+	#[error("")]
+	DisallowedListen,
+	#[error("")]
+	DisallowedSelfInteract,
+	#[error("{0}")]
+	CommandError(Box<dyn Reportable>),
+}
+
+impl Reportable for OnMessageError {
+	fn to_user(&self) -> Option<String> {
+		match self {
+			Self::CommandError(e) => e.to_user(),
+			_ => None,
 		}
+	}
+}
+
+impl Bot {
+	pub async fn on_message(&self, ctx: &Context, msg: &Message) -> Result<(), OnMessageError> {
+		msg.guild_cached(ctx).await?;
 
 		let bot_data = self.data.read().await;
 
@@ -73,32 +92,33 @@ impl Bot {
 		}
 
 		if msg.is_private() {
-			log(&ctx, &msg).await;
+			log(ctx, msg).await;
 		} else {
-			let server = bot_data.servers.get(
-				msg.guild_id
-					.expect("Guild did not exist outside of DMs")
-					.as_u64(),
-			)?;
+			let server = bot_data
+				.servers
+				.get(msg.guild_id.unwrap_or(GuildId(0)).as_u64())
+				.ok_or(OnMessageError::NotAValidGuild)?;
 
 			if server
 				.channels
 				.disallowed_listen
 				.contains(msg.channel_id.as_u64())
 			{
-				return None;
+				return Err(OnMessageError::DisallowedListen);
 			}
 
-			log(&ctx, &msg).await;
+			log(ctx, msg).await;
 
-			if msg.is_own(&ctx) {
-				return None;
+			if msg.is_own(ctx) {
+				return Err(OnMessageError::DisallowedListen);
 			}
 
 			// From here on we're for sure allowed to listen into messages
 
-			if self.can_remove_context(&ctx, &msg, server) && util::random::one_in(100) {
-				self.remove_context(&ctx, &msg, server).await;
+			if self.can_remove_context(ctx, msg, server) && util::random::one_in(100) {
+				if let Err(e) = self.remove_context(ctx, msg, server).await {
+					e.get_messages().log(); // No propagation, we keep gooooing
+				};
 			}
 
 			// TODO Donk Solbs easter egg goes here
@@ -108,9 +128,15 @@ impl Bot {
 				.allowed_commands
 				.contains(msg.channel_id.as_u64())
 			{
-				self.commander.lock().await.parse(&ctx, &msg, self).await;
+				self.commander
+					.lock()
+					.await
+					.parse(ctx, msg, self)
+					.await
+					.map_err(|e| OnMessageError::CommandError(e))?;
 			}
 		}
-		None
+
+		Ok(())
 	}
 }

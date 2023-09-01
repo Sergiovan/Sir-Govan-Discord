@@ -6,6 +6,8 @@ use serenity::json::Value;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
+use crate::prelude::*;
+
 use std::sync::Arc;
 
 pub struct BotEventHandler {
@@ -35,10 +37,23 @@ impl EventHandler for BotEventHandler {
 	}
 
 	async fn message(&self, ctx: Context, msg: Message) {
-		self.bot.on_message(ctx, msg).await;
+		if let Err(e) = self.bot.on_message(&ctx, &msg).await {
+			e.get_messages().report(&ctx, &msg).await;
+		}
 	}
 
 	async fn reaction_add(&self, ctx: Context, add_reaction: Reaction) {
-		self.bot.on_reaction_add(ctx, add_reaction).await;
+		if let Err(e) = self.bot.on_reaction_add(&ctx, &add_reaction).await {
+			let messages = e.get_messages();
+			match add_reaction.message(&ctx).await {
+				Ok(msg) => {
+					messages.report(&ctx, &msg).await;
+				}
+				Err(e) => {
+					messages.log();
+					logger::error_fmt!("While reporting last error another error occurred: {}", e);
+				}
+			}
+		}
 	}
 }

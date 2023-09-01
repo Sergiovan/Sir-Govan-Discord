@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 use skia_safe;
 
-use std::ops::Mul;
+use std::ops::{Add, Mul};
 use std::{mem, path};
 
 use lazy_static::lazy_static;
@@ -238,11 +238,14 @@ enum LineElement {
 const Y_SCALE: f32 = 1.5_f32;
 const FONT_SIZE: f32 = 92_f32;
 
+#[derive(thiserror::Error, Debug)]
+enum TextBannerError {}
+
 pub async fn create_image(
 	text: &str,
 	preset: &Preset,
 	gradient: Option<&Gradient>,
-) -> Result<skia_safe::Data, &'static str> {
+) -> anyhow::Result<skia_safe::Data> {
 	let type_face = skia_safe::Typeface::from_name(
 		match preset.font {
 			Font::Garamond => "Adobe Garamond Pro",
@@ -260,7 +263,14 @@ pub async fn create_image(
 		.await
 		.unwrap();
 
-	let (w, h) = (lines.width.mul(1.1_f32).clamp(1200_f32, 1920_f32), 280_f32);
+	let (w, h) = (
+		lines
+			.width
+			.mul(1.1_f32)
+			.add(100_f32)
+			.clamp(1200_f32, 1920_f32),
+		280_f32,
+	);
 	let mut surface =
 		skia_safe::surfaces::raster_n32_premul((w as i32, h as i32)).expect("Create surface");
 	let canvas = surface.canvas();
@@ -308,10 +318,6 @@ pub async fn create_image(
 		)
 	};
 
-	// DEBUG
-	// let zoom_steps = -1;
-
-	// TODO skip if zoom_steps is negative
 	for i in (1..=zoom_steps).rev() {
 		canvas.save();
 
@@ -404,49 +410,29 @@ async fn create_caption_data(
 				url: &str,
 				base: &str,
 				filename: &str,
-			) -> Option<std::path::PathBuf> {
+			) -> anyhow::Result<std::path::PathBuf> {
 				let path = path::Path::new(config::RESOURCE_PATH)
 					.join(config::SAVED_DIR)
 					.join(base)
 					.join(filename);
 
 				if path.exists() {
-					return Some(path);
+					return Ok(path);
 				}
 
 				let request = reqwest::get(url).await;
-				let res = request.ok_or_log(&format!("Could not find {}", url))?;
-				let data = res
-					.bytes()
-					.await
-					.ok_or_log(&format!("Could not convert data from {} to bytes", url))?;
+				let res = request?;
+				let data = res.bytes().await?;
 
-				let parent = path
-					.parent()
-					.log_if_none(&format!("{:?} has no parent", path))?;
+				let parent = path.parent().unwrap();
 
-				fs::create_dir_all(parent).ok_or_log(&format!(
-					"Could not create directories in {}",
-					parent.display()
-				))?;
+				fs::create_dir_all(parent)?;
 
-				match image::load_from_memory_with_format(&data, image::ImageFormat::Png) {
-					Ok(_) => (),
-					Err(e) => {
-						logger::error_fmt!(
-							"Image from {} does not have the correct format: {}",
-							url,
-							e
-						);
-						return None;
-					}
-				}
+				image::load_from_memory_with_format(&data, image::ImageFormat::Png)?;
 
-				tokio::fs::write(&path, data)
-					.await
-					.ok_or_log(&format!("Could not write data to {}", path.display()))?;
+				tokio::fs::write(&path, data).await?;
 
-				Some(path)
+				Ok(path)
 			}
 
 			lazy_static! {
@@ -460,12 +446,17 @@ async fn create_caption_data(
 				LineElementRaw::UnicodeEmoji(emoji) => {
 					let filename = util::filename_from_unicode_emoji(&emoji);
 					let url = util::url_from_unicode_emoji(&emoji);
-					LineElement::Image(
-						url_to_filesystem(&url, "unicode", &filename)
-							.await
-							.unwrap_or(FALLBACK_IMAGE.clone()),
-						true,
-					)
+					let path = url_to_filesystem(&url, "unicode", &filename).await;
+
+					let path = match path {
+						Ok(path) => path,
+						Err(e) => {
+							logger::warning_fmt!("{}", e);
+							FALLBACK_IMAGE.clone()
+						}
+					};
+
+					LineElement::Image(path, true)
 				}
 				LineElementRaw::DiscordEmoji(emoji) => {
 					let regex_match = crate::data::regex::DISCORD_EMOJI_REGEX
@@ -486,12 +477,18 @@ async fn create_caption_data(
 						util::filename_from_discord_emoji(id, animated)
 					);
 					let url = util::url_from_discord_emoji(id, animated);
-					LineElement::Image(
-						url_to_filesystem(&url, "discord", &filename)
-							.await
-							.unwrap_or(FALLBACK_IMAGE.clone()),
-						false,
-					)
+
+					let path = url_to_filesystem(&url, "discord", &filename).await;
+
+					let path = match path {
+						Ok(path) => path,
+						Err(e) => {
+							logger::warning_fmt!("{}", e);
+							FALLBACK_IMAGE.clone()
+						}
+					};
+
+					LineElement::Image(path, false)
 				}
 			}
 		}
@@ -856,7 +853,7 @@ fn draw_caption(
 }
 
 #[tokio::test]
-async fn test_banner() -> Result<(), &'static str> {
+async fn test_banner() -> anyhow::Result<()> {
 	use crate::util::logger;
 	use std::env;
 	env::set_current_dir("/mnt/lnxdata/data/code/sirgovan-rust/").unwrap();

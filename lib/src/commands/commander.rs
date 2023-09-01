@@ -15,6 +15,10 @@ use std::collections::VecDeque;
 pub enum DefaultCommandError {
 	#[error("DefaultCommandError: {0}")]
 	DefaultError(#[from] anyhow::Error),
+	#[error("")]
+	NoSuchCommand,
+	#[error("Content of message was empty, but command {0} was detected")]
+	EmptyCommand(String),
 }
 
 impl Reportable for DefaultCommandError {}
@@ -74,15 +78,23 @@ impl Commander {
 		}
 	}
 
-	pub async fn parse(&self, ctx: &Context, msg: &Message, bot: &Bot) {
+	pub async fn parse(
+		&self,
+		ctx: &Context,
+		msg: &Message,
+		bot: &Bot,
+	) -> Result<(), Box<dyn Reportable>> {
 		if !msg.content.starts_with('!') {
-			return;
+			return Err(Box::new(DefaultCommandError::NoSuchCommand));
 		}
 
 		let content = msg.content.clone();
 		let mut words = Arguments::from(content.as_str());
+
 		if words.empty() {
-			return;
+			return Err(Box::new(DefaultCommandError::EmptyCommand(
+				msg.content.clone(),
+			)));
 		}
 
 		let first: &str = words
@@ -90,9 +102,9 @@ impl Commander {
 			.expect("Non-empty arguments didn't return string");
 
 		if let Some(c) = self.commands.get(first) {
-			if let Err(e) = c.execute(ctx, msg, words, bot).await {
-				e.get_messages().report(ctx, msg).await;
-			};
+			Ok(c.execute(ctx, msg, words, bot).await?)
+		} else {
+			Err(Box::new(DefaultCommandError::NoSuchCommand))
 		}
 	}
 }

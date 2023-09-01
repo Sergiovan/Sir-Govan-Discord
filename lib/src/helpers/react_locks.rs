@@ -7,6 +7,43 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::RwLock;
 
+#[derive(thiserror::Error, Debug)]
+pub enum ReactLockError {
+	#[error("Incomplete custom emoji name: {0}")]
+	CustomEmojiIncomplete(u64),
+	#[error("Unable to get {1} reactions from {2}: {0}")]
+	ReactionFetchError(#[source] serenity::Error, ReactionType, u64),
+	#[error("Tried to pin-lock during cleanup")]
+	CleanupInProgress,
+	#[error("Unable to get msg {1} from {2}: {0}")]
+	MessageFetchError(#[source] serenity::Error, u64, u64),
+	#[error("Called react lock on message with no reactions")]
+	NoReactions,
+	#[error("")]
+	AlreadyUsed,
+	#[error("Unable to add {1} reaction to {2}: {0}")]
+	ReactionAddError(#[source] serenity::Error, ReactionType, u64),
+	#[error("")]
+	NotEnoughReactors(usize, usize),
+}
+
+impl Reportable for ReactLockError {
+	fn to_user(&self) -> Option<String> {
+		match self {
+			Self::CustomEmojiIncomplete(..) => {
+				Some("It appears Discord bad. Try again later".to_string())
+			}
+			Self::MessageFetchError(..) | Self::ReactionFetchError(..) => {
+				Some("My connection to the outside world is quite dodgy right now".to_string())
+			}
+			Self::ReactionAddError(..) => {
+				Some("I can't react on that message, so I won't be touching it further".to_string())
+			}
+			_ => None,
+		}
+	}
+}
+
 struct PinTask {
 	pub start: std::time::Instant,
 	pub duration: std::time::Duration,
@@ -47,11 +84,10 @@ impl ReactSafety {
 		msg: &Message,
 		reaction: &Reaction,
 		required: usize,
-	) -> Vec<User> {
+	) -> Result<Vec<User>, ReactLockError> {
 		// First get the emoji for sure
-		if let ReactionType::Custom { name: None, .. } = reaction.emoji {
-			logger::error_fmt!("Emoji from reaction was incomplete: {}", reaction.emoji);
-			return vec![];
+		if let ReactionType::Custom { name: None, id, .. } = reaction.emoji {
+			return Err(ReactLockError::CustomEmojiIncomplete(id.into()));
 		};
 
 		let mut last: Option<UserId> = None;
@@ -70,24 +106,22 @@ impl ReactSafety {
 						.collect::<Vec<_>>();
 
 					if filtered.is_empty() {
-						return res;
+						return Ok(res);
 					}
 
 					res.extend(filtered);
 				}
 				Err(e) => {
-					logger::error_fmt!(
-						"Could not get {} reactions from {}: {}",
-						reaction.emoji,
-						msg.id,
-						e
-					);
-					return res;
+					return Err(ReactLockError::ReactionFetchError(
+						e,
+						reaction.emoji.clone(),
+						msg.id.into(),
+					));
 				}
 			};
 
 			if res.len() > required {
-				return res;
+				return Ok(res);
 			}
 
 			last = res.last().map(|x| x.id);
@@ -102,65 +136,50 @@ impl ReactSafety {
 		reaction: &Reaction,
 		required: Option<usize>,
 		timeout: Option<std::time::Duration>,
-	) -> bool {
+	) -> Result<(), ReactLockError> {
 		// The only way to access this function is by locking HallSafety, so we're, well, safe
 
 		if self.bot_finished.load(Ordering::Relaxed) {
-			logger::error("Tried to pin-lock while cleaning up");
-			return false;
+			return Err(ReactLockError::CleanupInProgress);
 		}
 
-		let msg = match ctx.http.get_message(channel.into(), msg.0).await {
-			Ok(msg) => msg,
-			Err(e) => {
-				logger::error_fmt!("Fetching msg {} from {} did not work: {}", msg, channel, e);
-				return false;
-			}
-		};
+		let msg = ctx
+			.http
+			.get_message(channel.into(), msg.0)
+			.await
+			.map_err(|e| ReactLockError::MessageFetchError(e, msg.into(), channel.into()))?;
 
-		let Some(msg_reactions) = msg
+		let msg_reactions = msg
 			.reactions
 			.iter()
 			.find(|x| x.reaction_type == reaction.emoji)
-		else {
-			logger::error("Called locked-react on message with no reactions");
-			return false; // No reactions to speak of, cannot pin
-		};
+			.ok_or(ReactLockError::NoReactions)?;
 
 		if msg_reactions.me {
-			logger::error("I already reacted to this");
-			return false; // No reactions if I've already reacted
+			return Err(ReactLockError::AlreadyUsed); // No reactions if I've already reacted
 		}
 
 		let reactors = self
 			.get_reactors(ctx, &msg, reaction, required.unwrap_or(0))
-			.await;
+			.await?;
 
-		if reactors.len() >= required.unwrap_or(0) {
-			match msg.react(&ctx, reaction.emoji.clone()).await {
-				Ok(reaction) => {
-					if timeout.is_some() {
-						self.tasks.write().await.push(Some(PinTask {
-							start: std::time::Instant::now(),
-							duration: timeout.unwrap(),
-							reaction,
-						}));
-					}
-					true
-				}
-				Err(e) => {
-					logger::error_fmt!(
-						"Error while adding {} reaction to {}: {}",
-						reaction.emoji,
-						msg.id,
-						e
-					);
-					false
-				}
+		let required = required.unwrap_or(0);
+		if reactors.len() >= required {
+			let reaction = msg.react(&ctx, reaction.emoji.clone()).await.map_err(|e| {
+				ReactLockError::ReactionAddError(e, reaction.emoji.clone(), msg.id.into())
+			})?;
+
+			if timeout.is_some() {
+				self.tasks.write().await.push(Some(PinTask {
+					start: std::time::Instant::now(),
+					duration: timeout.unwrap(),
+					reaction,
+				}));
 			}
+
+			Ok(())
 		} else {
-			logger::error_fmt!("Not enough reactors: {} < {:?}", reactors.len(), required);
-			false
+			Err(ReactLockError::NotEnoughReactors(reactors.len(), required))
 		}
 	}
 

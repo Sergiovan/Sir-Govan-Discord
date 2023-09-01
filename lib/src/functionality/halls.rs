@@ -21,108 +21,82 @@ pub enum HallError {
 	NoPermission(String),
 }
 
-impl Reportable for HallError {
-	fn get_messages(&self) -> ReportMsgs {
-		ReportMsgs {
-			to_logger: Some(self.to_string()),
-			to_user: None,
-		}
-	}
-}
+impl Reportable for HallError {}
 
 impl Bot {
 	pub async fn maybe_pin(
 		&self,
-		ctx: Context,
+		ctx: &Context,
 		msg: Message,
-		reaction: Reaction,
+		reaction: &Reaction,
 		dest: GuildChannel,
-		required: usize,
 		override_icon: Option<EmojiType>,
 	) -> Result<(), HallError> {
-		let perms = dest.permissions_for_user(&ctx, ctx.cache.current_user())?;
+		let perms = dest.permissions_for_user(ctx, ctx.cache.current_user())?;
 
 		if !perms.send_messages() {
 			return Err(HallError::NoPermission(dest.name));
 		}
 
-		let can_pin = {
-			let hall_safety = self.pin_lock.lock().await;
-			hall_safety
-				.locked_react(
-					&ctx,
-					msg.id,
-					msg.channel_id,
-					&reaction,
-					Some(required),
-					None,
-				)
-				.await
+		const FALLBACK: &str = "https://twemoji.maxcdn.com/v/latest/72x72/2049.png";
+
+		let pin_data = PinData {
+			icon_url: if let Some(emoji) = override_icon {
+				match emoji {
+					EmojiType::Unicode(ref emoji) => util::url_from_unicode_emoji(emoji),
+					EmojiType::Discord(id) => util::url_from_discord_emoji(id, false),
+				}
+			} else {
+				match reaction.emoji {
+					ReactionType::Unicode(ref emoji) => util::url_from_unicode_emoji(emoji),
+					ReactionType::Custom { animated, id, .. } => {
+						util::url_from_discord_emoji(id.into(), animated)
+					}
+					_ => FALLBACK.to_string(),
+				}
+			},
+			r: random::from_range(0..0x10) * 0x10,
+			g: random::from_range(0..0x10) * 0x10,
+			b: random::from_range(0..0x10) * 0x10,
+			message_url: msg.link(),
+			author: msg.author.name.clone(),
+			author_avatar: msg
+				.author
+				.avatar_url()
+				.clone()
+				.unwrap_or(msg.author.default_avatar_url()),
+			content: msg.content.is_empty().not().then_some(msg.content),
+			timestamp: msg.timestamp,
+			message_id: *msg.id.as_u64(),
+			channel_id: *msg.channel_id.as_u64(),
+			embed: if let [ref first, ..] = &msg.attachments[..] {
+				let content_type = first.content_type.as_ref();
+				if content_type.is_some_and(|x| x.starts_with("video/")) {
+					Embed::Video(first.filename.clone())
+				} else if content_type.is_some_and(|x| x.starts_with("audio/")) {
+					Embed::Audio(first.filename.clone())
+				} else {
+					Embed::Image(first.url.clone())
+				}
+			} else if let [ref first, ..] = &msg.embeds[..] {
+				match first.image.as_ref() {
+					Some(url) => Embed::Image(url.url.clone()),
+					None => match first.thumbnail.as_ref() {
+						Some(thumb) => Embed::Image(thumb.url.clone()),
+						None => Embed::Nothing,
+					},
+				}
+			} else if let [ref first, ..] = &msg.sticker_items[..] {
+				first
+					.image_url()
+					.map_or_else(|| Embed::Nothing, Embed::Image)
+			} else {
+				Embed::Nothing
+			},
 		};
 
-		if can_pin {
-			const FALLBACK: &str = "https://twemoji.maxcdn.com/v/latest/72x72/2049.png";
-
-			let pin_data = PinData {
-				icon_url: if let Some(emoji) = override_icon {
-					match emoji {
-						EmojiType::Unicode(ref emoji) => util::url_from_unicode_emoji(emoji),
-						EmojiType::Discord(id) => util::url_from_discord_emoji(id, false),
-					}
-				} else {
-					match reaction.emoji {
-						ReactionType::Unicode(ref emoji) => util::url_from_unicode_emoji(emoji),
-						ReactionType::Custom { animated, id, .. } => {
-							util::url_from_discord_emoji(id.into(), animated)
-						}
-						_ => FALLBACK.to_string(),
-					}
-				},
-				r: random::from_range(0..0x10) * 0x10,
-				g: random::from_range(0..0x10) * 0x10,
-				b: random::from_range(0..0x10) * 0x10,
-				message_url: msg.link(),
-				author: msg.author.name.clone(),
-				author_avatar: msg
-					.author
-					.avatar_url()
-					.clone()
-					.unwrap_or(msg.author.default_avatar_url()),
-				content: msg.content.is_empty().not().then_some(msg.content),
-				timestamp: msg.timestamp,
-				message_id: *msg.id.as_u64(),
-				channel_id: *msg.channel_id.as_u64(),
-				embed: if let [ref first, ..] = &msg.attachments[..] {
-					let content_type = first.content_type.as_ref();
-					if content_type.is_some_and(|x| x.starts_with("video/")) {
-						Embed::Video(first.filename.clone())
-					} else if content_type.is_some_and(|x| x.starts_with("audio/")) {
-						Embed::Audio(first.filename.clone())
-					} else {
-						Embed::Image(first.url.clone())
-					}
-				} else if let [ref first, ..] = &msg.embeds[..] {
-					match first.image.as_ref() {
-						Some(url) => Embed::Image(url.url.clone()),
-						None => match first.thumbnail.as_ref() {
-							Some(thumb) => Embed::Image(thumb.url.clone()),
-							None => Embed::Nothing,
-						},
-					}
-				} else if let [ref first, ..] = &msg.sticker_items[..] {
-					first
-						.image_url()
-						.map_or_else(|| Embed::Nothing, Embed::Image)
-				} else {
-					Embed::Nothing
-				},
-			};
-
-			dest.send_message(&ctx, |b| self.make_pin(b, pin_data))
-				.await?;
-		} else {
-			logger::error("Pin lock failed");
-		};
+		dest.send_message(&ctx, |b| self.make_pin(b, pin_data))
+			.await?;
 
 		Ok(())
 	}

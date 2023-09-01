@@ -1,6 +1,8 @@
+use crate::functionality::fake_iasip::FakeIasipError;
+use crate::functionality::fake_twitter::FakeTwitterError;
+use crate::functionality::halls::HallError;
+use crate::helpers::react_locks::ReactLockError;
 use crate::prelude::*;
-
-use std::convert::Infallible;
 
 use crate::bot::Bot;
 use crate::data::EmojiType;
@@ -8,48 +10,83 @@ use crate::data::EmojiType;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
+#[derive(thiserror::Error, Debug)]
+pub enum OnReactionAddError {
+	#[error("{0}")]
+	ReactLockError(#[from] ReactLockError),
+	#[error("Generic error: {0}")]
+	GenericError(#[from] anyhow::Error),
+	#[error("Discord api error: {0}")]
+	DiscordError(#[from] serenity::Error),
+	#[error("")]
+	NotAGuild,
+	#[error("")]
+	NotAValidGuild,
+	#[error("")]
+	DisallowedListen,
+	#[error("")]
+	DisallowedSelfReact,
+	#[error("")]
+	DisallowedSelfPin,
+	#[error("Banner creation failed: {0}")]
+	TextBannerError(#[source] anyhow::Error),
+	#[error("Fake Twitter Error: {0}")]
+	FakeTwitterError(#[from] FakeTwitterError),
+	#[error("Fake Iasip Error: {0}")]
+	FakeIasipError(#[from] FakeIasipError),
+	#[error("Hall channel is not a guild channel: {0}")]
+	MisconfiguredChannel(u64),
+	#[error("{0}")]
+	HallError(#[from] HallError),
+}
+
+impl Reportable for OnReactionAddError {
+	fn to_user(&self) -> Option<String> {
+		match self {
+			Self::ReactLockError(e) => e.to_user(),
+			Self::TextBannerError(_) => Some("My paintbrush broke :(".to_string()),
+			Self::FakeTwitterError(e) => e.to_user(),
+			Self::FakeIasipError(e) => e.to_user(),
+			Self::HallError(e) => e.to_user(),
+			_ => None,
+		}
+	}
+}
+
 impl Bot {
 	pub async fn on_reaction_add(
 		&self,
-		ctx: Context,
-		add_reaction: Reaction,
-	) -> Option<Infallible> {
-		let this_channel = add_reaction.channel(&ctx).await.ok_or_log(&format!(
-			"Reaction on {}'s channel {} could not be fetched",
-			add_reaction.message_id, add_reaction.channel_id
-		))?;
+		ctx: &Context,
+		add_reaction: &Reaction,
+	) -> Result<(), OnReactionAddError> {
+		let this_channel = add_reaction.channel(&ctx).await?;
 
-		let this_channel = this_channel.guild()?;
+		let this_channel = this_channel.guild().ok_or(OnReactionAddError::NotAGuild)?;
 
 		let bot_data = self.data.read().await;
 
-		let server = bot_data.servers.get(this_channel.guild_id.as_u64())?;
+		let server = bot_data
+			.servers
+			.get(this_channel.guild_id.as_u64())
+			.ok_or(OnReactionAddError::NotAValidGuild)?;
 
 		if server
 			.channels
 			.disallowed_listen
 			.contains(&this_channel.id.into())
 		{
-			return None;
+			return Err(OnReactionAddError::DisallowedListen);
 		}
 
-		let reactor = add_reaction.user(&ctx).await.ok_or_log(&format!(
-			"Could not determine reactor for reaction {:?}",
-			add_reaction
-		))?;
+		let reactor = add_reaction.user(&ctx).await?;
 
 		if reactor.id == ctx.cache.current_user_id() {
-			return None;
+			return Err(OnReactionAddError::DisallowedSelfReact);
 		}
 
-		let msg = add_reaction.message(&ctx.http).await.ok_or_log(&format!(
-			"Message {} that was reacted to with {} could not be fetched",
-			add_reaction.message_id, add_reaction.emoji
-		))?;
+		let msg = add_reaction.message(&ctx.http).await?;
 
-		if !msg.guild_cached(&ctx).await {
-			return None;
-		}
+		msg.guild_cached(ctx).await?;
 
 		enum DarkSoulsType {
 			FireHeart,
@@ -155,24 +192,21 @@ impl Bot {
 		};
 
 		match action {
-			Action::None => None,
+			Action::None => Ok(()),
 			Action::DarkSouls(souls_type) => {
 				use crate::helpers::text_banners;
 
 				let pin_lock = self.pin_lock.lock().await;
-				if !pin_lock
+				pin_lock
 					.locked_react(
-						&ctx,
+						ctx,
 						msg.id,
 						msg.channel_id,
-						&add_reaction,
+						add_reaction,
 						None,
 						Some(std::time::Duration::from_secs(60 * 30)),
 					)
-					.await
-				{
-					return None;
-				}
+					.await?;
 
 				let preset = match souls_type {
 					DarkSoulsType::Headstone => text_banners::Preset::YOU_DIED.clone(),
@@ -225,14 +259,7 @@ impl Bot {
 					None
 				};
 
-				let data = match text_banners::create_image(&msg.content, &preset, gradient).await {
-					Ok(data) => data,
-					Err(e) => {
-						logger::error_fmt!("Error creating Dark Souls banner: {}", e);
-						msg.reply_report(&ctx, "My paintbrush broke").await;
-						return None;
-					}
-				};
+				let data = text_banners::create_image(&msg.content, &preset, gradient).await?;
 
 				this_channel
 					.send_message(&ctx, |b| {
@@ -241,57 +268,44 @@ impl Bot {
 							format!("donk_blonk_{}.png", reactor.name).as_str(),
 						))
 					})
-					.await
-					.log_if_err("Sending donk blonk failed");
-				None
+					.await?;
+				Ok(())
 			}
 			Action::Retweet {
 				with_context,
 				verified_role,
 			} => {
 				let pin_lock = self.pin_lock.lock().await;
-				if !pin_lock
+				pin_lock
 					.locked_react(
-						&ctx,
+						ctx,
 						msg.id,
 						msg.channel_id,
-						&add_reaction,
+						add_reaction,
 						None,
 						Some(std::time::Duration::from_secs(60 * 30)),
 					)
-					.await
-				{
-					return None;
-				}
+					.await?;
 
-				if let Err(e) = self
-					.maybe_retweet(&ctx, &msg, add_reaction, with_context, verified_role)
-					.await
-				{
-					e.get_messages().report(&ctx, &msg).await;
-				}
-				None
+				self.maybe_retweet(ctx, &msg, add_reaction, with_context, verified_role)
+					.await?;
+				Ok(())
 			}
 			Action::AlwaysSunny => {
 				let pin_lock = self.pin_lock.lock().await;
-				if !pin_lock
+				pin_lock
 					.locked_react(
-						&ctx,
+						ctx,
 						msg.id,
 						msg.channel_id,
-						&add_reaction,
+						add_reaction,
 						None,
 						Some(std::time::Duration::from_secs(60 * 30)),
 					)
-					.await
-				{
-					return None;
-				}
+					.await?;
 
-				if let Err(e) = self.maybe_iasip(&ctx, &msg).await {
-					e.get_messages().report(&ctx, &msg).await;
-				}
-				None
+				self.maybe_iasip(ctx, &msg).await?;
+				Ok(())
 			}
 			Action::Pin {
 				destination_id,
@@ -299,49 +313,33 @@ impl Bot {
 				emoji_override,
 			} => {
 				// No pinning your own messages, bot
-				if msg.is_own(&ctx) {
-					logger::error("Message is own");
-					return None;
+				if msg.is_own(ctx) {
+					return Err(OnReactionAddError::DisallowedSelfPin);
 				}
 
-				let channel = match ctx.cache.guild_channel(destination_id) {
-					Some(channel) => channel,
-					None => match ctx.http.get_channel(destination_id).await {
-						Ok(Channel::Guild(channel)) => channel,
-						Ok(c) => {
-							logger::error_fmt!(
-								"Channel {} for hall emoji {} is misconfigured, not a guild channel: {}",
-								destination_id, add_reaction.emoji, c
-              );
-							return None;
-						}
-						Err(e) => {
-							logger::error_fmt!(
-								"Error when fetching channel {}: {}",
-								destination_id,
-								e
-							);
-							return None;
-						}
-					},
-				};
+				let pin_lock = self.pin_lock.lock().await;
+				pin_lock
+					.locked_react(
+						ctx,
+						msg.id,
+						msg.channel_id,
+						add_reaction,
+						Some(required),
+						Some(std::time::Duration::from_secs(60 * 30)),
+					)
+					.await?;
 
-				if !channel.guild_cached(&ctx).await {
-					logger::error_fmt!(
-						"Could not get guild {} from {}",
-						channel.guild_id,
-						channel.id
-					);
-					return None;
-				}
+				let channel = ChannelId(destination_id).to_channel(&ctx).await?;
+				let channel = channel
+					.guild()
+					.ok_or(OnReactionAddError::MisconfiguredChannel(destination_id))?;
 
-				if let Err(e) = self
-					.maybe_pin(ctx, msg, add_reaction, channel, required, emoji_override)
-					.await
-				{
-					e.get_messages().log();
-				}
-				None
+				channel.guild_cached(ctx).await?;
+
+				self.maybe_pin(ctx, msg, add_reaction, channel, emoji_override)
+					.await?;
+
+				Ok(())
 			}
 		}
 	}
