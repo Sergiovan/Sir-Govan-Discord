@@ -802,10 +802,12 @@ fn draw_caption(
 
 	let average_line_height = total_height / line_amount as f32;
 
-	if caption_data.width > canvas_width {
+	let breathed_canvas_width = canvas_width - 100_f32;
+
+	if caption_data.width > breathed_canvas_width {
 		canvas.scale((
-			canvas_width / (caption_data.width),
-			canvas_width / (caption_data.width),
+			breathed_canvas_width / (caption_data.width),
+			breathed_canvas_width / (caption_data.width),
 		));
 	}
 
