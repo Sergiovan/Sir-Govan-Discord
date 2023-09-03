@@ -69,6 +69,8 @@ impl Commander {
 		self.register_command(&super::quit::Quit);
 		self.register_command(&super::role::Role);
 		self.register_command(&super::icon::Icon);
+		self.register_command(&super::roll::Roll);
+		self.register_command(&super::ping::Ping);
 	}
 
 	pub fn register_command<T: Command + 'static>(&mut self, command: &'static T) {
@@ -153,12 +155,12 @@ impl<'a> Arguments<'a> {
 		let first = chars.first();
 
 		match first {
-			Some('0'..='9') => match arg.parse::<BigInt>() {
+			Some('0'..='9') | Some('-') | Some('+') => match arg.parse::<BigInt>() {
 				Ok(number) => {
 					if number < 0.into() || number > u64::MAX.into() {
 						Some(Argument::BigNumber(number))
 					} else {
-						match arg.parse::<u64>() {
+						match arg.replace('-', "").parse::<u64>() {
 							Ok(number) => Some(Argument::Number(number)),
 							Err(_) => Some(Argument::String(arg)),
 						}

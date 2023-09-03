@@ -22,6 +22,7 @@ enum RoleError {
 impl Reportable for RoleError {
 	fn to_user(&self) -> Option<String> {
 		match self {
+			Self::GuildMissingRole => Some("This server does not have roles to collect".into()),
 			Self::RoleNoName(..) => {
 				Some("We're backlogged, please try again in 5 business years".into())
 			}

@@ -61,6 +61,10 @@ impl TryFrom<SingleString> for StringBag {
 pub struct Strings {
 	pub nickname: SingleStringLoose,
 
+	pub ping: SingleString,
+
+	pub roll: SingleString,
+
 	pub tweet_retweeter: SingleStringLoose,
 	pub tweet_fact_check: SingleStringLoose,
 	pub tweet_month: SingleStringLoose,

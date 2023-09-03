@@ -104,6 +104,10 @@ impl std::fmt::Display for StringsConversionError {
 pub struct Strings {
 	pub nickname: StringBagLoose,
 
+	pub ping: StringBag,
+
+	pub roll: StringBag,
+
 	pub tweet_retweeter: StringBagLoose,
 	pub tweet_fact_check: StringBagLoose,
 	pub tweet_month: StringBagLoose,
@@ -138,6 +142,8 @@ impl TryFrom<strings::Strings> for Strings {
 		Ok(convert!(
 			value,
 			nickname,
+			ping,
+			roll,
 			tweet_retweeter,
 			tweet_fact_check,
 			tweet_month,
