@@ -227,16 +227,18 @@ impl Bot {
 			day: format!("{:02}", first.timestamp.day()),
 			year: format!("{:04}", first.timestamp.year()),
 
-			client: strings.tweet_client.pick().unwrap().clone(),
+			client: strings.tweet_client.pick().clone(),
 			any_numbers: retweets.is_some() || quotes.is_some() || likes.is_some(),
 			retweets,
 			quotes,
 			likes,
 			more_tweets: vec![],
 
-			theme: crate::helpers::handlebars::TWEET_THEME_GRAB_BAG
-				.pick_biased(Ratio::new(2, 1))
-				.cloned(),
+			theme: Some(
+				crate::helpers::handlebars::TWEET_THEME_GRAB_BAG
+					.pick_biased(Ratio::new(2, 1))
+					.clone(),
+			),
 			reply_to: first
 				.referenced_message
 				.as_ref()

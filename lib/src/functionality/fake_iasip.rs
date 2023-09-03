@@ -119,7 +119,7 @@ impl Bot {
 		let show_name = {
 			let strings = &self.data.read().await.strings;
 			if util::random::one_in(10) {
-				strings.titlecard_show_entire.pick().unwrap().clone()
+				strings.titlecard_show_entire.pick().clone()
 			} else {
 				let place_name = if util::random::one_in(5) {
 					channel.name.replace('-', " ")
@@ -133,7 +133,7 @@ impl Bot {
 				let first = chars.next().unwrap();
 				format!(
 					"{} {}",
-					strings.titlecard_show_prefix.pick().unwrap(),
+					strings.titlecard_show_prefix.pick(),
 					first.to_uppercase().chain(chars).collect::<String>()
 				)
 			}

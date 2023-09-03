@@ -47,7 +47,7 @@ lazy_static! {
 			TweetTheme::Light,
 			TweetTheme::Dark
 		])))
-		.finish(Some(TweetTheme::Dim), None)
+		.finish(TweetTheme::Dim, None)
 		.unwrap();
 }
 

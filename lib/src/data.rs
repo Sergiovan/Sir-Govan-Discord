@@ -10,6 +10,8 @@ pub use servers::EmojiType;
 pub use servers::Hall;
 pub use servers::NoContext;
 
+use self::strings::{StringBag, StringBagLoose};
+
 use crate::util::random;
 
 use thiserror::Error;
@@ -98,23 +100,21 @@ impl std::fmt::Display for StringsConversionError {
 	}
 }
 
-type StringBag = random::GrabBag<String>;
-
 #[derive(Default)]
 pub struct Strings {
-	pub nickname: StringBag,
+	pub nickname: StringBagLoose,
 
-	pub tweet_retweeter: StringBag,
-	pub tweet_fact_check: StringBag,
-	pub tweet_month: StringBag,
+	pub tweet_retweeter: StringBagLoose,
+	pub tweet_fact_check: StringBagLoose,
+	pub tweet_month: StringBagLoose,
 	pub tweet_client: StringBag,
-	pub tweet_esoteric_amount_prefix: StringBag,
-	pub tweet_esoteric_amount_suffix: StringBag,
-	pub tweet_amount_symbol: StringBag,
-	pub tweet_esoteric_time: StringBag,
-	pub tweet_username: StringBag,
-	pub tweet_extra_reply: StringBag,
-	pub tweet_extra_text: StringBag,
+	pub tweet_esoteric_amount_prefix: StringBagLoose,
+	pub tweet_esoteric_amount_suffix: StringBagLoose,
+	pub tweet_amount_symbol: StringBagLoose,
+	pub tweet_esoteric_time: StringBagLoose,
+	pub tweet_username: StringBagLoose,
+	pub tweet_extra_reply: StringBagLoose,
+	pub tweet_extra_text: StringBagLoose,
 
 	pub titlecard_song: StringBag,
 	pub titlecard_show_prefix: StringBag,
