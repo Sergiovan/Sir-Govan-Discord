@@ -29,6 +29,8 @@ pub enum OnReactionAddError {
 	DisallowedSelfReact,
 	#[error("")]
 	DisallowedSelfPin,
+	#[error("")]
+	MessageEmpty,
 	#[error("Banner creation failed: {0}")]
 	TextBannerError(#[source] anyhow::Error),
 	#[error("Fake Twitter Error: {0}")]
@@ -208,6 +210,10 @@ impl Bot {
 			Action::None => Ok(()),
 			Action::DarkSouls(souls_type) => {
 				use crate::helpers::text_banners;
+
+				if msg.content.is_empty() {
+					return Err(OnReactionAddError::MessageEmpty);
+				}
 
 				let pin_lock = self.pin_lock.lock().await;
 				pin_lock
