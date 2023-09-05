@@ -215,17 +215,19 @@ impl Bot {
 					return Err(OnReactionAddError::MessageEmpty);
 				}
 
-				let pin_lock = self.pin_lock.lock().await;
-				pin_lock
-					.locked_react(
-						ctx,
-						msg.id,
-						msg.channel_id,
-						add_reaction,
-						None,
-						Some(std::time::Duration::from_secs(60 * 30)),
-					)
-					.await?;
+				{
+					let pin_lock = self.pin_lock.lock().await;
+					pin_lock
+						.locked_react(
+							ctx,
+							msg.id,
+							msg.channel_id,
+							add_reaction,
+							None,
+							Some(std::time::Duration::from_secs(60 * 30)),
+						)
+						.await?;
+				}
 
 				let preset = match souls_type {
 					DarkSoulsType::Headstone => text_banners::Preset::YOU_DIED.clone(),
@@ -294,34 +296,38 @@ impl Bot {
 				with_context,
 				verified_role,
 			} => {
-				let pin_lock = self.pin_lock.lock().await;
-				pin_lock
-					.locked_react(
-						ctx,
-						msg.id,
-						msg.channel_id,
-						add_reaction,
-						None,
-						Some(std::time::Duration::from_secs(60 * 30)),
-					)
-					.await?;
+				{
+					let pin_lock = self.pin_lock.lock().await;
+					pin_lock
+						.locked_react(
+							ctx,
+							msg.id,
+							msg.channel_id,
+							add_reaction,
+							None,
+							Some(std::time::Duration::from_secs(60 * 30)),
+						)
+						.await?;
+				}
 
 				self.maybe_retweet(ctx, &msg, add_reaction, with_context, verified_role)
 					.await?;
 				Ok(())
 			}
 			Action::AlwaysSunny => {
-				let pin_lock = self.pin_lock.lock().await;
-				pin_lock
-					.locked_react(
-						ctx,
-						msg.id,
-						msg.channel_id,
-						add_reaction,
-						None,
-						Some(std::time::Duration::from_secs(60 * 30)),
-					)
-					.await?;
+				{
+					let pin_lock = self.pin_lock.lock().await;
+					pin_lock
+						.locked_react(
+							ctx,
+							msg.id,
+							msg.channel_id,
+							add_reaction,
+							None,
+							Some(std::time::Duration::from_secs(60 * 30)),
+						)
+						.await?;
+				}
 
 				self.maybe_iasip(ctx, &msg).await?;
 				Ok(())
@@ -336,18 +342,19 @@ impl Bot {
 					return Err(OnReactionAddError::DisallowedSelfPin);
 				}
 
-				let pin_lock = self.pin_lock.lock().await;
-				pin_lock
-					.locked_react(
-						ctx,
-						msg.id,
-						msg.channel_id,
-						add_reaction,
-						Some(required),
-						Some(std::time::Duration::from_secs(60 * 30)),
-					)
-					.await?;
-
+				{
+					let pin_lock = self.pin_lock.lock().await;
+					pin_lock
+						.locked_react(
+							ctx,
+							msg.id,
+							msg.channel_id,
+							add_reaction,
+							Some(required),
+							None,
+						)
+						.await?;
+				}
 				let channel = ChannelId(destination_id).to_channel(&ctx).await?;
 				let channel = channel
 					.guild()
