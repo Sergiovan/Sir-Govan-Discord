@@ -3,6 +3,7 @@ pub mod fake_twitter;
 pub mod halls;
 pub mod no_context;
 pub mod periodic;
+pub mod randomize_self;
 pub mod shutdown;
 
 use serenity::client::bridge::gateway::ShardManager;

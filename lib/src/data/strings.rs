@@ -63,6 +63,10 @@ pub struct Strings {
 
 	pub generic_error: SingleString,
 
+	pub status_playing: SingleString,
+	pub status_watching: SingleString,
+	pub status_listening: SingleString,
+
 	pub ping: SingleString,
 
 	pub roll: SingleString,

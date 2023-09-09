@@ -13,7 +13,7 @@ impl Bot {
 		ctx.cache
 			.set_max_messages(10_000_000 / std::mem::size_of::<Message>());
 
-		// TODO Randomize self
+		self.randomize_self().await;
 
 		logger::info_fmt!(
 			"Am ready :). I am {}. I am in {} mode",

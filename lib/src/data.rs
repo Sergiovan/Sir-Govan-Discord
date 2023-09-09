@@ -106,6 +106,10 @@ pub struct Strings {
 
 	pub generic_error: StringBag,
 
+	pub status_playing: StringBag,
+	pub status_watching: StringBag,
+	pub status_listening: StringBag,
+
 	pub ping: StringBag,
 
 	pub roll: StringBag,
@@ -145,6 +149,9 @@ impl TryFrom<strings::Strings> for Strings {
 			value,
 			nickname,
 			generic_error,
+			status_playing,
+			status_watching,
+			status_listening,
 			ping,
 			roll,
 			tweet_retweeter,

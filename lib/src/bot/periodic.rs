@@ -60,7 +60,6 @@ impl Periodic {
 	}
 }
 
-// Called from crate::event_handler
 impl Bot {
 	pub async fn periodic(&self) {
 		self.pin_lock
@@ -68,5 +67,9 @@ impl Bot {
 			.await
 			.cleanup(self.cache_and_http.read().await.as_ref().unwrap())
 			.await;
+
+		if crate::util::random::one_in(3000) {
+			self.randomize_self().await;
+		}
 	}
 }
