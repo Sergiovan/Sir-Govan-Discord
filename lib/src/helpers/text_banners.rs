@@ -245,7 +245,7 @@ pub async fn create_image(
 	text: &str,
 	preset: &Preset,
 	gradient: Option<&Gradient>,
-) -> anyhow::Result<skia_safe::Data> {
+) -> skia_safe::Data {
 	let type_face = skia_safe::Typeface::from_name(
 		match preset.font {
 			Font::Garamond => "Adobe Garamond Pro",
@@ -374,10 +374,10 @@ pub async fn create_image(
 	canvas.restore();
 
 	let encoding = skia_safe::EncodedImageFormat::PNG;
-	let res = Ok(surface
+	let res = surface
 		.image_snapshot()
 		.encode(None, encoding, Some(100))
-		.unwrap());
+		.unwrap();
 
 	skia_safe::graphics::purge_all_caches();
 
@@ -865,7 +865,7 @@ async fn test_banner() -> anyhow::Result<()> {
 		&Preset::BONFIRE_LIT,
 		Some(self::gradients::TRANS),
 	)
-	.await?;
+	.await;
 	logger::debug("End");
 	fs::write("res/tmp.png", content.as_bytes()).unwrap();
 

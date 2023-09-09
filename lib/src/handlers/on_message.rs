@@ -30,7 +30,7 @@ impl Reportable for OnMessageError {
 }
 
 impl Bot {
-	pub async fn on_message(&self, ctx: &Context, msg: &Message) -> Result<(), OnMessageError> {
+	pub async fn on_message(&self, ctx: &Context, msg: &Message) -> GovanResult {
 		msg.guild_cached(ctx).await?;
 
 		let bot_data = self.data.read().await;
@@ -97,27 +97,33 @@ impl Bot {
 			let server = bot_data
 				.servers
 				.get(msg.guild_id.unwrap_or(GuildId(0)).as_u64())
-				.ok_or(OnMessageError::NotAValidGuild)?;
+				.ok_or_else(govanerror::debug_lazy!(
+					// log fmt = ("Cannot listen in on guild {:?}", msg.guild_id)
+				))?;
 
 			if server
 				.channels
 				.disallowed_listen
 				.contains(msg.channel_id.as_u64())
 			{
-				return Err(OnMessageError::DisallowedListen);
+				return Err(govanerror::debug!(
+					// log fmt = ("Cannot listen in on channel {}", msg.channel_id)
+				));
 			}
 
 			log(ctx, msg).await;
 
 			if msg.is_own(ctx) {
-				return Err(OnMessageError::DisallowedListen);
+				return Err(govanerror::debug!(
+					// log = "Cannot listen to own messages"
+				));
 			}
 
 			// From here on we're for sure allowed to listen into messages
 
 			if self.can_remove_context(ctx, msg, server) && util::random::one_in(100) {
 				if let Err(e) = self.remove_context(ctx, msg, server).await {
-					e.get_messages().log(); // No propagation, we keep gooooing
+					e.log(); // No propagation, we keep gooooing
 				};
 			}
 
@@ -128,12 +134,7 @@ impl Bot {
 				.allowed_commands
 				.contains(msg.channel_id.as_u64())
 			{
-				self.commander
-					.lock()
-					.await
-					.parse(ctx, msg, self)
-					.await
-					.map_err(|e| OnMessageError::CommandError(e))?;
+				self.commander.lock().await.parse(ctx, msg, self).await?;
 			}
 		}
 

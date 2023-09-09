@@ -2,7 +2,7 @@ use crate::prelude::*;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-use super::commander::{Arguments, CommandResult};
+use super::commander::Arguments;
 use crate::bot::Bot;
 
 use sirgovan_macros::command;
@@ -14,7 +14,7 @@ async fn ping<'a>(
 	msg: &'a Message,
 	mut _words: Arguments<'a>,
 	bot: &Bot,
-) -> CommandResult {
+) -> GovanResult {
 	msg.reply_report(ctx, bot.data.read().await.strings.ping.pick())
 		.await;
 

@@ -26,7 +26,7 @@ image = "0.24.7"
 futures = "0.3.28"
 handlebars = "4.3.7"
 tungstenite = "0.20.0"
-anyhow = "1.0.75"
+anyhow = { version = "1.0.75", features = ["backtrace"] }
 thiserror = "1.0.47"
 itertools = "0.11.0"
 async-trait = "0.1.73"
@@ -35,6 +35,8 @@ html-escape = "0.2.13"
 tempdir = "0.3.7"
 fantoccini = "0.19.3"
 serde_json = "1.0.105"
+either = "1.9.0"
+url = "2.4.1"
 
 [dependencies.openssl]
 version = "*"

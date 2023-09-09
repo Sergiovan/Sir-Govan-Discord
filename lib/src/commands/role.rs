@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-use super::commander::{Arguments, CommandResult};
+use super::commander::Arguments;
 use crate::bot::Bot;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
@@ -38,23 +38,36 @@ async fn role<'a>(
 	msg: &'a Message,
 	mut _words: Arguments<'a>,
 	bot: &Bot,
-) -> CommandResult<RoleError> {
-	let guild_id = msg.guild_id.ok_or(RoleError::NotInGuild)?;
+) -> GovanResult {
+	let guild_id = msg.guild_id.ok_or_else(govanerror::debug_lazy!(
+		log = "Command used outside of guild",
+		user = "You need to be in a guild, silly!"
+	))?;
 
 	let bot_data = bot.data.read().await;
 	let server = bot_data
 		.servers
 		.get(&guild_id.into())
-		.ok_or(RoleError::GuildNotInList(guild_id))?;
+		.ok_or_else(govanerror::error_lazy!(
+			log fmt = ("Guild {} not in server list", guild_id),
+			user = "< This guy's maker is a doofus"
+		))?;
 
 	let no_context = server
 		.no_context
 		.as_ref()
-		.ok_or(RoleError::GuildMissingRole)?;
+		.ok_or_else(govanerror::debug_lazy!(
+			log = "Guild does not have nocontext role",
+			user = "This guild does not have a role to keep track of"
+		))?;
 
-	let role_name = RoleId(no_context.role)
-		.to_role_cached(ctx)
-		.ok_or(RoleError::RoleNoName(no_context.role))?;
+	let role_name =
+		RoleId(no_context.role)
+			.to_role_cached(ctx)
+			.ok_or_else(govanerror::error_lazy!(
+				log fmt = ("Role {} was not cached properly", no_context.role),
+				user = "Discord is being silly again. Try again later"
+			))?;
 
 	let (number, out_of) = bot_data.no_context_index(&role_name.name);
 

@@ -1,4 +1,5 @@
 use super::logger;
+use crate::prelude::*;
 use async_trait::async_trait;
 
 use serenity::model::prelude::*;
@@ -48,15 +49,14 @@ impl<T> OptionExt<T> for Option<T> {
 
 #[async_trait]
 pub trait CacheGuild {
-	async fn guild_cached(&self, ctx: &Context) -> anyhow::Result<()>;
+	async fn guild_cached(&self, ctx: &Context) -> GovanResult;
 }
 
 #[async_trait]
 impl CacheGuild for Message {
-	async fn guild_cached(&self, ctx: &Context) -> anyhow::Result<()> {
+	async fn guild_cached(&self, ctx: &Context) -> GovanResult {
 		if self.guild_id.is_some() && self.guild(ctx).is_none() {
-			if let Err(e) = ctx
-				.http
+			ctx.http
 				.get_guild(
 					*self
 						.guild_id
@@ -64,14 +64,11 @@ impl CacheGuild for Message {
 						.as_u64(),
 				)
 				.await
-			{
-				anyhow::bail!(
-					"Could not get guild information for {} from message {}: {}",
-					self.guild_id.unwrap(),
-					self.id,
-					e
-				);
-			}
+				.map_err(
+					govanerror::error_map!(log fmt = ("Could not get guild information for {} from message {}",
+            self.guild_id.unwrap(),
+            self.id)),
+				)?;
 		}
 
 		Ok(())
@@ -80,60 +77,38 @@ impl CacheGuild for Message {
 
 #[async_trait]
 impl CacheGuild for GuildChannel {
-	async fn guild_cached(&self, ctx: &Context) -> anyhow::Result<()> {
+	async fn guild_cached(&self, ctx: &Context) -> GovanResult {
 		if self.guild(ctx).is_none() {
-			if let Err(e) = ctx.http.get_guild(*self.guild_id.as_u64()).await {
-				anyhow::bail!(
-					"Could not get guild information for {} from channel {}: {}",
-					self.id,
-					self.guild_id,
-					e,
-				);
-			}
+			ctx.http.get_guild(*self.guild_id.as_u64()).await.map_err(
+				govanerror::error_map!(log fmt = ("Could not get guild information for {} from channel {}",
+          self.id,
+          self.guild_id)),
+			)?;
 		}
 		Ok(())
 	}
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum UniqueRoleError {
-	#[error("could not find guild for {0}")]
-	GuildMissing(UserId),
-	#[error("could not get roles for {0}")]
-	RolesMissing(UserId),
-	#[error("member {0} does not have any colored roles")]
-	NoUniqueRole(UserId),
-}
-
-impl Reportable for UniqueRoleError {
-	fn get_messages(&self) -> ReportMsgs {
-		let to_logger = Some(self.to_string());
-		let to_user: Option<String> = match self {
-			Self::GuildMissing(..) => None,
-			Self::RolesMissing(..) => None,
-			Self::NoUniqueRole(..) => Some("It seems you have no proper role to color".into()),
-		};
-
-		ReportMsgs { to_logger, to_user }
-	}
-}
-
 pub trait MemberExt {
-	fn get_unique_role(&self, ctx: &Context) -> Result<Role, UniqueRoleError>;
+	fn get_unique_role(&self, ctx: &Context) -> GovanResult<Role>;
 }
 
 impl MemberExt for Member {
-	fn get_unique_role(&self, ctx: &Context) -> Result<Role, UniqueRoleError> {
+	fn get_unique_role(&self, ctx: &Context) -> GovanResult<Role> {
 		use serenity::utils::Colour;
 
 		let guild = ctx
 			.cache
 			.guild(self.guild_id)
-			.ok_or(UniqueRoleError::GuildMissing(self.user.id))?;
+			.ok_or_else(govanerror::error_lazy!(
+				log fmt = ("Guild could not be fetched from user {}", self.user.id),
+				user = "Discord is being a little difficult right now"
+			))?;
 
-		let mut roles = self
-			.roles(ctx)
-			.ok_or(UniqueRoleError::RolesMissing(self.user.id))?;
+		let mut roles = self.roles(ctx).ok_or_else(govanerror::error_lazy!(
+			log fmt = ("Roles could not be fetched from user {}", self.user.id),
+			user = "Discord is being a little difficult right now"
+		))?;
 
 		roles.sort_by_key(|r| r.position);
 
@@ -151,7 +126,10 @@ impl MemberExt for Member {
 			}
 		}
 
-		Err(UniqueRoleError::NoUniqueRole(self.user.id))
+		Err(govanerror::error!(
+			log fmt = ("No unique role found on {}", self.user.id),
+			user = "You do not have a personal, unique role!"
+		))
 	}
 }
 
@@ -205,32 +183,17 @@ pub enum SetIconError {
 
 #[async_trait]
 pub trait RoleExt {
-	async fn set_icon(
-		&self,
-		ctx: &Context,
-		guild_id: GuildId,
-		url: &str,
-	) -> Result<(), SetIconError>;
+	async fn set_icon(&self, ctx: &Context, guild_id: GuildId, url: &str) -> GovanResult;
 
-	async fn set_unicode_icon(
-		&self,
-		ctx: &Context,
-		guild_id: GuildId,
-		emoji: &str,
-	) -> Result<(), SetIconError>;
+	async fn set_unicode_icon(&self, ctx: &Context, guild_id: GuildId, emoji: &str) -> GovanResult;
 
-	async fn reset_icon(&self, ctx: &Context, guild_id: GuildId) -> Result<(), SetIconError>;
+	async fn reset_icon(&self, ctx: &Context, guild_id: GuildId) -> GovanResult;
 }
 
 #[async_trait]
 impl RoleExt for Role {
-	async fn set_icon(
-		&self,
-		ctx: &Context,
-		guild_id: GuildId,
-		url: &str,
-	) -> Result<(), SetIconError> {
-		let url = reqwest::Url::parse(url).map_err(|e| SetIconError::UrlParseError(e.into()))?;
+	async fn set_icon(&self, ctx: &Context, guild_id: GuildId, url: &str) -> GovanResult {
+		let url = reqwest::Url::parse(url)?;
 
 		let bytes = reqwest::get(url).await?.bytes().await?;
 		let bytes = match image::guess_format(&bytes) {
@@ -270,15 +233,10 @@ impl RoleExt for Role {
 			.edit_role(guild_id.into(), self.id.into(), &map, None)
 			.await
 			.map(|_| ())
-			.map_err(|e| SetIconError::EditRoleError(e.into()))
+			.map_err(|e| e.into())
 	}
 
-	async fn set_unicode_icon(
-		&self,
-		ctx: &Context,
-		guild_id: GuildId,
-		emoji: &str,
-	) -> Result<(), SetIconError> {
+	async fn set_unicode_icon(&self, ctx: &Context, guild_id: GuildId, emoji: &str) -> GovanResult {
 		let mut edit_role = serenity::builder::EditRole::new(self);
 
 		edit_role.0.insert("unicode_emoji", emoji.into());
@@ -291,10 +249,10 @@ impl RoleExt for Role {
 			.edit_role(guild_id.into(), self.id.into(), &map, None)
 			.await
 			.map(|_| ())
-			.map_err(|e| SetIconError::EditRoleError(e.into()))
+			.map_err(|e| e.into())
 	}
 
-	async fn reset_icon(&self, ctx: &Context, guild_id: GuildId) -> Result<(), SetIconError> {
+	async fn reset_icon(&self, ctx: &Context, guild_id: GuildId) -> GovanResult {
 		// I do it like this because there's no other way lmfao
 		let mut edit_role = serenity::builder::EditRole::new(self);
 		edit_role
@@ -309,7 +267,7 @@ impl RoleExt for Role {
 			.edit_role(guild_id.into(), self.id.into(), &map, None)
 			.await
 			.map(|_| ())
-			.map_err(|e| SetIconError::EditRoleError(e.into()))
+			.map_err(|e| e.into())
 	}
 }
 

@@ -1,3 +1,5 @@
+use crate::prelude::*;
+
 use crate::bot::Bot;
 use crate::data::EmojiType;
 use crate::util::traits::Reportable;
@@ -44,7 +46,7 @@ pub trait Command: Send + Sync {
 		msg: &'a Message,
 		mut args: Arguments<'a>,
 		bot: &Bot,
-	) -> Result<(), Box<dyn Reportable>>;
+	) -> GovanResult;
 }
 
 pub struct Commander {
@@ -80,23 +82,18 @@ impl Commander {
 		}
 	}
 
-	pub async fn parse(
-		&self,
-		ctx: &Context,
-		msg: &Message,
-		bot: &Bot,
-	) -> Result<(), Box<dyn Reportable>> {
+	pub async fn parse(&self, ctx: &Context, msg: &Message, bot: &Bot) -> GovanResult {
 		if !msg.content.starts_with('!') {
-			return Err(Box::new(DefaultCommandError::NoSuchCommand));
+			return Err(govanerror::debug!(log = "No such command"));
 		}
 
 		let content = msg.content.clone();
 		let mut words = Arguments::from(content.as_str());
 
 		if words.empty() {
-			return Err(Box::new(DefaultCommandError::EmptyCommand(
-				msg.content.clone(),
-			)));
+			return Err(govanerror::debug!(
+				log = "Message could not be converted to arguments"
+			));
 		}
 
 		let first: &str = words
@@ -106,7 +103,7 @@ impl Commander {
 		if let Some(c) = self.commands.get(first) {
 			Ok(c.execute(ctx, msg, words, bot).await?)
 		} else {
-			Err(Box::new(DefaultCommandError::NoSuchCommand))
+			Err(govanerror::debug!(log = "No such command"))
 		}
 	}
 }

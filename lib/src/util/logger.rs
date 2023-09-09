@@ -4,11 +4,11 @@ use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 use colored::Colorize;
 use lazy_static::lazy_static;
 
-use std::sync::RwLock;
+use std::sync::Mutex;
 
 lazy_static! {
-	static ref DAY: RwLock<DateTime<Utc>> =
-		RwLock::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap());
+	static ref DAY: Mutex<DateTime<Utc>> =
+		Mutex::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap());
 	static ref DEBUG_TEXT: String = format!("[{:7}]", "DEBUG".green());
 	static ref INFO_TEXT: String = format!("[{:7}]", "INFO".cyan());
 	static ref WARNING_TEXT: String = format!("[{:7}]", "WARNING".yellow());
@@ -18,28 +18,28 @@ lazy_static! {
 #[macro_export]
 macro_rules! debug_fmt {
   ($($tt:tt)*) => {
-    $crate::util::logger::debug(&format!($($tt)*));
+    $crate::util::logger::debug(&format!($($tt)*))
   };
 }
 
 #[macro_export]
 macro_rules! info_fmt {
   ($($tt:tt)*) => {
-    $crate::util::logger::info(&format!($($tt)*));
+    $crate::util::logger::info(&format!($($tt)*))
   };
 }
 
 #[macro_export]
 macro_rules! warning_fmt {
   ($($tt:tt)*) => {
-    $crate::util::logger::warning(&format!($($tt)*));
+    $crate::util::logger::warning(&format!($($tt)*))
   };
 }
 
 #[macro_export]
 macro_rules! error_fmt {
   ($($tt:tt)*) => {
-    $crate::util::logger::error(&format!($($tt)*));
+    $crate::util::logger::error(&format!($($tt)*))
   };
 }
 
@@ -80,26 +80,29 @@ pub fn error(text: &str) {
 }
 
 fn print_message(time: DateTime<Utc>, level: &str, text: &str) {
-	{
-		let day_passed = {
-			let day = DAY.read().expect("Could not lock day");
-			day.day() != time.day() || day.month() != time.month() || day.year() != time.year()
-		};
+	let lock = DAY.lock().unwrap();
+	let day_passed = {
+		let day = &*lock;
+		day.day() != time.day() || day.month() != time.month() || day.year() != time.year()
+	};
 
-		if day_passed {
-			let mut day = DAY.write().expect("Could not lock day");
-			if day.year() == 2000 {
-				println!("~~~~~~~ {} ~~~~~~~", time.format("%Y-%m-%d"));
-				*day = time;
-			} else {
-				while *day <= time {
-					*day += Duration::days(1);
-					println!("~~~~~~~ {} ~~~~~~~", day.format("%Y-%m-%d"));
-				}
+	if day_passed {
+		let mut day = lock;
+		if day.year() == 2000 {
+			println!("~~~~~~~ {} ~~~~~~~", time.format("%Y-%m-%d"));
+			*day = time;
+		} else {
+			while *day <= time {
+				*day += Duration::days(1);
+				println!("~~~~~~~ {} ~~~~~~~", day.format("%Y-%m-%d"));
 			}
 		}
 	}
 
 	let time_str = time.format("%H:%M:%S%.3f");
-	println!("[{}]{} {}", time_str, level, text);
+	let header = format!("[{}]{} ", time_str, level);
+	let rest = format!("              {}", level);
+	text.split('\n')
+		.enumerate()
+		.for_each(|(i, s)| println!("{}{}", if i == 0 { &header } else { &rest }, s));
 }

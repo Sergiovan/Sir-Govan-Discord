@@ -31,11 +31,14 @@ impl Bot {
 		reaction: &Reaction,
 		dest: GuildChannel,
 		override_icon: Option<EmojiType>,
-	) -> Result<(), HallError> {
+	) -> GovanResult {
 		let perms = dest.permissions_for_user(ctx, ctx.cache.current_user())?;
 
 		if !perms.send_messages() {
-			return Err(HallError::NoPermission(dest.name));
+			return Err(govanerror::error!(
+				log fmt = ("Channel misconfigured: No permission to post in {}", dest.name),
+				user = "< This guy's creator is a foolish human"
+			));
 		}
 
 		const FALLBACK: &str = "https://twemoji.maxcdn.com/v/latest/72x72/2049.png";

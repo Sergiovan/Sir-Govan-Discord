@@ -61,6 +61,8 @@ impl TryFrom<SingleString> for StringBag {
 pub struct Strings {
 	pub nickname: SingleStringLoose,
 
+	pub generic_error: SingleString,
+
 	pub ping: SingleString,
 
 	pub roll: SingleString,

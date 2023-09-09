@@ -84,10 +84,13 @@ impl ReactSafety {
 		msg: &Message,
 		reaction: &Reaction,
 		required: usize,
-	) -> Result<Vec<User>, ReactLockError> {
+	) -> GovanResult<Vec<User>> {
 		// First get the emoji for sure
 		if let ReactionType::Custom { name: None, id, .. } = reaction.emoji {
-			return Err(ReactLockError::CustomEmojiIncomplete(id.into()));
+			return Err(govanerror::error!(
+			  log fmt = ("Incomplete custom emoji name: {}", id),
+			  user = "It appears Discord bad. Try again later"
+			));
 		};
 
 		let mut last: Option<UserId> = None;
@@ -95,30 +98,20 @@ impl ReactSafety {
 
 		loop {
 			// NOTE: Unknown how `last` interacts with the order in which reaction_users are returned
-			match msg
+			let users = msg
 				.reaction_users(&ctx, reaction.emoji.clone(), None, last)
-				.await
-			{
-				Ok(users) => {
-					let filtered = users
-						.into_iter()
-						.filter(|x| !x.bot && x.id != msg.author.id)
-						.collect::<Vec<_>>();
+				.await?;
 
-					if filtered.is_empty() {
-						return Ok(res);
-					}
+			let filtered = users
+				.into_iter()
+				.filter(|x| !x.bot && x.id != msg.author.id)
+				.collect::<Vec<_>>();
 
-					res.extend(filtered);
-				}
-				Err(e) => {
-					return Err(ReactLockError::ReactionFetchError(
-						e,
-						reaction.emoji.clone(),
-						msg.id.into(),
-					));
-				}
-			};
+			if filtered.is_empty() {
+				return Ok(res);
+			}
+
+			res.extend(filtered);
 
 			if res.len() > required {
 				return Ok(res);
@@ -136,27 +129,25 @@ impl ReactSafety {
 		reaction: &Reaction,
 		required: Option<usize>,
 		timeout: Option<std::time::Duration>,
-	) -> Result<(), ReactLockError> {
+	) -> GovanResult {
 		// The only way to access this function is by locking HallSafety, so we're, well, safe
 
 		if self.bot_finished.load(Ordering::Relaxed) {
-			return Err(ReactLockError::CleanupInProgress);
+			return Err(govanerror::error!(
+				log = "Trying to react while bot shutting down"
+			));
 		}
 
-		let msg = ctx
-			.http
-			.get_message(channel.into(), msg.0)
-			.await
-			.map_err(|e| ReactLockError::MessageFetchError(e, msg.into(), channel.into()))?;
+		let msg = ctx.http.get_message(channel.into(), msg.0).await?;
 
 		let msg_reactions = msg
 			.reactions
 			.iter()
 			.find(|x| x.reaction_type == reaction.emoji)
-			.ok_or(ReactLockError::NoReactions)?;
+			.ok_or_else(govanerror::warning_lazy!(log fmt = ("No reactions of type {} on message {}", reaction.emoji, msg.id)))?;
 
 		if msg_reactions.me {
-			return Err(ReactLockError::AlreadyUsed); // No reactions if I've already reacted
+			return Err(govanerror::debug!(log = "Already reacted")); // No reactions if I've already reacted
 		}
 
 		let reactors = self
@@ -165,9 +156,7 @@ impl ReactSafety {
 
 		let required = required.unwrap_or(0);
 		if reactors.len() >= required {
-			let reaction = msg.react(&ctx, reaction.emoji.clone()).await.map_err(|e| {
-				ReactLockError::ReactionAddError(e, reaction.emoji.clone(), msg.id.into())
-			})?;
+			let reaction = msg.react(&ctx, reaction.emoji.clone()).await?;
 
 			if timeout.is_some() {
 				self.tasks.write().await.push(Some(PinTask {
@@ -179,7 +168,9 @@ impl ReactSafety {
 
 			Ok(())
 		} else {
-			Err(ReactLockError::NotEnoughReactors(reactors.len(), required))
+			Err(govanerror::debug!(
+				log fmt = ("Not enough reactions: {} < {}", reactors.len(), required)
+			))
 		}
 	}
 

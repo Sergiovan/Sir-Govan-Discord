@@ -1,4 +1,6 @@
+use crate::util::error::{self, GovanResult};
 use crate::{helpers::handlebars::AlwaysSunnyData, prelude::*};
+
 use image::EncodableLayout;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
@@ -44,7 +46,7 @@ impl Reportable for FakeIasipError {
 }
 
 impl Bot {
-	pub async fn maybe_iasip(&self, ctx: &Context, msg: &Message) -> Result<(), FakeIasipError> {
+	pub async fn maybe_iasip(&self, ctx: &Context, msg: &Message) -> GovanResult {
 		async fn stringify_content(ctx: &Context, content: ContentOriginal) -> String {
 			match content {
 				ContentOriginal::User(id) => format!(
@@ -77,7 +79,10 @@ impl Bot {
 			.channel(&ctx)
 			.await?
 			.guild()
-			.ok_or(FakeIasipError::NotInGuild)?;
+			.ok_or_else(error::debug_lazy!(
+				log = "Not in a guild channel",
+				user = "You can only use this inside a guild!"
+			))?;
 
 		// Clean content
 		let mut converter = ContentConverter::new(msg.content.clone())
@@ -141,9 +146,7 @@ impl Bot {
 
 		let video = {
 			let tmpdir = tempdir::TempDir::new("video")?;
-			// println!("{}", tmpdir.path().display());
 
-			// TODO Get images, idk
 			let episode_image = tmpdir.path().join("episode.png");
 			let title_image = tmpdir.path().join("title.png");
 
@@ -163,9 +166,10 @@ impl Bot {
 
 			{
 				let screenshotter = self.get_screenshotter().await;
-				let screenshotter = screenshotter
-					.as_ref()
-					.ok_or(FakeIasipError::ScreenshotterError)?;
+				let screenshotter = screenshotter.as_ref().ok_or_else(error::error_lazy!(
+					log = "Getting screenshotter failed",
+					user = "My camera broke"
+				))?;
 
 				let episode = screenshotter
 					.always_sunny(AlwaysSunnyData { text: content })
@@ -210,12 +214,24 @@ impl Bot {
 				tokio::join!(episode_handle.wait(), title_handle.wait());
 
 			let episode_result = episode_result?;
-			if !episode_result.success() {
-				return Err(FakeIasipError::FfmpegError(episode_result.code()));
-			}
 			let title_result = title_result?;
-			if !title_result.success() {
-				return Err(FakeIasipError::FfmpegError(title_result.code()));
+			if !episode_result.success() || !title_result.success() {
+				let failure = if !episode_result.success() {
+					"episode"
+				} else {
+					"title"
+				};
+				return Err(error::error!(
+					log fmt = (
+						"Ffmpeg for {} exited with error {}",
+						failure,
+						episode_result
+							.code()
+							.or(title_result.code())
+							.unwrap_or(i32::MIN)
+					),
+					user = "My video editor broke"
+				));
 			}
 
 			let mut cmd = tokio::process::Command::new("ffmpeg");

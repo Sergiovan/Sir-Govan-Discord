@@ -4,8 +4,11 @@ use crate::functionality::halls::HallError;
 use crate::helpers::react_locks::ReactLockError;
 use crate::prelude::*;
 
+use crate::util::error;
+
 use crate::bot::Bot;
 use crate::data::EmojiType;
+use crate::util::error::GovanResult;
 
 use colored::Colorize;
 use serenity::model::prelude::*;
@@ -57,34 +60,35 @@ impl Reportable for OnReactionAddError {
 }
 
 impl Bot {
-	pub async fn on_reaction_add(
-		&self,
-		ctx: &Context,
-		add_reaction: &Reaction,
-	) -> Result<(), OnReactionAddError> {
+	pub async fn on_reaction_add(&self, ctx: &Context, add_reaction: &Reaction) -> GovanResult {
 		let this_channel = add_reaction.channel(&ctx).await?;
 
-		let this_channel = this_channel.guild().ok_or(OnReactionAddError::NotAGuild)?;
+		let this_channel = this_channel.guild().ok_or_else(error::debug_lazy!(
+			log = "Not in a guild channel",
+			user = "You can only use this inside a guild!"
+		))?;
 
 		let bot_data = self.data.read().await;
 
 		let server = bot_data
 			.servers
 			.get(this_channel.guild_id.as_u64())
-			.ok_or(OnReactionAddError::NotAValidGuild)?;
+			.ok_or_else(
+				error::debug_lazy!(log fmt = ("Reaction in unavailable guild {}", this_channel.guild_id)),
+			)?;
 
 		if server
 			.channels
 			.disallowed_listen
 			.contains(&this_channel.id.into())
 		{
-			return Err(OnReactionAddError::DisallowedListen);
+			return Err(error::debug!(log = "Reaction in unavailable channel"));
 		}
 
 		let reactor = add_reaction.user(&ctx).await?;
 
 		let author = if reactor.id == ctx.cache.current_user_id() {
-			"me".to_string()
+			"I".to_string()
 		} else {
 			reactor.name.to_string()
 		};
@@ -98,7 +102,7 @@ impl Bot {
 		);
 
 		if reactor.id == ctx.cache.current_user_id() {
-			return Err(OnReactionAddError::DisallowedSelfReact);
+			return Err(error::debug!(log = "No dispatching reactions on self"));
 		}
 
 		let msg = add_reaction.message(&ctx.http).await?;
@@ -212,7 +216,7 @@ impl Bot {
 				use crate::helpers::text_banners;
 
 				if msg.content.is_empty() {
-					return Err(OnReactionAddError::MessageEmpty);
+					return Err(OnReactionAddError::MessageEmpty.into());
 				}
 
 				{
@@ -280,7 +284,7 @@ impl Bot {
 					None
 				};
 
-				let data = text_banners::create_image(&msg.content, &preset, gradient).await?;
+				let data = text_banners::create_image(&msg.content, &preset, gradient).await;
 
 				this_channel
 					.send_message(&ctx, |b| {
@@ -339,7 +343,7 @@ impl Bot {
 			} => {
 				// No pinning your own messages, bot
 				if msg.is_own(ctx) {
-					return Err(OnReactionAddError::DisallowedSelfPin);
+					return Err(error::debug!(log = "Won't pin myself"));
 				}
 
 				{
@@ -356,11 +360,15 @@ impl Bot {
 						.await?;
 				}
 				let channel = ChannelId(destination_id).to_channel(&ctx).await?;
-				let channel = channel
-					.guild()
-					.ok_or(OnReactionAddError::MisconfiguredChannel(destination_id))?;
+				let channel = channel.guild().ok_or_else(error::error_lazy!(
+				  log fmt = ("Channel {} is misconfigured with {:?} pin", destination_id, emoji_override),
+				  user = "< This guy's creator has fucked up"
+				))?;
 
-				channel.guild_cached(ctx).await?;
+				channel
+					.guild_cached(ctx)
+					.await
+					.map_err(|e| e.with_user_string_weak("Oh no, problems"))?;
 
 				self.maybe_pin(ctx, msg, add_reaction, channel, emoji_override)
 					.await?;

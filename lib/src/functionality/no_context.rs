@@ -1,3 +1,5 @@
+use crate::prelude::*;
+
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -31,19 +33,20 @@ impl Bot {
 		ctx: &Context,
 		msg: &Message,
 		server: &Server,
-	) -> Result<(), NoContextError> {
-		let no_context = server
-			.no_context
-			.as_ref()
-			.ok_or(NoContextError::MisconfiguredServers(server.id))?;
+	) -> GovanResult {
+		let misconfigured_error = govanerror::error_lazy!(
+			log fmt = ("Server misconfigured: {}", server.id),
+			user = "< This guy's caretaker dun goof'd"
+		);
+		let no_context = server.no_context.as_ref().ok_or_else(misconfigured_error)?;
 		let channel = ctx
 			.cache
 			.guild_channel(no_context.channel)
-			.ok_or(NoContextError::MisconfiguredServers(server.id))?;
+			.ok_or_else(misconfigured_error)?;
 		let role = ctx
 			.cache
 			.role(channel.guild_id, no_context.role)
-			.ok_or(NoContextError::MisconfiguredServers(server.id))?;
+			.ok_or_else(misconfigured_error)?;
 
 		channel
 			.send_message(&ctx, |b| {

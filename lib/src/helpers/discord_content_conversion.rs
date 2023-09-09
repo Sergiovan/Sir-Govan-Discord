@@ -1,5 +1,7 @@
 use serenity::model::prelude::*;
 
+use crate::util::error::{self as govanerror, GovanResult};
+
 pub enum ContentOriginal {
 	User(UserId),
 	Channel(ChannelId),
@@ -67,7 +69,7 @@ impl ContentConverter {
 		self
 	}
 
-	pub fn take(&mut self) -> anyhow::Result<Vec<ContentOriginal>> {
+	pub fn take(&mut self) -> GovanResult<Vec<ContentOriginal>> {
 		use std::fmt::Write;
 
 		let mut new = String::with_capacity(self.content.len());
@@ -202,7 +204,7 @@ impl ContentConverter {
 		self.content = f(tmp);
 	}
 
-	pub fn replace(&mut self, elems: &[String]) -> anyhow::Result<()> {
+	pub fn replace(&mut self, elems: &[String]) -> GovanResult {
 		let mut new = String::with_capacity(
 			self.content.len() + elems.iter().map(|e| e.len()).sum::<usize>(),
 		);
@@ -220,7 +222,10 @@ impl ContentConverter {
 					i += 1;
 				}
 				let index = num[..i].parse::<usize>()?;
-				let replacement = elems.get(index).ok_or(ConversionError::NotEnoughElements)?;
+				let replacement = elems.get(index).ok_or_else(govanerror::error_lazy!(
+				  log fmt = ("Not enough elements supplied: {} < {}", index, elems.len()),
+					user = "A star fell on my head and I lost my train of thought"
+				))?;
 				new.push_str(replacement);
 			} else {
 				new.push(c);
@@ -282,7 +287,7 @@ impl<'a> Iterator for StringSearch<'a> {
 }
 
 #[test]
-fn it_works() -> anyhow::Result<()> {
+fn it_works() -> GovanResult<()> {
 	let start = "<@1><@&2><#3><:b:4><a:c:5>".to_string();
 	let end = "12345";
 

@@ -2,6 +2,7 @@ use crate::helpers::discord_content_conversion::{ContentConverter, ContentOrigin
 use crate::prelude::*;
 
 use crate::bot::Bot;
+use crate::util::error::*;
 
 use crate::helpers::handlebars::{TweetData, TweetMoreData};
 
@@ -42,11 +43,7 @@ impl Reportable for FakeTwitterError {
 	}
 }
 
-async fn content_from_msgs(
-	msgs: &[Message],
-	ctx: &Context,
-	filter: &str,
-) -> anyhow::Result<String> {
+async fn content_from_msgs(msgs: &[Message], ctx: &Context, filter: &str) -> GovanResult<String> {
 	use html_escape::encode_quoted_attribute as html_encode;
 
 	lazy_static! {
@@ -171,8 +168,11 @@ impl Bot {
 		messages: &[Message],
 		reaction: &Reaction,
 		verified_role: Option<u64>,
-	) -> anyhow::Result<TweetData> {
-		let guild_id = reaction.guild_id.ok_or(FakeTwitterError::NotInGuild)?;
+	) -> GovanResult<TweetData> {
+		let guild_id = reaction.guild_id.ok_or_else(govanerror::debug_lazy!(
+			log = "Not currently in a guild channel",
+			user = "You're not in a guild, goofball!"
+		))?;
 
 		let attachment = messages.iter().find_map(|msg| msg.any_image());
 
@@ -254,7 +254,7 @@ impl Bot {
 		messages: Vec<Message>,
 		verified_role: Option<u64>,
 		original_timestamp: Timestamp,
-	) -> anyhow::Result<TweetMoreData> {
+	) -> GovanResult<TweetMoreData> {
 		let attachment = messages.iter().find_map(|msg| msg.any_image());
 
 		let content = content_from_msgs(
@@ -345,24 +345,31 @@ impl Bot {
 		reaction: &Reaction,
 		with_context: bool,
 		verified_role: Option<u64>,
-	) -> Result<(), FakeTwitterError> {
+	) -> GovanResult {
 		let screenshotter = self.get_screenshotter().await;
-		let screenshotter = screenshotter
-			.as_ref()
-			.ok_or(FakeTwitterError::ScreenshotterError)?;
+		let screenshotter = screenshotter.as_ref().ok_or_else(govanerror::error_lazy!(
+			log = "Failed to get screenshotter",
+			user = "My camera broke :("
+		))?;
 
 		let channel = msg
 			.channel(&ctx)
 			.await?
 			.guild()
-			.ok_or(FakeTwitterError::NotInGuild)?;
+			.ok_or_else(govanerror::debug_lazy!(
+				log = "Trying to retweet in DMs",
+				user = "You're not in a guild, silly!"
+			))?;
 
 		let messages = channel
 			.messages(&ctx, |b| b.after(msg.id.0 - 1).limit(50))
 			.await?;
 
 		if messages.is_empty() {
-			return Err(FakeTwitterError::NoMessages);
+			return Err(govanerror::error!(
+			  log fmt = ("Message {} cannot be retweeted, it doesn't exist?", msg.id),
+			  user = "I could not access the Infinitely Tall Cylinder Earth Twitter API. Please try again later"
+			));
 		}
 
 		lazy_static::lazy_static! {
@@ -411,7 +418,10 @@ impl Bot {
 			.map(|i| i.1.collect_vec())
 			.collect_vec();
 
-		let first = context.first().ok_or(FakeTwitterError::NoMessages)?;
+		let first = context.first().ok_or_else(govanerror::error_lazy!(
+		  log fmt = ("Message {} cannot be retweeted, it doesn't have available messages?", msg.id),
+		  user = "I could not access the Infinitely Tall Cylinder Earth Twitter API. Please try again later"
+		))?;
 
 		let mut tweet_data = self
 			.tweet_data_from_message(ctx, first, reaction, verified_role)
@@ -444,8 +454,7 @@ impl Bot {
 						filename: format!("tweet_by_{}.png", reactor),
 					})
 			})
-			.await
-			.ok_or_log(&format!("Could not send message to {}", channel.id));
+			.await?;
 
 		Ok(())
 	}

@@ -116,7 +116,7 @@ pub fn command(
 	#[rustfmt::skip]
 	let output = quote! {
     use async_trait::async_trait;
-    use crate::util::traits::Reportable;
+    use crate::util::error::GovanResult;
     use crate::commands::commander::Command;
 
 		pub struct #type_name;
@@ -136,10 +136,8 @@ pub fn command(
 			}
 
       #[allow(unused_mut)]
-			async fn execute #function_generics (#function_parameters) -> Result<(), Box<dyn Reportable>> {
-				let res: Result<(), Box<dyn Reportable>> = self.#function_name #as_params 
-          .await.map_err(|e| Box::new(e) as Box<dyn Reportable>);
-        res
+			async fn execute #function_generics (#function_parameters) -> GovanResult {
+				self.#function_name #as_params.await
       }
 		}
 	};

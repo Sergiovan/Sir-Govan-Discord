@@ -38,20 +38,32 @@ impl EventHandler for BotEventHandler {
 
 	async fn message(&self, ctx: Context, msg: Message) {
 		if let Err(e) = self.bot.on_message(&ctx, &msg).await {
-			e.get_messages().report(&ctx, &msg).await;
+			e.report(
+				&ctx,
+				either::Either::Left(&msg),
+				Some(&self.bot.data.read().await.strings),
+			)
+			.await;
 		}
 	}
 
 	async fn reaction_add(&self, ctx: Context, add_reaction: Reaction) {
 		if let Err(e) = self.bot.on_reaction_add(&ctx, &add_reaction).await {
-			let messages = e.get_messages();
 			match add_reaction.message(&ctx).await {
 				Ok(msg) => {
-					messages.report(&ctx, &msg).await;
+					e.report(
+						&ctx,
+						either::Left(&msg),
+						Some(&self.bot.data.read().await.strings),
+					)
+					.await;
 				}
-				Err(e) => {
-					messages.log();
-					logger::error_fmt!("While reporting last error another error occurred: {}", e);
+				Err(err) => {
+					e.log();
+					logger::error_fmt!(
+						"While reporting last error another error occurred: {}",
+						err
+					);
 				}
 			}
 		}

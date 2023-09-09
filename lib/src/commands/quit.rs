@@ -1,7 +1,7 @@
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-use super::commander::{Arguments, CommandResult};
+use super::commander::Arguments;
 use crate::bot::Bot;
 
 use sirgovan_macros::command;
@@ -13,7 +13,7 @@ async fn quit<'a>(
 	msg: &'a Message,
 	mut _words: Arguments<'a>,
 	bot: &Bot,
-) -> CommandResult {
+) -> GovanResult {
 	if msg.author.id == 120881455663415296 {
 		bot.shutdown().await;
 	}
