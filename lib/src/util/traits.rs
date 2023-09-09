@@ -169,18 +169,6 @@ impl MessageExt for Message {
 	}
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum SetIconError {
-	#[error("{0}")]
-	UrlParseError(#[source] anyhow::Error),
-	#[error("{0}")]
-	ReqwestError(#[from] reqwest::Error),
-	#[error("{0}")]
-	ImageError(#[from] image::ImageError),
-	#[error("{0}")]
-	EditRoleError(#[source] anyhow::Error),
-}
-
 #[async_trait]
 pub trait RoleExt {
 	async fn set_icon(&self, ctx: &Context, guild_id: GuildId, url: &str) -> GovanResult;

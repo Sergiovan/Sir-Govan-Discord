@@ -51,8 +51,16 @@ impl Bot {
 			})
 			.await?;
 
-		for (id, member) in channel.guild(ctx).unwrap().members.iter_mut() {
-			if id == &msg.author.id {
+		use serenity::futures::StreamExt;
+
+		let members = channel.guild_id.members_iter(ctx);
+		let members = members.collect::<Vec<_>>().await;
+
+		for member in members.into_iter() {
+			let mut member = member?;
+
+			let id = member.user.id;
+			if id == msg.author.id {
 				member.add_role(&ctx, role.id).await?;
 			} else {
 				member.remove_role(&ctx, role.id).await?;
