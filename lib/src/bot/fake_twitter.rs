@@ -153,7 +153,7 @@ impl Bot {
 
 		let member = first.member(&ctx).await?;
 
-		let strings = &self.data.read().await.strings;
+		let strings = &self.data().await.strings;
 		let retweeter_user = reaction.user(&ctx).await?;
 
 		let retweeter = guild_id
@@ -258,7 +258,7 @@ impl Bot {
 
 		let member = first.member(&ctx).await?;
 
-		let strings = &self.data.read().await.strings;
+		let strings = &self.data().await.strings;
 
 		let twitter_number = || {
 			strings
@@ -316,11 +316,7 @@ impl Bot {
 		with_context: bool,
 		verified_role: Option<u64>,
 	) -> GovanResult {
-		let screenshotter = self.get_screenshotter().await;
-		let screenshotter = screenshotter.as_ref().ok_or_else(govanerror::error_lazy!(
-			log = "Failed to get screenshotter",
-			user = "My camera broke :("
-		))?;
+		let screenshotter = self.screenshotter().await?;
 
 		let channel = msg
 			.channel(&ctx)

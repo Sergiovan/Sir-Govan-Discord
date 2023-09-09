@@ -18,7 +18,7 @@ impl Bot {
 		logger::info_fmt!(
 			"Am ready :). I am {}. I am in {} mode",
 			ready.user.tag(),
-			if self.data.read().await.beta {
+			if self.data().await.beta {
 				"beta"
 			} else {
 				"normal"

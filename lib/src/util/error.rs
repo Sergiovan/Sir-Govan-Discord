@@ -174,7 +174,8 @@ into_govan!(
 	handlebars::RenderError[UserMsgType::None],
 	handlebars::TemplateError[UserMsgType::None],
 	fantoccini::error::NewSessionError[UserMsgType::None],
-	fantoccini::error::CmdError[UserMsgType::None]
+	fantoccini::error::CmdError[UserMsgType::None],
+	toml::de::Error[UserMsgType::None],
 );
 
 #[derive(thiserror::Error, Debug)]

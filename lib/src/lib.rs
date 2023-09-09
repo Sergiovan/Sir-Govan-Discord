@@ -26,7 +26,7 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 		.load_servers()
 		.ok_or_log("Could not load servers file")?;
 	bot_data
-		.load_no_context()
+		.load_role_names()
 		.ok_or_log("Could not load No Context Roles")?;
 	bot_data
 		.load_strings()
@@ -60,8 +60,8 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 	let shard_manager = client.shard_manager.clone();
 	bot.set_shard_manager(shard_manager).await;
 	bot.set_cache_and_http(client.cache_and_http.clone()).await;
-	_ = bot.get_screenshotter().await;
-	bot.periodic.lock().await.spawn_periodic(bot.clone());
+	_ = bot.set_screenshotter().await;
+	bot.periodic().await.spawn_periodic(bot.clone());
 
 	{
 		let bot = bot.clone();

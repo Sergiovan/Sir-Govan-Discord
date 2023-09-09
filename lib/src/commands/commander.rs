@@ -58,6 +58,7 @@ impl Commander {
 		self.register_command(&super::icon::Icon);
 		self.register_command(&super::roll::Roll);
 		self.register_command(&super::ping::Ping);
+		self.register_command(&super::refresh::Refresh);
 	}
 
 	pub fn register_command<T: Command + 'static>(&mut self, command: &'static T) {

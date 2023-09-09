@@ -86,7 +86,7 @@ impl Bot {
 			.join("tempsens.ogg"); // TODO Put tempsens in data::config
 
 		let show_name = {
-			let strings = &self.data.read().await.strings;
+			let strings = &self.data().await.strings;
 			if util::random::one_in(10) {
 				strings.titlecard_show_entire.pick().clone()
 			} else {
@@ -129,11 +129,7 @@ impl Bot {
 			std::fs::write(&concat_file_path, concat_file)?;
 
 			{
-				let screenshotter = self.get_screenshotter().await;
-				let screenshotter = screenshotter.as_ref().ok_or_else(error::error_lazy!(
-					log = "Getting screenshotter failed",
-					user = "My camera broke"
-				))?;
+				let screenshotter = self.screenshotter().await?;
 
 				let episode = screenshotter
 					.always_sunny(AlwaysSunnyData { text: content })

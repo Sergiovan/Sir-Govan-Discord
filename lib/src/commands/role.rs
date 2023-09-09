@@ -20,7 +20,7 @@ async fn role<'a>(
 		user = "You need to be in a guild, silly!"
 	))?;
 
-	let bot_data = bot.data.read().await;
+	let bot_data = bot.data().await;
 	let server = bot_data
 		.servers
 		.get(&guild_id.into())

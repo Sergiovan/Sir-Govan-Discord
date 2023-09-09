@@ -12,7 +12,8 @@ pub use servers::NoContext;
 
 use self::strings::{StringBag, StringBagLoose};
 
-use crate::util::random;
+use crate::prelude::GovanResult;
+use crate::util::{error as govanerror, random};
 
 use thiserror::Error;
 
@@ -190,7 +191,7 @@ impl BotData {
 		}
 	}
 
-	pub fn load_servers(&mut self) -> anyhow::Result<()> {
+	pub fn load_servers(&mut self) -> GovanResult {
 		use std::fs;
 		use std::path::Path;
 
@@ -199,18 +200,17 @@ impl BotData {
 
 		let servers: servers::Servers = toml::from_str(&data)?;
 
-		self.servers.extend(
-			servers
-				.servers
-				.into_iter()
-				.filter(|server| server.beta == self.beta)
-				.map(|server| (server.id, server.into())),
-		);
+		self.servers = servers
+			.servers
+			.into_iter()
+			.filter(|server| server.beta == self.beta)
+			.map(|server| (server.id, server.into()))
+			.collect();
 
 		Ok(())
 	}
 
-	pub fn load_no_context(&mut self) -> anyhow::Result<()> {
+	pub fn load_role_names(&mut self) -> GovanResult {
 		use std::fs;
 		use std::path::Path;
 
@@ -223,7 +223,7 @@ impl BotData {
 		Ok(())
 	}
 
-	pub fn load_strings(&mut self) -> anyhow::Result<()> {
+	pub fn load_strings(&mut self) -> GovanResult {
 		use std::fs;
 		use std::path::Path;
 
@@ -231,7 +231,7 @@ impl BotData {
 		let data = fs::read_to_string(strings_path)?;
 
 		let strings: strings::Strings = toml::from_str(&data)?;
-		self.strings = strings.try_into()?;
+		self.strings = strings.try_into().map_err(govanerror::error_map!())?;
 
 		Ok(())
 	}

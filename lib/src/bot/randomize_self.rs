@@ -10,10 +10,9 @@ impl Bot {
 	pub async fn randomize_self(&self) {
 		logger::info("Randomizing self...");
 
-		let bot_data = &self.data.read().await;
+		let bot_data = &self.data().await;
 
-		let ctx = self.cache_and_http.read().await;
-		let ctx = ctx.as_ref().unwrap();
+		let ctx = self.cache_and_http().await;
 
 		for (&id, server) in bot_data.servers.iter() {
 			let guild = match GuildId(id).to_partial_guild(&ctx.http()).await {
@@ -93,8 +92,7 @@ impl Bot {
 			_ => None,
 		};
 
-		let shard_manager = self.shard_manager.read().await;
-		let shard_manager = shard_manager.as_ref().unwrap();
+		let shard_manager = self.shard_manager().await;
 
 		for (.., runner) in shard_manager.lock().await.runners.lock().await.iter() {
 			runner.runner_tx.set_activity(activity.clone());

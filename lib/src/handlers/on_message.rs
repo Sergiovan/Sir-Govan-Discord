@@ -10,7 +10,7 @@ impl Bot {
 	pub async fn on_message(&self, ctx: &Context, msg: &Message) -> GovanResult {
 		msg.guild_cached(ctx).await?;
 
-		let bot_data = self.data.read().await;
+		let bot_data = self.data().await;
 
 		async fn log(ctx: &Context, msg: &Message) {
 			let mine = msg.is_own(ctx);
@@ -111,7 +111,8 @@ impl Bot {
 				.allowed_commands
 				.contains(msg.channel_id.as_u64())
 			{
-				self.commander.lock().await.parse(ctx, msg, self).await?;
+				drop(bot_data); // Unlock data. This isn't great...
+				self.commander.parse(ctx, msg, self).await?;
 			}
 		}
 

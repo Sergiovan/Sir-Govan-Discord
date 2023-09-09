@@ -39,7 +39,7 @@ impl EventHandler for BotEventHandler {
 			e.report(
 				&ctx,
 				either::Either::Left(&msg),
-				Some(&self.bot.data.read().await.strings),
+				Some(&self.bot.data().await.strings),
 			)
 			.await;
 		}
@@ -52,7 +52,7 @@ impl EventHandler for BotEventHandler {
 					e.report(
 						&ctx,
 						either::Left(&msg),
-						Some(&self.bot.data.read().await.strings),
+						Some(&self.bot.data().await.strings),
 					)
 					.await;
 				}

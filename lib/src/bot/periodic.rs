@@ -32,7 +32,7 @@ impl Periodic {
 				let res =
 					tokio::time::timeout(tokio::time::Duration::from_secs(30), recv.recv()).await;
 
-				bot.periodic().await;
+				bot.periodic_task().await;
 
 				if res.is_ok() {
 					recv.close();
@@ -61,11 +61,10 @@ impl Periodic {
 }
 
 impl Bot {
-	pub async fn periodic(&self) {
-		self.pin_lock
-			.lock()
+	pub async fn periodic_task(&self) {
+		self.pin_lock()
 			.await
-			.cleanup(self.cache_and_http.read().await.as_ref().unwrap())
+			.cleanup(&self.cache_and_http().await)
 			.await;
 
 		if crate::util::random::one_in(3000) {

@@ -30,7 +30,7 @@ async fn roll<'a>(
 
 	msg.reply_report(
 		ctx,
-		&format!("{}{}", rand, bot.data.read().await.strings.roll.pick()),
+		&format!("{}{}", rand, bot.data().await.strings.roll.pick()),
 	)
 	.await;
 

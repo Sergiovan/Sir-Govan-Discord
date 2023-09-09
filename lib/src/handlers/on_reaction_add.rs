@@ -19,7 +19,7 @@ impl Bot {
 			user = "You can only use this inside a guild!"
 		))?;
 
-		let bot_data = self.data.read().await;
+		let bot_data = self.data().await;
 
 		let server = bot_data
 			.servers
@@ -174,7 +174,7 @@ impl Bot {
 				}
 
 				{
-					let pin_lock = self.pin_lock.lock().await;
+					let pin_lock = self.pin_lock().await;
 					pin_lock
 						.locked_react(
 							ctx,
@@ -255,7 +255,7 @@ impl Bot {
 				verified_role,
 			} => {
 				{
-					let pin_lock = self.pin_lock.lock().await;
+					let pin_lock = self.pin_lock().await;
 					pin_lock
 						.locked_react(
 							ctx,
@@ -274,7 +274,7 @@ impl Bot {
 			}
 			Action::AlwaysSunny => {
 				{
-					let pin_lock = self.pin_lock.lock().await;
+					let pin_lock = self.pin_lock().await;
 					pin_lock
 						.locked_react(
 							ctx,
@@ -301,7 +301,7 @@ impl Bot {
 				}
 
 				{
-					let pin_lock = self.pin_lock.lock().await;
+					let pin_lock = self.pin_lock().await;
 					pin_lock
 						.locked_react(
 							ctx,
