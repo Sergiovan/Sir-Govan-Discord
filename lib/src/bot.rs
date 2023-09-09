@@ -1,7 +1,14 @@
+pub mod fake_iasip;
+pub mod fake_twitter;
+pub mod halls;
+pub mod no_context;
+pub mod periodic;
+pub mod shutdown;
+
 use serenity::client::bridge::gateway::ShardManager;
 use serenity::{prelude::*, CacheAndHttp};
 
-use crate::functionality::periodic::Periodic;
+use self::periodic::Periodic;
 
 use super::commands::commander::Commander;
 use super::data::BotData;

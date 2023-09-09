@@ -4,6 +4,7 @@ use crate::bot::Bot;
 
 use std::sync::Arc;
 
+#[derive(Default)]
 pub struct Periodic {
 	handle: Option<tokio::task::JoinHandle<()>>,
 	handle_ender: Option<tokio::sync::mpsc::Sender<()>>,

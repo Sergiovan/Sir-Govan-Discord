@@ -1,7 +1,6 @@
 use std::convert::Infallible;
 
 pub(crate) mod commands;
-pub(crate) mod functionality;
 pub(crate) mod handlers;
 pub(crate) mod helpers;
 pub(crate) mod prelude;

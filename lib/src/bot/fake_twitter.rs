@@ -2,7 +2,6 @@ use crate::helpers::discord_content_conversion::{ContentConverter, ContentOrigin
 use crate::prelude::*;
 
 use crate::bot::Bot;
-use crate::util::error::*;
 
 use crate::helpers::handlebars::{TweetData, TweetMoreData};
 
