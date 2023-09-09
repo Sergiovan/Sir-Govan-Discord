@@ -9,23 +9,6 @@ use crate::bot::Bot;
 
 use sirgovan_macros::command;
 
-#[derive(thiserror::Error, Debug)]
-enum RollError {
-	#[error("")]
-	NegativeRoll,
-}
-
-impl Reportable for RollError {
-	fn to_user(&self) -> Option<String> {
-		match self {
-			Self::NegativeRoll => Some(
-				"Dice need to have 1 or more sides, otherwise I don't know where the North is"
-					.into(),
-			),
-		}
-	}
-}
-
 #[command]
 async fn roll<'a>(
 	&self,

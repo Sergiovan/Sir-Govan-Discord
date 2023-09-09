@@ -1,5 +1,7 @@
 use fantoccini::wd::Capabilities;
 
+use crate::prelude::GovanResult;
+
 const ARGS: &[&str] = &[
 	"--autoplay-policy=user-gesture-required",
 	"--disable-background-networking",
@@ -46,7 +48,7 @@ pub struct Screenshotter {
 }
 
 impl Screenshotter {
-	pub async fn new() -> anyhow::Result<Screenshotter> {
+	pub async fn new() -> GovanResult<Screenshotter> {
 		let handlebars = super::handlebars::Handlebar::new()?;
 
 		Ok(Screenshotter {
@@ -55,7 +57,7 @@ impl Screenshotter {
 		})
 	}
 
-	async fn new_connection() -> anyhow::Result<fantoccini::Client> {
+	async fn new_connection() -> GovanResult<fantoccini::Client> {
 		let capability_array = ARGS
 			.iter()
 			.map(|s| format!(r#""{}""#, s))
@@ -74,7 +76,7 @@ impl Screenshotter {
 			.await?)
 	}
 
-	pub async fn reconnect(&mut self) -> anyhow::Result<()> {
+	pub async fn reconnect(&mut self) -> GovanResult<()> {
 		self.client = Self::new_connection().await?;
 
 		Ok(())
@@ -86,7 +88,7 @@ impl Screenshotter {
 		capture: &str,
 		width: Option<f64>,
 		height: Option<f64>,
-	) -> anyhow::Result<Vec<u8>> {
+	) -> GovanResult<Vec<u8>> {
 		let html = openssl::base64::encode_block(html.as_bytes());
 
 		self.client
@@ -122,10 +124,7 @@ impl Screenshotter {
 		Ok(bytes)
 	}
 
-	pub async fn twitter(
-		&self,
-		tweet_data: super::handlebars::TweetData,
-	) -> anyhow::Result<Vec<u8>> {
+	pub async fn twitter(&self, tweet_data: super::handlebars::TweetData) -> GovanResult<Vec<u8>> {
 		let html = self.handlebars.twitter(tweet_data)?;
 
 		self.screenshot_from_html(&html, ".fake-twitter", None, None)
@@ -135,7 +134,7 @@ impl Screenshotter {
 	pub async fn always_sunny(
 		&self,
 		always_sunny_data: super::handlebars::AlwaysSunnyData,
-	) -> anyhow::Result<Vec<u8>> {
+	) -> GovanResult<Vec<u8>> {
 		let html = self.handlebars.always_sunny(always_sunny_data)?;
 
 		self.screenshot_from_html(&html, ".container", None, None)

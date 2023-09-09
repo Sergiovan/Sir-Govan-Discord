@@ -11,18 +11,6 @@ use serenity::prelude::*;
 
 use crate::util::random;
 
-#[derive(thiserror::Error, Debug)]
-pub enum HallError {
-	#[error("Generic error: {0}")]
-	GenericError(#[from] anyhow::Error),
-	#[error("Discord api error: {0}")]
-	DiscordError(#[from] serenity::Error),
-	#[error("No permission to post in hall {0}")]
-	NoPermission(String),
-}
-
-impl Reportable for HallError {}
-
 impl Bot {
 	pub async fn maybe_pin(
 		&self,

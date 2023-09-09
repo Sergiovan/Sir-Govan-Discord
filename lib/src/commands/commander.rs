@@ -2,7 +2,6 @@ use crate::prelude::*;
 
 use crate::bot::Bot;
 use crate::data::EmojiType;
-use crate::util::traits::Reportable;
 use std::collections::HashMap;
 
 use num_bigint::BigInt;
@@ -12,20 +11,6 @@ use serenity::prelude::*;
 use async_trait::async_trait;
 
 use std::collections::VecDeque;
-
-#[derive(thiserror::Error, Debug)]
-pub enum DefaultCommandError {
-	#[error("DefaultCommandError: {0}")]
-	DefaultError(#[from] anyhow::Error),
-	#[error("")]
-	NoSuchCommand,
-	#[error("Content of message was empty, but command {0} was detected")]
-	EmptyCommand(String),
-}
-
-impl Reportable for DefaultCommandError {}
-
-pub type CommandResult<E = DefaultCommandError> = Result<(), E>;
 
 #[async_trait]
 pub trait Command: Send + Sync {

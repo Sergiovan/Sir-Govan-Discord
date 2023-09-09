@@ -6,8 +6,6 @@ use serenity::json::Value;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-use crate::prelude::*;
-
 use std::sync::Arc;
 
 pub struct BotEventHandler {

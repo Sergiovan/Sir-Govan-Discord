@@ -1,6 +1,9 @@
 use lazy_static::lazy_static;
 
-use crate::util::random::{GrabBag, GrabBagBuilder, GrabBagTier};
+use crate::{
+	prelude::GovanResult,
+	util::random::{GrabBag, GrabBagBuilder, GrabBagTier},
+};
 
 pub struct Handlebar<'a> {
 	handlebar: handlebars::Handlebars<'a>,
@@ -10,7 +13,7 @@ impl<'a> Handlebar<'a> {
 	const ALWAYS_SUNNY: &str = "always_sunny";
 	const FAKE_TWITTER: &str = "fake_twitter";
 
-	pub fn new() -> anyhow::Result<Handlebar<'a>> {
+	pub fn new() -> GovanResult<Handlebar<'a>> {
 		use crate::data::config;
 		use std::path::Path;
 		let mut handlebar = handlebars::Handlebars::new();
@@ -32,12 +35,12 @@ impl<'a> Handlebar<'a> {
 		Ok(Handlebar { handlebar })
 	}
 
-	pub fn always_sunny(&self, data: AlwaysSunnyData) -> Result<String, handlebars::RenderError> {
-		self.handlebar.render(Self::ALWAYS_SUNNY, &data)
+	pub fn always_sunny(&self, data: AlwaysSunnyData) -> GovanResult<String> {
+		Ok(self.handlebar.render(Self::ALWAYS_SUNNY, &data)?)
 	}
 
-	pub fn twitter(&self, data: TweetData) -> Result<String, handlebars::RenderError> {
-		self.handlebar.render(Self::FAKE_TWITTER, &data)
+	pub fn twitter(&self, data: TweetData) -> GovanResult<String> {
+		Ok(self.handlebar.render(Self::FAKE_TWITTER, &data)?)
 	}
 }
 

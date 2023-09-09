@@ -9,8 +9,8 @@ pub enum ContentOriginal {
 	Emoji(EmojiId),
 }
 
-#[allow(dead_code)]
 impl ContentOriginal {
+	#[cfg(test)]
 	pub fn id(&self) -> u64 {
 		match self {
 			Self::User(id) => id.0,
@@ -19,12 +19,6 @@ impl ContentOriginal {
 			Self::Emoji(id) => id.0,
 		}
 	}
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum ConversionError {
-	#[error("not enough elements supplied")]
-	NotEnoughElements,
 }
 
 pub struct ContentConverter {

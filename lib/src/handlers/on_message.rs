@@ -6,29 +6,6 @@ use colored::Colorize;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
-#[derive(thiserror::Error, Debug)]
-pub enum OnMessageError {
-	#[error("Generic error: {0}")]
-	GenericError(#[from] anyhow::Error),
-	#[error("")]
-	NotAValidGuild,
-	#[error("")]
-	DisallowedListen,
-	#[error("")]
-	DisallowedSelfInteract,
-	#[error("{0}")]
-	CommandError(Box<dyn Reportable>),
-}
-
-impl Reportable for OnMessageError {
-	fn to_user(&self) -> Option<String> {
-		match self {
-			Self::CommandError(e) => e.to_user(),
-			_ => None,
-		}
-	}
-}
-
 impl Bot {
 	pub async fn on_message(&self, ctx: &Context, msg: &Message) -> GovanResult {
 		msg.guild_cached(ctx).await?;

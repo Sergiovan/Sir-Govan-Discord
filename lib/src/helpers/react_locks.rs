@@ -7,43 +7,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::RwLock;
 
-#[derive(thiserror::Error, Debug)]
-pub enum ReactLockError {
-	#[error("Incomplete custom emoji name: {0}")]
-	CustomEmojiIncomplete(u64),
-	#[error("Unable to get {1} reactions from {2}: {0}")]
-	ReactionFetchError(#[source] serenity::Error, ReactionType, u64),
-	#[error("Tried to pin-lock during cleanup")]
-	CleanupInProgress,
-	#[error("Unable to get msg {1} from {2}: {0}")]
-	MessageFetchError(#[source] serenity::Error, u64, u64),
-	#[error("Called react lock on message with no reactions")]
-	NoReactions,
-	#[error("")]
-	AlreadyUsed,
-	#[error("Unable to add {1} reaction to {2}: {0}")]
-	ReactionAddError(#[source] serenity::Error, ReactionType, u64),
-	#[error("")]
-	NotEnoughReactors(usize, usize),
-}
-
-impl Reportable for ReactLockError {
-	fn to_user(&self) -> Option<String> {
-		match self {
-			Self::CustomEmojiIncomplete(..) => {
-				Some("It appears Discord bad. Try again later".to_string())
-			}
-			Self::MessageFetchError(..) | Self::ReactionFetchError(..) => {
-				Some("My connection to the outside world is quite dodgy right now".to_string())
-			}
-			Self::ReactionAddError(..) => {
-				Some("I can't react on that message, so I won't be touching it further".to_string())
-			}
-			_ => None,
-		}
-	}
-}
-
 struct PinTask {
 	pub start: std::time::Instant,
 	pub duration: std::time::Duration,

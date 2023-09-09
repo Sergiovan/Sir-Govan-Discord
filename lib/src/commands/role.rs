@@ -7,30 +7,6 @@ use serenity::prelude::*;
 
 use sirgovan_macros::command;
 
-#[derive(thiserror::Error, Debug)]
-enum RoleError {
-	#[error("")]
-	NotInGuild,
-	#[error("Guild not in server list: {0}")]
-	GuildNotInList(GuildId),
-	#[error("")]
-	GuildMissingRole,
-	#[error("Could not get role name for {0}")]
-	RoleNoName(u64),
-}
-
-impl Reportable for RoleError {
-	fn to_user(&self) -> Option<String> {
-		match self {
-			Self::GuildMissingRole => Some("This server does not have roles to collect".into()),
-			Self::RoleNoName(..) => {
-				Some("We're backlogged, please try again in 5 business years".into())
-			}
-			_ => None,
-		}
-	}
-}
-
 #[command]
 async fn role<'a>(
 	&self,

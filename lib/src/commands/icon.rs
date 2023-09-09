@@ -4,45 +4,8 @@ use super::commander::Arguments;
 use crate::bot::Bot;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
-use util::traits::SetIconError;
 
 use sirgovan_macros::command;
-
-#[derive(thiserror::Error, Debug)]
-enum IconError {
-	#[error("")]
-	NotInGuild,
-	#[error("Could not get guild from id {0}: {1}")]
-	GuildNotInList(GuildId, #[source] anyhow::Error),
-	#[error("")]
-	GuildNotPremium,
-	#[error("Could not get member from {0}: {1}")]
-	MemberFailure(UserId, #[source] anyhow::Error),
-	#[error("Could not set icon of {1} to image from {2}: {0}")]
-	IconSetError(#[source] SetIconError, RoleId, String),
-	#[error("Could not reset icon for {1}: {0}")]
-	IconResetError(#[source] SetIconError, UserId),
-}
-
-impl Reportable for IconError {
-	fn to_user(&self) -> Option<String> {
-		match self {
-			Self::GuildNotPremium => Some("This guild does not have access to this feature".into()),
-			Self::MemberFailure(..) => {
-				Some("The Discord API is being funny, please try again later".into())
-			}
-			Self::IconSetError(e, ..) => match e {
-				SetIconError::UrlParseError(..) => Some("The url given is invalid".into()),
-				SetIconError::ImageError(..) => Some("I cannot handle this image".into()),
-				_ => Some("I'm having trouble setting your icon to that".into()),
-			},
-			Self::IconResetError(..) => {
-				Some("Could not reset your icon, it is too powerful".into())
-			}
-			_ => None,
-		}
-	}
-}
 
 #[command]
 async fn icon<'a>(
@@ -52,12 +15,12 @@ async fn icon<'a>(
 	mut words: Arguments<'a>,
 	_bot: &Bot,
 ) -> GovanResult {
-	let guild_id = msg.guild_id.ok_or(IconError::NotInGuild)?;
+	let guild_id = msg.guild_id.ok_or_else(govanerror::debug_lazy!(
+		log = "Command used outside of guild",
+		user = "You need to be in a guild, silly!"
+	))?;
 
-	let guild = guild_id
-		.to_partial_guild(&ctx)
-		.await
-		.map_err(|e| IconError::GuildNotInList(guild_id, e.into()))?;
+	let guild = guild_id.to_partial_guild(&ctx).await?;
 
 	let tier = guild.premium_tier;
 
@@ -71,10 +34,7 @@ async fn icon<'a>(
 		_ => (),
 	}
 
-	let member = msg
-		.member(&ctx)
-		.await
-		.map_err(|e| IconError::MemberFailure(msg.author.id, e.into()))?;
+	let member = msg.member(&ctx).await?;
 
 	let role = member.get_unique_role(ctx)?;
 

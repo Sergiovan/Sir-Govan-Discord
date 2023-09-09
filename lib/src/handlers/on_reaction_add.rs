@@ -1,7 +1,3 @@
-use crate::functionality::fake_iasip::FakeIasipError;
-use crate::functionality::fake_twitter::FakeTwitterError;
-use crate::functionality::halls::HallError;
-use crate::helpers::react_locks::ReactLockError;
 use crate::prelude::*;
 
 use crate::util::error;
@@ -13,51 +9,6 @@ use crate::util::error::GovanResult;
 use colored::Colorize;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
-
-#[derive(thiserror::Error, Debug)]
-pub enum OnReactionAddError {
-	#[error("{0}")]
-	ReactLockError(#[from] ReactLockError),
-	#[error("Generic error: {0}")]
-	GenericError(#[from] anyhow::Error),
-	#[error("Discord api error: {0}")]
-	DiscordError(#[from] serenity::Error),
-	#[error("")]
-	NotAGuild,
-	#[error("")]
-	NotAValidGuild,
-	#[error("")]
-	DisallowedListen,
-	#[error("")]
-	DisallowedSelfReact,
-	#[error("")]
-	DisallowedSelfPin,
-	#[error("")]
-	MessageEmpty,
-	#[error("Banner creation failed: {0}")]
-	TextBannerError(#[source] anyhow::Error),
-	#[error("Fake Twitter Error: {0}")]
-	FakeTwitterError(#[from] FakeTwitterError),
-	#[error("Fake Iasip Error: {0}")]
-	FakeIasipError(#[from] FakeIasipError),
-	#[error("Hall channel is not a guild channel: {0}")]
-	MisconfiguredChannel(u64),
-	#[error("{0}")]
-	HallError(#[from] HallError),
-}
-
-impl Reportable for OnReactionAddError {
-	fn to_user(&self) -> Option<String> {
-		match self {
-			Self::ReactLockError(e) => e.to_user(),
-			Self::TextBannerError(_) => Some("My paintbrush broke :(".to_string()),
-			Self::FakeTwitterError(e) => e.to_user(),
-			Self::FakeIasipError(e) => e.to_user(),
-			Self::HallError(e) => e.to_user(),
-			_ => None,
-		}
-	}
-}
 
 impl Bot {
 	pub async fn on_reaction_add(&self, ctx: &Context, add_reaction: &Reaction) -> GovanResult {
@@ -216,7 +167,10 @@ impl Bot {
 				use crate::helpers::text_banners;
 
 				if msg.content.is_empty() {
-					return Err(OnReactionAddError::MessageEmpty.into());
+					return Err(govanerror::error!(
+						log = "Attempting to donk bonk empty message",
+						user = "That message has no text for me to use!"
+					));
 				}
 
 				{

@@ -9,42 +9,6 @@ use crate::helpers::discord_content_conversion::{ContentConverter, ContentOrigin
 
 use crate::bot::Bot;
 
-#[derive(thiserror::Error, Debug)]
-pub enum FakeIasipError {
-	#[error("Generic error: {0}")]
-	GenericError(#[from] anyhow::Error),
-	#[error("Dicord api error: {0}")]
-	DiscordError(#[from] serenity::Error),
-	#[error("Io error: {0}")]
-	IoError(#[from] std::io::Error),
-	#[error("Ffmpeg returned: {0:?}")]
-	FfmpegError(Option<i32>),
-	#[error("Error getting ids from message")]
-	ConverterError,
-	#[error("Not currently in a guild channel")]
-	NotInGuild,
-	#[error("Screenshotter error")]
-	ScreenshotterError,
-}
-
-impl Reportable for FakeIasipError {
-	fn get_messages(&self) -> ReportMsgs {
-		let to_logger = Some(self.to_string());
-		let to_user: Option<String> = match self {
-			Self::GenericError(..) => {
-				Some("Someone sneezed really hard and startled me, sorry".into())
-			}
-			Self::DiscordError(..) => Some("Having some trouble with that".into()),
-			Self::IoError(..) => Some("I'm too full of soup for that right now".into()),
-			Self::FfmpegError(..) => Some("My video editor broke".into()),
-			Self::ConverterError => Some("I am having trouble reading your message".into()),
-			Self::NotInGuild => Some("You're not in a guild".into()),
-			Self::ScreenshotterError => Some("My camera broke".into()),
-		};
-		ReportMsgs { to_logger, to_user }
-	}
-}
-
 impl Bot {
 	pub async fn maybe_iasip(&self, ctx: &Context, msg: &Message) -> GovanResult {
 		async fn stringify_content(ctx: &Context, content: ContentOriginal) -> String {

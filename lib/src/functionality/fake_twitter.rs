@@ -14,35 +14,6 @@ use serenity::prelude::*;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-#[derive(thiserror::Error, Debug)]
-pub enum FakeTwitterError {
-	#[error("Generic error: {0}")]
-	GenericError(#[from] anyhow::Error),
-	#[error("Discord api error: {0}")]
-	DiscordError(#[from] serenity::Error),
-	#[error("Mot currently in a guild channel")]
-	NotInGuild,
-	#[error("Screenshotter error")]
-	ScreenshotterError,
-	#[error("No messages to tweet")]
-	NoMessages,
-}
-
-impl Reportable for FakeTwitterError {
-	fn get_messages(&self) -> ReportMsgs {
-		let to_logger = Some(self.to_string());
-		let to_user: Option<String> = match self {
-      Self::GenericError(..) => Some("A star fell on my head and I lost my train of thought. Sorry".into()),
-      Self::DiscordError(..) => Some("It appears there were problems".into()),
-      Self::NotInGuild => Some("You're not in a guild".into()),
-      Self::NoMessages => Some("I could not access the Infinitely Tall Cylinder Earth Twitter API. Please try again later".into()),
-      Self::ScreenshotterError => Some("My camera broke. Sorry about that. But your tweet reached the Infinitely Tall Cylinder Earth at least".into()),
-    };
-
-		ReportMsgs { to_logger, to_user }
-	}
-}
-
 async fn content_from_msgs(msgs: &[Message], ctx: &Context, filter: &str) -> GovanResult<String> {
 	use html_escape::encode_quoted_attribute as html_encode;
 

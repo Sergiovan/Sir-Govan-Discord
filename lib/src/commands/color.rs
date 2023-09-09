@@ -1,5 +1,3 @@
-use std::num::ParseIntError;
-
 use crate::prelude::*;
 
 use crate::bot::Bot;
@@ -11,36 +9,6 @@ use super::commander::Arguments;
 use sirgovan_macros::command;
 
 use rand::Rng;
-
-#[derive(thiserror::Error, Debug)]
-enum ColorError {
-	#[error("")]
-	NotInGuild,
-	#[error("Could not get member from {0}: {1}")]
-	MemberFailure(UserId, #[source] anyhow::Error),
-	#[error("")]
-	ParseIntError(#[from] ParseIntError),
-	#[error("")]
-	HexTooLarge,
-	#[error("Could not change role {1} for {2} to color #{3:06X}: {0}")]
-	RoleEditError(#[source] serenity::Error, RoleId, UserId, u64),
-}
-
-impl Reportable for ColorError {
-	fn to_user(&self) -> Option<String> {
-		match self {
-			Self::MemberFailure(..) => {
-				Some("The Discord API is being funny, please try again later".into())
-			}
-			Self::ParseIntError(..) => Some("That is an invalid hex number".into()),
-			Self::HexTooLarge => Some("That hex is too large".into()),
-			Self::RoleEditError(..) => {
-				Some("Something went wrong. Could not change your role color".into())
-			}
-			_ => None,
-		}
-	}
-}
 
 #[command(aliases = ["colour"])]
 async fn color<'a>(

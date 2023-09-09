@@ -5,17 +5,6 @@ use serenity::prelude::*;
 
 use crate::bot::Bot;
 use crate::data::Server;
-use crate::prelude::Reportable;
-
-#[derive(thiserror::Error, Debug)]
-pub enum NoContextError {
-	#[error("Misconfigured servers {0}")]
-	MisconfiguredServers(u64),
-	#[error("Discord api error: {0}")]
-	DiscordError(#[from] serenity::Error),
-}
-
-impl Reportable for NoContextError {}
 
 impl Bot {
 	pub fn can_remove_context(&self, ctx: &Context, msg: &Message, server: &Server) -> bool {
