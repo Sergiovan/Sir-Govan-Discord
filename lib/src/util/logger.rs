@@ -101,7 +101,7 @@ fn print_message(time: DateTime<Utc>, level: &str, text: &str) {
 
 	let time_str = time.format("%H:%M:%S%.3f");
 	let header = format!("[{}]{} ", time_str, level);
-	let rest = format!("              {}", level);
+	let rest = format!("              {} ", level);
 	text.split('\n')
 		.enumerate()
 		.for_each(|(i, s)| println!("{}{}", if i == 0 { &header } else { &rest }, s));

@@ -28,10 +28,12 @@ impl Bot {
 			user = "< This guy's caretaker dun goof'd"
 		);
 		let no_context = server.no_context.as_ref().ok_or_else(misconfigured_error)?;
+
 		let channel = ctx
 			.cache
 			.guild_channel(no_context.channel)
 			.ok_or_else(misconfigured_error)?;
+
 		let role = ctx
 			.cache
 			.role(channel.guild_id, no_context.role)
@@ -67,7 +69,7 @@ impl Bot {
 			}
 		}
 
-		let new_role_name = self.data.read().await.random_no_context();
+		let new_role_name = self.data().await.random_no_context();
 		role.edit(&ctx, |r| r.name(&new_role_name)).await?;
 
 		Ok(())

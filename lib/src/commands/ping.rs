@@ -15,7 +15,7 @@ async fn ping<'a>(
 	mut _words: Arguments<'a>,
 	bot: &Bot,
 ) -> GovanResult {
-	msg.reply_report(ctx, bot.data.read().await.strings.ping.pick())
+	msg.reply_report(ctx, bot.data().await.strings.ping.pick())
 		.await;
 
 	Ok(())

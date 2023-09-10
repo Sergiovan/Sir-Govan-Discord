@@ -6,7 +6,7 @@ pub const WEARY: char = '😩';
 
 pub const REPEAT: &str = "🔁";
 pub const REPEAT_ONCE: &str = "🔂";
-pub const _VIOLIN: &str = "🎻";
+pub const VIOLIN: &str = "🎻";
 pub const HEADSTONE: &str = "🪦";
 pub const FIRE_HEART: &str = "❤️‍🔥";
 

@@ -70,6 +70,15 @@ impl Bot {
 
 		if msg.is_private() {
 			log(ctx, msg).await;
+
+			if msg.is_own(ctx) {
+				return Err(govanerror::debug!(
+					// log = "Cannot listen to own messages"
+				));
+			}
+
+			drop(bot_data); // Unlock data. This isn't great...
+			self.commander.parse(ctx, msg, self).await?;
 		} else {
 			let server = bot_data
 				.servers

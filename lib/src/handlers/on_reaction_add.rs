@@ -1,7 +1,5 @@
 use crate::prelude::*;
 
-use crate::util::error;
-
 use crate::bot::Bot;
 use crate::data::EmojiType;
 use crate::util::error::GovanResult;
@@ -14,9 +12,8 @@ impl Bot {
 	pub async fn on_reaction_add(&self, ctx: &Context, add_reaction: &Reaction) -> GovanResult {
 		let this_channel = add_reaction.channel(&ctx).await?;
 
-		let this_channel = this_channel.guild().ok_or_else(error::debug_lazy!(
-			log = "Not in a guild channel",
-			user = "You can only use this inside a guild!"
+		let this_channel = this_channel.guild().ok_or_else(govanerror::debug_lazy!(
+			log = "Not in a guild channel" //, user = "You can only use this inside a guild!"
 		))?;
 
 		let bot_data = self.data().await;
@@ -24,16 +21,18 @@ impl Bot {
 		let server = bot_data
 			.servers
 			.get(this_channel.guild_id.as_u64())
-			.ok_or_else(
-				error::debug_lazy!(log fmt = ("Reaction in unavailable guild {}", this_channel.guild_id)),
-			)?;
+			.ok_or_else(govanerror::debug_lazy!(
+				log fmt = ("Reaction in unavailable guild {}", this_channel.guild_id)
+			))?;
 
 		if server
 			.channels
 			.disallowed_listen
 			.contains(&this_channel.id.into())
 		{
-			return Err(error::debug!(log = "Reaction in unavailable channel"));
+			return Err(govanerror::debug!(
+				// log = "Reaction in unavailable channel"
+			));
 		}
 
 		let reactor = add_reaction.user(&ctx).await?;
@@ -53,7 +52,7 @@ impl Bot {
 		);
 
 		if reactor.id == ctx.cache.current_user_id() {
-			return Err(error::debug!(log = "No dispatching reactions on self"));
+			return Err(govanerror::debug!(log = "No dispatching reactions on self"));
 		}
 
 		let msg = add_reaction.message(&ctx.http).await?;
@@ -136,7 +135,7 @@ impl Bot {
 							with_context: false,
 							verified_role: server.no_context.as_ref().map(|c| c.role),
 						},
-						data::emoji::_VIOLIN => Action::AlwaysSunny,
+						data::emoji::VIOLIN => Action::AlwaysSunny,
 						_ => Action::None,
 					},
 					EmojiType::Discord(_) => Action::None,
@@ -297,7 +296,7 @@ impl Bot {
 			} => {
 				// No pinning your own messages, bot
 				if msg.is_own(ctx) {
-					return Err(error::debug!(log = "Won't pin myself"));
+					return Err(govanerror::debug!(log = "Won't pin myself"));
 				}
 
 				{
@@ -314,7 +313,7 @@ impl Bot {
 						.await?;
 				}
 				let channel = ChannelId(destination_id).to_channel(&ctx).await?;
-				let channel = channel.guild().ok_or_else(error::error_lazy!(
+				let channel = channel.guild().ok_or_else(govanerror::error_lazy!(
 				  log fmt = ("Channel {} is misconfigured with {:?} pin", destination_id, emoji_override),
 				  user = "< This guy's creator has fucked up"
 				))?;
