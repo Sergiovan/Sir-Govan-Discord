@@ -13,10 +13,10 @@ impl ContentOriginal {
 	#[cfg(test)]
 	pub fn id(&self) -> u64 {
 		match self {
-			Self::User(id) => id.0,
-			Self::Channel(id) => id.0,
-			Self::Role(id) => id.0,
-			Self::Emoji(id) => id.0,
+			Self::User(id) => id.get(),
+			Self::Channel(id) => id.get(),
+			Self::Role(id) => id.get(),
+			Self::Emoji(id) => id.get(),
 		}
 	}
 }

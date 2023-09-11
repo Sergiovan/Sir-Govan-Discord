@@ -5,6 +5,7 @@ use crate::data::EmojiType;
 use crate::util::error::GovanResult;
 
 use colored::Colorize;
+use serenity::builder::{CreateAttachment, CreateMessage};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -20,7 +21,7 @@ impl Bot {
 
 		let server = bot_data
 			.servers
-			.get(this_channel.guild_id.as_u64())
+			.get(&this_channel.guild_id.get())
 			.ok_or_else(govanerror::debug_lazy!(
 				log fmt = ("Reaction in unavailable guild {}", this_channel.guild_id)
 			))?;
@@ -37,7 +38,7 @@ impl Bot {
 
 		let reactor = add_reaction.user(&ctx).await?;
 
-		let author = if reactor.id == ctx.cache.current_user_id() {
+		let author = if reactor.id == ctx.cache.current_user().id {
 			"I".to_string()
 		} else {
 			reactor.name.to_string()
@@ -51,7 +52,7 @@ impl Bot {
 			add_reaction.emoji.to_string()
 		);
 
-		if reactor.id == ctx.cache.current_user_id() {
+		if reactor.id == ctx.cache.current_user().id {
 			return Err(govanerror::debug!(log = "No dispatching reactions on self"));
 		}
 
@@ -240,12 +241,13 @@ impl Bot {
 				let data = text_banners::create_image(&msg.content, &preset, gradient).await;
 
 				this_channel
-					.send_message(&ctx, |b| {
-						b.add_file((
+					.send_message(
+						&ctx,
+						CreateMessage::default().add_file(CreateAttachment::bytes(
 							data.as_bytes(),
 							format!("donk_blonk_{}.png", reactor.name).as_str(),
-						))
-					})
+						)),
+					)
 					.await?;
 				Ok(())
 			}
@@ -299,6 +301,12 @@ impl Bot {
 					return Err(govanerror::debug!(log = "Won't pin myself"));
 				}
 
+				if destination_id == 0 {
+					return Err(govanerror::error!(
+						log = "Misconfigured destination_id is 0"
+					));
+				}
+
 				{
 					let pin_lock = self.pin_lock().await;
 					pin_lock
@@ -312,7 +320,7 @@ impl Bot {
 						)
 						.await?;
 				}
-				let channel = ChannelId(destination_id).to_channel(&ctx).await?;
+				let channel = ChannelId::new(destination_id).to_channel(&ctx).await?;
 				let channel = channel.guild().ok_or_else(govanerror::error_lazy!(
 				  log fmt = ("Channel {} is misconfigured with {:?} pin", destination_id, emoji_override),
 				  user = "< This guy's creator has fucked up"

@@ -5,7 +5,7 @@ use crate::prelude::*;
 use crate::bot::Bot;
 use crate::data::EmojiType;
 
-use serenity::builder::CreateMessage;
+use serenity::builder::{CreateEmbed, CreateEmbedAuthor, CreateEmbedFooter, CreateMessage};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -20,7 +20,7 @@ impl Bot {
 		dest: GuildChannel,
 		override_icon: Option<EmojiType>,
 	) -> GovanResult {
-		let perms = dest.permissions_for_user(ctx, ctx.cache.current_user())?;
+		let perms = dest.permissions_for_user(ctx, ctx.cache.current_user().id)?;
 
 		if !perms.send_messages() {
 			return Err(govanerror::error!(
@@ -58,8 +58,8 @@ impl Bot {
 				.unwrap_or(msg.author.default_avatar_url()),
 			content: msg.content.is_empty().not().then_some(msg.content),
 			timestamp: msg.timestamp,
-			message_id: *msg.id.as_u64(),
-			channel_id: *msg.channel_id.as_u64(),
+			message_id: msg.id.get(),
+			channel_id: msg.channel_id.get(),
 			embed: if let [ref first, ..] = &msg.attachments[..] {
 				let content_type = first.content_type.as_ref();
 				if content_type.is_some_and(|x| x.starts_with("video/")) {
@@ -86,47 +86,41 @@ impl Bot {
 			},
 		};
 
-		dest.send_message(&ctx, |b| self.make_pin(b, pin_data))
-			.await?;
+		dest.send_message(&ctx, self.make_pin(pin_data)).await?;
 
 		Ok(())
 	}
 
-	fn make_pin<'a, 'b>(
-		&self,
-		builder: &'a mut CreateMessage<'b>,
-		data: PinData,
-	) -> &'a mut CreateMessage<'b> {
-		builder.add_embed(|b| {
-			b.color(data.r << 16 | data.g << 8 | data.b)
-				.author(|b| b.name(data.author).icon_url(data.author_avatar))
-				.timestamp(data.timestamp)
-				.footer(|b| {
-					b.text(format!("{} - {}", data.message_id, data.channel_id))
-						.icon_url(data.icon_url)
-				});
+	fn make_pin(&self, data: PinData) -> CreateMessage {
+		let mut embed = CreateEmbed::default()
+			.color(data.r << 16 | data.g << 8 | data.b)
+			.author(CreateEmbedAuthor::new(data.author).icon_url(data.author_avatar))
+			.timestamp(data.timestamp)
+			.footer(
+				CreateEmbedFooter::new(format!("{} - {}", data.message_id, data.channel_id))
+					.icon_url(data.icon_url),
+			);
 
-			let teleport = match data.embed {
-				Embed::Image(url) => {
-					b.image(url);
-					format!("[Click to teleport]({})", data.message_url)
-				}
-				Embed::Video(name) => format!("[Click to go watch {}]({})", name, data.message_url),
-				Embed::Audio(name) => {
-					format!("[Click to go listen to {}]({})", name, data.message_url)
-				}
-				Embed::Nothing => format!("[Click to teleport]({})", data.message_url),
-			};
-
-			if let Some(content) = data.content {
-				b.description(content);
-				b.field("\u{200b}", teleport, false);
-			} else {
-				b.description(teleport);
+		let teleport = match data.embed {
+			Embed::Image(url) => {
+				embed = embed.image(url);
+				format!("[Click to teleport]({})", data.message_url)
 			}
+			Embed::Video(name) => format!("[Click to go watch {}]({})", name, data.message_url),
+			Embed::Audio(name) => {
+				format!("[Click to go listen to {}]({})", name, data.message_url)
+			}
+			Embed::Nothing => format!("[Click to teleport]({})", data.message_url),
+		};
 
-			b
-		})
+		if let Some(content) = data.content {
+			embed = embed.description(content);
+			embed = embed.field("\u{200b}", teleport, false);
+		} else {
+			embed = embed.description(teleport);
+		}
+
+		CreateMessage::default().add_embed(embed)
 	}
 }
 

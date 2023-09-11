@@ -62,10 +62,7 @@ impl Periodic {
 
 impl Bot {
 	pub async fn periodic_task(&self) {
-		self.pin_lock()
-			.await
-			.cleanup(&self.cache_and_http().await)
-			.await;
+		self.pin_lock().await.cleanup(&self.http().await).await;
 
 		if crate::util::random::one_in(3000) {
 			self.randomize_self().await;

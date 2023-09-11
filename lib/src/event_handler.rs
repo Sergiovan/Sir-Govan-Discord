@@ -2,7 +2,6 @@ use crate::bot::Bot;
 use crate::util::logger;
 
 use async_trait::async_trait;
-use serenity::json::Value;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -27,11 +26,6 @@ impl EventHandler for BotEventHandler {
 	async fn resume(&self, _ctx: Context, _: ResumedEvent) {
 		// TODO
 		logger::debug("Reconnected :)");
-	}
-
-	async fn unknown(&self, _ctx: Context, name: String, raw: Value) {
-		// TODO
-		logger::debug_fmt!("Unknown event {} occurred: {}", name, raw);
 	}
 
 	async fn message(&self, ctx: Context, msg: Message) {

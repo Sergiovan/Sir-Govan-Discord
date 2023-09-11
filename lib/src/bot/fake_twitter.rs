@@ -7,6 +7,7 @@ use crate::helpers::handlebars::{TweetData, TweetMoreData};
 
 use itertools::Itertools;
 use num_rational::Ratio;
+use serenity::builder::{CreateAllowedMentions, CreateAttachment, CreateMessage, GetMessages};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -180,7 +181,7 @@ impl Bot {
 				.pick_biased_or(Ratio::new(1, 2), &retweeter)
 				.clone(),
 			avatar: member.face(),
-			name: member.display_name().into_owned(),
+			name: member.display_name().to_string(),
 			verified: verified_role.is_none()
 				|| verified_role.is_some_and(|id| member.roles.iter().any(|&r| r == id)),
 			at: member.user.name,
@@ -328,7 +329,10 @@ impl Bot {
 			))?;
 
 		let messages = channel
-			.messages(&ctx, |b| b.after(msg.id.0 - 1).limit(50))
+			.messages(
+				&ctx,
+				GetMessages::default().after(msg.id.get() - 1).limit(50),
+			)
 			.await?;
 
 		if messages.is_empty() {
@@ -343,7 +347,7 @@ impl Bot {
 		}
 
 		let mut had_image = false;
-		let mut author = UserId(0);
+		let mut author = UserId::new(1);
 		let mut group = 0;
 		let mut last_timestamp =
 			chrono::NaiveDateTime::from_timestamp_opt(msg.timestamp.unix_timestamp(), 0).unwrap();
@@ -398,7 +402,7 @@ impl Bot {
 		if with_context {
 			tweet_data.more_tweets.extend(
 				futures::future::join_all(context.into_iter().skip(1).map(|msgs| async {
-					let id = msgs.first().map(|msg| msg.id.0).unwrap_or(0);
+					let id = msgs.first().map(|msg| msg.id.get()).unwrap_or(0);
 					self.tweet_extra_data_from_message(ctx, msgs, verified_role, msg.timestamp)
 						.await
 						.ok_or_log(&format!("Error creating data from message {}", id))
@@ -412,14 +416,16 @@ impl Bot {
 		let data = screenshotter.twitter(tweet_data).await?;
 
 		channel
-			.send_message(&ctx, |b| {
-				b.reference_message(msg)
-					.allowed_mentions(|b| b.empty_users())
-					.add_file(AttachmentType::Bytes {
-						data: std::borrow::Cow::Borrowed(&data),
-						filename: format!("tweet_by_{}.png", reactor),
-					})
-			})
+			.send_message(
+				&ctx,
+				CreateMessage::default()
+					.reference_message(msg)
+					.allowed_mentions(CreateAllowedMentions::default().empty_users())
+					.add_file(CreateAttachment::bytes(
+						data,
+						format!("tweet_by_{}.png", reactor),
+					)),
+			)
 			.await?;
 
 		Ok(())

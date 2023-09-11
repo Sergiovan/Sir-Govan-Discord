@@ -2,6 +2,7 @@ use crate::util::error::{self, GovanResult};
 use crate::{helpers::handlebars::AlwaysSunnyData, prelude::*};
 
 use image::EncodableLayout;
+use serenity::builder::{CreateAllowedMentions, CreateAttachment, CreateMessage};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -95,7 +96,7 @@ impl Bot {
 				} else {
 					channel
 						.guild(ctx)
-						.map(|g| g.name)
+						.map(|g| g.name.clone())
 						.unwrap_or_else(|| channel.name.replace('-', " "))
 				};
 				let mut chars = place_name.chars();
@@ -220,14 +221,16 @@ impl Bot {
 		};
 
 		channel
-			.send_message(&ctx, |b| {
-				b.reference_message(msg)
-					.allowed_mentions(|b| b.empty_users())
-					.add_file(AttachmentType::Bytes {
-						data: std::borrow::Cow::Borrowed(video.as_bytes()),
-						filename: "iasip.mp4".to_string(),
-					})
-			})
+			.send_message(
+				&ctx,
+				CreateMessage::default()
+					.reference_message(msg)
+					.allowed_mentions(CreateAllowedMentions::default().empty_users())
+					.add_file(CreateAttachment::bytes(
+						std::borrow::Cow::Borrowed(video.as_bytes()),
+						"iasip.mp4".to_string(),
+					)),
+			)
 			.await?;
 
 		Ok(())

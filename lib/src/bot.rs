@@ -6,8 +6,10 @@ pub mod periodic;
 pub mod randomize_self;
 pub mod shutdown;
 
-use serenity::client::bridge::gateway::ShardManager;
-use serenity::{prelude::*, CacheAndHttp};
+use serenity::client::Cache;
+use serenity::gateway::ShardManager;
+use serenity::http::Http;
+use serenity::prelude::*;
 
 use self::periodic::Periodic;
 
@@ -22,8 +24,9 @@ pub struct Bot {
 	pub(crate) data: RwLock<BotData>,
 	pub(crate) commander: Commander,
 	pub(crate) pin_lock: Mutex<ReactSafety>,
-	pub(crate) shard_manager: RwLock<Option<Arc<Mutex<ShardManager>>>>,
-	pub(crate) cache_and_http: RwLock<Option<Arc<CacheAndHttp>>>,
+	pub(crate) shard_manager: RwLock<Option<Arc<ShardManager>>>,
+	pub(crate) cache: RwLock<Option<Arc<Cache>>>,
+	pub(crate) http: RwLock<Option<Arc<Http>>>,
 	pub(crate) shutdown: Mutex<bool>,
 	pub(crate) screenshotter: RwLock<Option<Screenshotter>>,
 	pub(crate) periodic: Mutex<Periodic>,
@@ -39,7 +42,8 @@ impl Bot {
 			commander,
 			pin_lock: Mutex::new(ReactSafety::default()),
 			shard_manager: RwLock::new(None),
-			cache_and_http: RwLock::new(None),
+			cache: RwLock::new(None),
+			http: RwLock::new(None),
 			shutdown: Mutex::new(false),
 			screenshotter: RwLock::new(None),
 			periodic: Mutex::new(Periodic::new()),
@@ -54,11 +58,11 @@ impl Bot {
 		self.pin_lock.lock().await
 	}
 
-	pub async fn set_shard_manager(&self, shard_manager: Arc<Mutex<ShardManager>>) {
+	pub async fn set_shard_manager(&self, shard_manager: Arc<ShardManager>) {
 		*self.shard_manager.write().await = Some(shard_manager)
 	}
 
-	pub async fn shard_manager(&self) -> Arc<Mutex<ShardManager>> {
+	pub async fn shard_manager(&self) -> Arc<ShardManager> {
 		self.shard_manager
 			.read()
 			.await
@@ -66,16 +70,17 @@ impl Bot {
 			.expect("No shard manager set yet")
 	}
 
-	pub async fn set_cache_and_http(&self, http: Arc<CacheAndHttp>) {
-		*self.cache_and_http.write().await = Some(http);
+	pub async fn set_cache_and_http(&self, cache: Arc<Cache>, http: Arc<Http>) {
+		*self.cache.write().await = Some(cache);
+		*self.http.write().await = Some(http);
 	}
 
-	pub async fn cache_and_http(&self) -> Arc<CacheAndHttp> {
-		self.cache_and_http
-			.read()
-			.await
-			.clone()
-			.expect("No cache and http set yet")
+	pub async fn cache(&self) -> Arc<Cache> {
+		self.cache.read().await.clone().expect("No cache set yet")
+	}
+
+	pub async fn http(&self) -> Arc<Http> {
+		self.http.read().await.clone().expect("No cache set yet")
 	}
 
 	pub async fn set_screenshotter(&self) -> GovanResult {

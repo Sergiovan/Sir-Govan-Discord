@@ -14,12 +14,9 @@ impl Bot {
 
 		self.periodic().await.end_periodic().await;
 
-		self.pin_lock()
-			.await
-			.terminate(&self.cache_and_http().await)
-			.await;
+		self.pin_lock().await.terminate(&self.http().await).await;
 
-		self.shard_manager().await.lock().await.shutdown_all().await;
+		self.shard_manager().await.shutdown_all().await;
 
 		logger::info("Bye!");
 		*shutdown = true;

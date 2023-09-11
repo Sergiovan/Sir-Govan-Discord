@@ -36,7 +36,7 @@ async fn icon<'a>(
 
 	let member = msg.member(&ctx).await?;
 
-	let role = member.get_unique_role(ctx)?;
+	let mut role = member.get_unique_role(ctx)?;
 
 	use super::commander::Argument;
 	use data::EmojiType;
@@ -46,21 +46,21 @@ async fn icon<'a>(
 		let emoji_id = icon;
 		let icon = util::url_from_discord_emoji(icon, false);
 
-		role.set_icon(ctx, guild_id, &icon).await?;
+		role.set_icon(ctx, &icon).await?;
 
 		msg.reply_report(ctx, &format!("Icon set. Enjoy your <:emoji:{}>", emoji_id))
 			.await;
 	} else if let Some(Argument::Emoji(EmojiType::Unicode(icon))) = arg {
-		role.set_unicode_icon(ctx, guild_id, &icon).await?;
+		role.set_unicode_icon(ctx, &icon).await?;
 
 		msg.reply_report(ctx, &format!("Icon set. Enjoy your {}", icon))
 			.await
 	} else if let Some(Argument::String(icon)) = arg {
-		role.set_icon(ctx, guild_id, icon).await?;
+		role.set_icon(ctx, icon).await?;
 
 		msg.reply_report(ctx, "Icon set. Enjoy").await;
 	} else if arg.is_none() {
-		role.reset_icon(ctx, guild_id).await?;
+		role.reset_icon(ctx).await?;
 
 		msg.reply_report(ctx, "Icon reset. Woo").await;
 	}

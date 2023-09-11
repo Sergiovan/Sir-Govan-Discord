@@ -255,6 +255,7 @@ impl<'a> Arguments<'a> {
 		ctx.cache
 			.guild_channel(ch)
 			.filter(|x| x.guild_id == guild_id)
+			.map(|g| g.to_owned())
 	}
 
 	pub fn user_id(&mut self) -> Option<u64> {

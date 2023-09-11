@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 use crate::bot::Bot;
+use serenity::builder::EditRole;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -25,7 +26,7 @@ async fn color<'a>(
 
 	let member = msg.member(ctx).await?;
 
-	let top_role = member.get_unique_role(ctx)?;
+	let mut top_role = member.get_unique_role(ctx)?;
 
 	let color = words.string();
 
@@ -58,9 +59,11 @@ async fn color<'a>(
 				hash
 			};
 
-			let r = top_role.edit(&ctx, |e| e.colour(color as u64)).await?;
+			top_role
+				.edit(&ctx, EditRole::default().colour(color as u64))
+				.await?;
 
-			msg.reply_report(ctx, &format!("Done. Your new color is #{:06X}", r.colour.0))
+			msg.reply_report(ctx, &format!("Done. Your new color is #{:06X}", color))
 				.await;
 		}
 	}

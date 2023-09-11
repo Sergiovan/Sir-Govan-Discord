@@ -31,7 +31,6 @@ impl Bot {
 							"me".to_string()
 						}
 					}
-					Channel::Category(channel) => channel.name,
 					_ => "unknown-channel".to_string(),
 				},
 				Err(_) => "unknown-channel".to_string(),
@@ -82,7 +81,7 @@ impl Bot {
 		} else {
 			let server = bot_data
 				.servers
-				.get(msg.guild_id.unwrap_or(GuildId(0)).as_u64())
+				.get(&msg.guild_id.unwrap_or(GuildId::default()).get())
 				.ok_or_else(govanerror::debug_lazy!(
 					// log fmt = ("Cannot listen in on guild {:?}", msg.guild_id)
 				))?;
@@ -90,7 +89,7 @@ impl Bot {
 			if server
 				.channels
 				.disallowed_listen
-				.contains(msg.channel_id.as_u64())
+				.contains(&msg.channel_id.get())
 			{
 				return Err(govanerror::debug!(
 					// log fmt = ("Cannot listen in on channel {}", msg.channel_id)
@@ -118,7 +117,7 @@ impl Bot {
 			if server
 				.channels
 				.allowed_commands
-				.contains(msg.channel_id.as_u64())
+				.contains(&msg.channel_id.get())
 			{
 				drop(bot_data); // Unlock data. This isn't great...
 				self.commander.parse(ctx, msg, self).await?;

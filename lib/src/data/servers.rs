@@ -29,7 +29,7 @@ impl From<&ReactionType> for EmojiType {
 	fn from(value: &ReactionType) -> Self {
 		match value {
 			ReactionType::Unicode(name) => EmojiType::Unicode(name.clone()),
-			ReactionType::Custom { id, .. } => EmojiType::Discord(*id.as_u64()),
+			ReactionType::Custom { id, .. } => EmojiType::Discord(id.get()),
 			_ => EmojiType::Discord(0),
 		}
 	}

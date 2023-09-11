@@ -37,13 +37,19 @@ async fn role<'a>(
 			user = "This guild does not have a role to keep track of"
 		))?;
 
-	let role_name =
-		RoleId(no_context.role)
-			.to_role_cached(ctx)
-			.ok_or_else(govanerror::error_lazy!(
-				log fmt = ("Role {} was not cached properly", no_context.role),
-				user = "Discord is being silly again. Try again later"
-			))?;
+	if no_context.role == 0 {
+		return Err(govanerror::error!(
+			log fmt = ("No context role for {} is 0", guild_id),
+			user = "< This guy's maker is a doofus"
+		));
+	}
+
+	let role_name = RoleId::new(no_context.role)
+		.to_role_cached(ctx)
+		.ok_or_else(govanerror::error_lazy!(
+			log fmt = ("Role {} was not cached properly", no_context.role),
+			user = "Discord is being silly again. Try again later"
+		))?;
 
 	let (number, out_of) = bot_data.no_context_index(&role_name.name);
 

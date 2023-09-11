@@ -5,12 +5,31 @@ pub(crate) mod handlers;
 pub(crate) mod helpers;
 pub(crate) mod prelude;
 
+pub mod args;
 pub mod bot;
 pub mod data;
 pub mod event_handler;
 pub mod util;
 
-pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
+mod other_utils;
+
+pub async fn run(token: &str, beta: bool) {
+	use clap::Parser;
+
+	let args = args::SirgovanArgs::parse();
+
+	if args.command.is_none() {
+		_ = bot(token, beta).await;
+	} else {
+		match args.command.unwrap() {
+			args::Commands::Tournament(tourney_args) => {
+				other_utils::tournaments::tournament(token, tourney_args).await
+			}
+		}
+	}
+}
+
+async fn bot(token: &str, beta: bool) -> Option<Infallible> {
 	use serenity::prelude::*;
 
 	use bot::Bot;
@@ -59,7 +78,8 @@ pub async fn run(token: &str, beta: bool) -> Option<Infallible> {
 
 	let shard_manager = client.shard_manager.clone();
 	bot.set_shard_manager(shard_manager).await;
-	bot.set_cache_and_http(client.cache_and_http.clone()).await;
+	bot.set_cache_and_http(client.cache.clone(), client.http.clone())
+		.await;
 	_ = bot.set_screenshotter().await;
 	bot.periodic().await.spawn_periodic(bot.clone());
 

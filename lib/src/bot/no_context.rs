@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+use serenity::builder::{CreateAttachment, CreateMessage, EditRole};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -9,11 +10,13 @@ use crate::data::Server;
 impl Bot {
 	pub fn can_remove_context(&self, ctx: &Context, msg: &Message, server: &Server) -> bool {
 		server.no_context.as_ref().is_some_and(|nc| {
-			ctx.cache.guild_channel(nc.channel).is_some_and(|c| {
-				c.guild_id == server.id
-					&& c.permissions_for_user(ctx, ctx.cache.current_user())
-						.is_ok_and(|p| p.send_messages())
-			}) && ctx.cache.role(server.id, nc.role).is_some()
+			nc.channel != 0
+				&& ctx.cache.guild_channel(nc.channel).is_some_and(|c| {
+					c.guild_id == server.id
+						&& c.permissions_for_user(ctx, ctx.cache.current_user().id)
+							.is_ok_and(|p| p.send_messages())
+				}) && nc.role != 0
+				&& ctx.cache.role(server.id, nc.role).is_some()
 		}) && msg.content.len() <= 280
 	}
 
@@ -29,29 +32,30 @@ impl Bot {
 		);
 		let no_context = server.no_context.as_ref().ok_or_else(misconfigured_error)?;
 
-		let channel = ctx
-			.cache
-			.guild_channel(no_context.channel)
+		let channel = ChannelId::new(no_context.channel)
+			.to_channel(&ctx)
+			.await?
+			.guild()
 			.ok_or_else(misconfigured_error)?;
 
-		let role = ctx
+		let mut role = ctx
 			.cache
 			.role(channel.guild_id, no_context.role)
 			.ok_or_else(misconfigured_error)?;
 
-		channel
-			.send_message(&ctx, |b| {
-				msg.attachments.iter().for_each(|a| {
-					b.add_file(a.url.as_str());
-				});
+		let mut b = CreateMessage::default();
+		for attachment in msg.attachments.iter() {
+			let file = CreateAttachment::url(&ctx, attachment.url.as_str()).await?;
+			b = b.add_file(file);
+		}
 
-				msg.sticker_items.iter().for_each(|s| {
-					b.add_sticker_id(s.id);
-				});
+		for sticker in msg.sticker_items.iter() {
+			b = b.add_sticker_id(sticker.id);
+		}
 
-				b.content(&msg.content)
-			})
-			.await?;
+		b = b.content(&msg.content);
+
+		channel.send_message(&ctx, b).await?;
 
 		use serenity::futures::StreamExt;
 
@@ -70,7 +74,8 @@ impl Bot {
 		}
 
 		let new_role_name = self.data().await.random_no_context();
-		role.edit(&ctx, |r| r.name(&new_role_name)).await?;
+		role.edit(&ctx, EditRole::default().name(&new_role_name))
+			.await?;
 
 		Ok(())
 	}

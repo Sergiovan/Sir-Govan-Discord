@@ -2,6 +2,7 @@ use super::logger;
 use crate::prelude::*;
 use async_trait::async_trait;
 
+use serenity::builder::CreateAttachment;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -55,13 +56,11 @@ pub trait CacheGuild {
 #[async_trait]
 impl CacheGuild for Message {
 	async fn guild_cached(&self, ctx: &Context) -> GovanResult {
-		if self.guild_id.is_some() && self.guild(ctx).is_none() {
+		if self.guild_id.is_some() && self.guild(&ctx.cache).is_none() {
 			ctx.http
 				.get_guild(
-					*self
-						.guild_id
-						.expect("Guild somehow disappeared in between lines")
-						.as_u64(),
+					self.guild_id
+						.expect("Guild somehow disappeared in between lines"),
 				)
 				.await
 				.map_err(
@@ -79,7 +78,7 @@ impl CacheGuild for Message {
 impl CacheGuild for GuildChannel {
 	async fn guild_cached(&self, ctx: &Context) -> GovanResult {
 		if self.guild(ctx).is_none() {
-			ctx.http.get_guild(*self.guild_id.as_u64()).await.map_err(
+			ctx.http.get_guild(self.guild_id).await.map_err(
 				govanerror::error_map!(log fmt = ("Could not get guild information for {} from channel {}",
           self.id,
           self.guild_id)),
@@ -95,8 +94,6 @@ pub trait MemberExt {
 
 impl MemberExt for Member {
 	fn get_unique_role(&self, ctx: &Context) -> GovanResult<Role> {
-		use serenity::utils::Colour;
-
 		let guild = ctx
 			.cache
 			.guild(self.guild_id)
@@ -151,7 +148,8 @@ impl MessageExt for Message {
 		cache_http: impl serenity::http::CacheHttp,
 		content: impl std::fmt::Display + Send,
 	) {
-		self.reply(cache_http, content)
+		let reply = content.to_string();
+		self.reply(cache_http, reply)
 			.await
 			.log_if_err(&format!("Could not reply to message {}", self.id));
 	}
@@ -171,16 +169,16 @@ impl MessageExt for Message {
 
 #[async_trait]
 pub trait RoleExt {
-	async fn set_icon(&self, ctx: &Context, guild_id: GuildId, url: &str) -> GovanResult;
+	async fn set_icon(&mut self, ctx: &Context, url: &str) -> GovanResult;
 
-	async fn set_unicode_icon(&self, ctx: &Context, guild_id: GuildId, emoji: &str) -> GovanResult;
+	async fn set_unicode_icon(&mut self, ctx: &Context, emoji: &str) -> GovanResult;
 
-	async fn reset_icon(&self, ctx: &Context, guild_id: GuildId) -> GovanResult;
+	async fn reset_icon(&mut self, ctx: &Context) -> GovanResult;
 }
 
 #[async_trait]
 impl RoleExt for Role {
-	async fn set_icon(&self, ctx: &Context, guild_id: GuildId, url: &str) -> GovanResult {
+	async fn set_icon(&mut self, ctx: &Context, url: &str) -> GovanResult {
 		let url = reqwest::Url::parse(url)?;
 
 		let bytes = reqwest::get(url).await?.bytes().await?;
@@ -203,59 +201,35 @@ impl RoleExt for Role {
 			}
 		};
 
-		let mut encoded = openssl::base64::encode_block(&bytes);
-		encoded.insert_str(0, "data:image/png;base64,");
-
 		// I do it like this because `.icon` is async so I can't use it inside an `.edit_role` lambda
-		let mut edit_role = serenity::builder::EditRole::new(self);
+		let mut edit_role = serenity::builder::EditRole::from_role(self);
 
-		edit_role
-			.0
-			.insert("unicode_emoji", serenity::json::Value::Null);
-		edit_role.0.insert("icon", encoded.into());
+		edit_role = edit_role
+			.unicode_emoji("")
+			.icon(&CreateAttachment::bytes(bytes, "file.png"));
 
-		let map = serenity::json::hashmap_to_json_map(edit_role.0);
-
-		ctx.http
-			.as_ref()
-			.edit_role(guild_id.into(), self.id.into(), &map, None)
-			.await
-			.map(|_| ())
-			.map_err(|e| e.into())
+		Ok(self.edit(&ctx, edit_role).await?)
 	}
 
-	async fn set_unicode_icon(&self, ctx: &Context, guild_id: GuildId, emoji: &str) -> GovanResult {
-		let mut edit_role = serenity::builder::EditRole::new(self);
+	async fn set_unicode_icon(&mut self, ctx: &Context, emoji: &str) -> GovanResult {
+		let mut edit_role = serenity::builder::EditRole::from_role(self);
 
-		edit_role.0.insert("unicode_emoji", emoji.into());
-		edit_role.0.insert("icon", serenity::json::Value::Null);
+		edit_role = edit_role
+			.unicode_emoji(emoji)
+			.icon(&CreateAttachment::bytes(vec![], ""));
 
-		let map = serenity::json::hashmap_to_json_map(edit_role.0);
-
-		ctx.http
-			.as_ref()
-			.edit_role(guild_id.into(), self.id.into(), &map, None)
-			.await
-			.map(|_| ())
-			.map_err(|e| e.into())
+		Ok(self.edit(&ctx, edit_role).await?)
 	}
 
-	async fn reset_icon(&self, ctx: &Context, guild_id: GuildId) -> GovanResult {
+	async fn reset_icon(&mut self, ctx: &Context) -> GovanResult {
 		// I do it like this because there's no other way lmfao
-		let mut edit_role = serenity::builder::EditRole::new(self);
-		edit_role
-			.0
-			.insert("unicode_emoji", serenity::json::Value::Null);
-		edit_role.0.insert("icon", serenity::json::Value::Null);
+		let mut edit_role = serenity::builder::EditRole::from_role(self);
 
-		let map = serenity::json::hashmap_to_json_map(edit_role.0);
+		edit_role = edit_role
+			.unicode_emoji("")
+			.icon(&CreateAttachment::bytes(vec![], ""));
 
-		ctx.http
-			.as_ref()
-			.edit_role(guild_id.into(), self.id.into(), &map, None)
-			.await
-			.map(|_| ())
-			.map_err(|e| e.into())
+		Ok(self.edit(&ctx, edit_role).await?)
 	}
 }
 

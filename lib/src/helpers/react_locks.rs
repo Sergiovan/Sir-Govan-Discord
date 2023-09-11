@@ -101,7 +101,7 @@ impl ReactSafety {
 			));
 		}
 
-		let msg = ctx.http.get_message(channel.into(), msg.0).await?;
+		let msg = ctx.http.get_message(channel, msg).await?;
 
 		let msg_reactions = msg
 			.reactions
@@ -155,11 +155,11 @@ impl ReactSafety {
 		futures::future::join_all(vec.into_iter()).await;
 	}
 
-	pub async fn terminate(&self, ctx: &impl CacheHttp) {
+	pub async fn terminate(&self, http: &impl CacheHttp) {
 		self.bot_finished.store(true, Ordering::Relaxed);
 
 		let timers = std::mem::take(&mut *self.tasks.write().await);
 
-		futures::future::join_all(timers.into_iter().flatten().map(|t| t.resolve(ctx))).await;
+		futures::future::join_all(timers.into_iter().flatten().map(|t| t.resolve(&http))).await;
 	}
 }

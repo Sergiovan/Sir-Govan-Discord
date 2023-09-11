@@ -2,6 +2,7 @@ use super::logger;
 use crate::data;
 use either::Either::*;
 use serenity::{
+	builder::CreateMessage,
 	model::prelude::{Channel, Message},
 	prelude::*,
 };
@@ -239,11 +240,11 @@ impl GovanErrorImpl {
 				Left(msg) => msg.reply(ctx, s).await.map_err(|e| e.into()),
 				Right(channel) => match channel {
 					Channel::Guild(guild_channel) => guild_channel
-						.send_message(ctx, |b| b.content(s))
+						.send_message(ctx, CreateMessage::default().content(s))
 						.await
 						.map_err(|e| e.into()),
 					Channel::Private(private_channel) => private_channel
-						.send_message(ctx, |b| b.content(s))
+						.send_message(ctx, CreateMessage::default().content(s))
 						.await
 						.map_err(|e| e.into()),
 					_ => Err(error!(

@@ -1,7 +1,7 @@
 use super::Bot;
 use crate::prelude::*;
 
-use serenity::http::CacheHttp;
+use serenity::gateway::ActivityData;
 use serenity::model::prelude::*;
 
 use crate::util::random;
@@ -12,10 +12,11 @@ impl Bot {
 
 		let bot_data = &self.data().await;
 
-		let ctx = self.cache_and_http().await;
+		let http = self.http().await;
+		let cache = self.cache().await;
 
 		for (&id, server) in bot_data.servers.iter() {
-			let guild = match GuildId(id).to_partial_guild(&ctx.http()).await {
+			let guild = match GuildId::new(id).to_partial_guild(&http).await {
 				Ok(guild) => guild,
 				Err(e) => {
 					logger::error_fmt!("Couldn't find {}: {}", id, e);
@@ -30,7 +31,7 @@ impl Bot {
 				.or(server.nickname.as_ref());
 
 			if let Err(e) = guild
-				.edit_nickname(ctx.http(), nickname.map(String::as_str))
+				.edit_nickname(&http, nickname.map(String::as_str))
 				.await
 			{
 				logger::error_fmt!("{}", e);
@@ -38,7 +39,7 @@ impl Bot {
 
 			logger::debug_fmt!(
 				"Set name to {} in {}",
-				nickname.unwrap_or(&ctx.cache.current_user().name),
+				nickname.unwrap_or(&cache.current_user().name),
 				guild.name
 			)
 		}
@@ -64,19 +65,20 @@ impl Bot {
 
 		let activity = match activity_bag.pick() {
 			None => None,
-			Some(ActivityType::Playing) => {
-				Some(Activity::playing(bot_data.strings.status_playing.pick()))
-			}
-			Some(ActivityType::Listening) => Some(Activity::listening(
+			Some(ActivityType::Playing) => Some(ActivityData::playing(
+				bot_data.strings.status_playing.pick(),
+			)),
+			Some(ActivityType::Listening) => Some(ActivityData::listening(
 				bot_data.strings.status_listening.pick(),
 			)),
-			Some(ActivityType::Watching) => {
-				Some(Activity::watching(bot_data.strings.status_watching.pick()))
-			}
+			Some(ActivityType::Watching) => Some(ActivityData::watching(
+				bot_data.strings.status_watching.pick(),
+			)),
 			Some(ActivityType::Streaming) => {
 				let strings = &bot_data.strings;
 				let default = String::from("Secrets upon secrets");
-				Some(Activity::streaming(
+
+				ActivityData::streaming(
 					random::pick_or(
 						&vec![
 							strings.status_playing.pick(),
@@ -84,9 +86,12 @@ impl Bot {
 							strings.status_watching.pick(),
 						],
 						&&default,
-					),
+					)
+					.to_string(),
 					"...",
-				))
+				)
+				.ok()
+				.or(None)
 			}
 			Some(ActivityType::Competing) => None,
 			_ => None,
@@ -94,7 +99,7 @@ impl Bot {
 
 		let shard_manager = self.shard_manager().await;
 
-		for (.., runner) in shard_manager.lock().await.runners.lock().await.iter() {
+		for (.., runner) in shard_manager.runners.lock().await.iter() {
 			runner.runner_tx.set_activity(activity.clone());
 		}
 
