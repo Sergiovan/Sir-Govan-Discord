@@ -50,9 +50,9 @@ struct Battle {
 	b: Option<Entry>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 struct Round {
-	totals: HashMap<u64, u64>,
+	totals: HashMap<String, u64>,
 	battles: Vec<Battle>,
 }
 
@@ -158,7 +158,54 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 				fs::remove_file(round0_path)?;
 			}
 		}
-		TournamentCommand::Verify(args) => {}
+		TournamentCommand::Verify(args) => {
+			let tournament_name = &args.tournament_name;
+
+			let round0_file_path = round_data(tournament_name, 0);
+			let tournament_data_path = tournament_data(tournament_name);
+
+			if round0_file_path.exists() {
+				bail!("{} already exists", round0_file_path.display());
+			}
+
+			let tournament_data: TournamentData =
+				toml::from_str(&fs::read_to_string(&tournament_data_path)?)?;
+
+			let mut entries = (0..tournament_data.entries.len() as u64)
+				.filter(|e| !tournament_data.entries[*e as usize].ignore)
+				.collect_vec();
+
+			if entries.is_empty() {
+				bail!(
+					"Tournament {} from file {} has no entries",
+					tournament_name,
+					tournament_data_path.display()
+				);
+			}
+
+			shuffle(&mut entries);
+
+			println!("{entries:?}");
+
+			let mut round = Round::default();
+
+			for mut chunk in &entries.into_iter().chunks(2) {
+				let a = chunk.next().unwrap();
+				let b = chunk.next();
+
+				round.battles.push(Battle {
+					a: Entry { entry: a, votes: 0 },
+					b: b.map(|e| Entry { entry: e, votes: 0 }),
+				});
+
+				round.totals.insert(a.to_string(), 0);
+				if let Some(b) = b {
+					round.totals.insert(b.to_string(), 0);
+				}
+			}
+
+			fs::write(&round0_file_path, toml::to_string(&round)?)?;
+		}
 		TournamentCommand::PostRound(args) => {}
 		TournamentCommand::VerifyRound(args) => {}
 		TournamentCommand::FinishRound(args) => {}
@@ -596,9 +643,13 @@ fn get_best_entry<'a>(
 		> tournament_data.entries[a.entry as usize].pins
 	{
 		Ordering::Less
-	} else if previous_round.totals[&a.entry] > previous_round.totals[&b.entry] {
+	} else if previous_round.totals[&a.entry.to_string()]
+		> previous_round.totals[&b.entry.to_string()]
+	{
 		Ordering::Greater
-	} else if previous_round.totals[&b.entry] > previous_round.totals[&a.entry] {
+	} else if previous_round.totals[&b.entry.to_string()]
+		> previous_round.totals[&a.entry.to_string()]
+	{
 		Ordering::Less
 	} else if a.entry < b.entry {
 		Ordering::Greater
@@ -620,7 +671,7 @@ fn round_data(tournament_name: &str, round_nr: u64) -> PathBuf {
 }
 
 fn shuffle<T>(vec: &mut Vec<T>) {
-	for i in (vec.len() - 1)..1 {
+	for i in (1..(vec.len())).rev() {
 		let j = random::from_range(0..=i);
 		vec.swap(i, j);
 	}
@@ -648,7 +699,7 @@ impl EventHandler for BotEventHandler {
 		ctx.cache.set_max_messages(10000);
 
 		if let Err(e) = run_command(&ctx, &self.args).await {
-			println!("Error while running tournament: {}", e);
+			println!("Error while running tournament: {:?}", e);
 		}
 
 		ctx.data
