@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serenity::builder::{
-	CreateEmbed, CreateEmbedAuthor, CreateEmbedFooter, CreateMessage, GetMessages,
+	CreateEmbed, CreateEmbedAuthor, CreateEmbedFooter, CreateMessage, EditMessage, GetMessages,
 };
 use serenity::model::prelude::*;
 use serenity::prelude::*;
@@ -38,10 +38,17 @@ struct TournamentDataEntry {
 	pins: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Entry {
 	entry: u64,
 	votes: u64,
+}
+
+impl Entry {
+	fn reset(mut self) -> Self {
+		self.votes = 0;
+		self
+	}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -185,8 +192,6 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 
 			shuffle(&mut entries);
 
-			println!("{entries:?}");
-
 			let mut round = Round::default();
 
 			for mut chunk in &entries.into_iter().chunks(2) {
@@ -206,10 +211,188 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 
 			fs::write(&round0_file_path, toml::to_string(&round)?)?;
 		}
-		TournamentCommand::PostRound(args) => {}
+		TournamentCommand::PostRound(args) => {
+			let tournament_name = &args.tournament_name;
+
+			let tournament_data: TournamentData =
+				toml::from_str(&fs::read_to_string(tournament_data(tournament_name))?)?;
+
+			let tournament_channel = tournament_data
+				.post_channel
+				.to_channel(&ctx)
+				.await?
+				.guild()
+				.ok_or(anyhow!(
+					"Channel {} is not a guild channel",
+					tournament_data.post_channel
+				))?;
+
+			let previous_round: Round = toml::from_str(&fs::read_to_string(round_data(
+				tournament_name,
+				args.round - 1,
+			))?)?;
+
+			let current_round = if args.round - 1 == 0 {
+				previous_round
+			} else {
+				let mut totals = HashMap::<u64, u64>::default();
+
+				let winners = previous_round
+					.battles
+					.iter()
+					.map(|b| {
+						let winner = get_winner(b, &previous_round, &tournament_data);
+						totals.insert(
+							winner.entry,
+							previous_round
+								.totals
+								.get(&winner.entry.to_string())
+								.unwrap_or(&0) + winner.votes,
+						);
+
+						winner
+					})
+					.collect_vec();
+
+				let winners = if args.reduce {
+					reduce_winners(&tournament_data, &previous_round, &winners)
+				} else {
+					winners
+				};
+
+				let battles = winners
+					.into_iter()
+					.chunks(2)
+					.into_iter()
+					.map(|mut c| {
+						let a = c.next().unwrap();
+						let b = c.next();
+
+						Battle {
+							a: Entry {
+								entry: a.entry,
+								votes: 0,
+							},
+							b: b.map(|e| Entry {
+								entry: e.entry,
+								votes: 0,
+							}),
+						}
+					})
+					.collect_vec();
+
+				Round {
+					totals: totals
+						.into_iter()
+						.map(|(k, v)| (k.to_string(), v))
+						.collect(),
+					battles,
+				}
+			};
+
+			let odd = current_round.battles.last().is_some_and(|b| b.b.is_none());
+
+			let msg_create_futures = current_round.battles.iter().enumerate().map(|(i, b)| {
+				create_battle(
+					ctx,
+					tournament_name,
+					args.round,
+					b,
+					i as u64,
+					&tournament_data,
+				)
+			});
+
+			let mut msg_creates = Vec::with_capacity(current_round.battles.len());
+
+			for msg_create in msg_create_futures {
+				msg_creates.push(msg_create.await?);
+			}
+
+			shuffle(&mut msg_creates);
+
+			let mut start = tournament_channel
+				.send_message(&ctx, CreateMessage::new().content(":)"))
+				.await?;
+
+			let mut msgs = Vec::with_capacity(msg_creates.len());
+
+			for (i, msg_create) in msg_creates.into_iter().enumerate() {
+				msgs.push(
+					tournament_channel
+						.send_message(&ctx, msg_create.content(format!("Matchup #{}", i + 1)))
+						.await?,
+				);
+			}
+
+			let end = tournament_channel
+				.send_message(
+					&ctx,
+					CreateMessage::new().content(format!(
+					"This is the end of the entries for round __#{}__ of the **{}** tournbament.\n\
+					 To go back to the start of the round hitch a ride on {}",
+					args.round,
+					tournament_name,
+					start.link()
+				)),
+				)
+				.await?;
+
+			for msg in msgs.iter() {
+				msg.react(&ctx, ReactionType::Unicode(A_EMOJI.to_string()))
+					.await?;
+				msg.react(&ctx, ReactionType::Unicode(B_EMOJI.to_string()))
+					.await?;
+			}
+
+			start
+				.edit(
+					&ctx,
+					EditMessage::new().content(format!(
+						"Round __#{}__ of the **{}** tournament.\n\
+						 {} matches, with {} entries.\n\n\
+						 To go to the end of this round take this elevator: {}",
+						args.round,
+						tournament_name,
+						msgs.len(),
+						msgs.len() * 2 - if odd { 1 } else { 0 },
+						end.link()
+					)),
+				)
+				.await?;
+
+			fs::write(
+				round_data(tournament_name, args.round),
+				toml::to_string(&current_round)?,
+			)?;
+		}
 		TournamentCommand::VerifyRound(args) => {}
 		TournamentCommand::FinishRound(args) => {}
-		TournamentCommand::CleanRound(args) => {}
+		TournamentCommand::CleanRound(args) => {
+			let tournament_name = &args.tournament_name;
+			let tournament_data: TournamentData =
+				toml::from_str(&fs::read_to_string(tournament_data(tournament_name))?)?;
+
+			let tournament_channel = tournament_data
+				.post_channel
+				.to_channel(&ctx)
+				.await?
+				.guild()
+				.ok_or(anyhow!(
+					"{} is not a guild channel",
+					tournament_data.post_channel
+				))?;
+
+			let to_delete =
+				find_round_message(ctx, &tournament_channel, tournament_name, args.round).await?;
+
+			let to_delete = to_delete.into_iter().map(|m| m.id).chunks(100);
+			let to_delete = to_delete.into_iter().map(|c| c.collect_vec()).collect_vec();
+
+			for batch in to_delete {
+				tournament_channel.delete_messages(&ctx, batch).await?;
+			}
+		}
 		TournamentCommand::Finish(args) => {}
 	}
 
@@ -406,8 +589,8 @@ async fn create_battle(
 	ctx: &Context,
 	tournament_name: &str,
 	round_nr: u64,
-	round: &Round,
-	battle: u64,
+	battle: &Battle,
+	battle_nr: u64,
 	data: &TournamentData,
 ) -> anyhow::Result<CreateMessage> {
 	let create_embed = |entry_nr: u64, is_a: bool| async move {
@@ -417,7 +600,7 @@ async fn create_battle(
 			"{} tournament | Round {} | Battle {} | Entry {}",
 			tournament_name,
 			round_nr,
-			battle + 1,
+			battle_nr + 1,
 			if is_a { 'A' } else { 'B' }
 		);
 
@@ -452,7 +635,9 @@ async fn create_battle(
 			),
 		};
 
-		let original_message = channel.message(&ctx, entry.original_message).await?;
+		let original_message = original_channel
+			.message(&ctx, entry.original_message)
+			.await?;
 		let dismantled_embed = dismantle_embed(&message)?;
 
 		let content = CONTENT_TELEPORT.replace(&dismantled_embed.content, "");
@@ -484,10 +669,9 @@ async fn create_battle(
 		Ok(embed)
 	};
 
-	let battle = &round.battles[round_nr as usize];
 	if battle.b.is_none() {
 		let embeds = vec![create_embed(battle.a.entry, true).await?];
-		return Ok(CreateMessage::default().add_embeds(embeds));
+		Ok(CreateMessage::default().add_embeds(embeds))
 	} else {
 		let futures = vec![
 			create_embed(battle.a.entry, true),
@@ -496,13 +680,13 @@ async fn create_battle(
 		.into_iter();
 		let embeds = futures::future::try_join_all(futures).await?;
 
-		return Ok(CreateMessage::default().add_embeds(embeds));
+		Ok(CreateMessage::default().add_embeds(embeds))
 	}
 }
 
 async fn find_round_message(
 	ctx: &Context,
-	tournament_channel: GuildChannel,
+	tournament_channel: &GuildChannel,
 	tournament_name: &str,
 	round_nr: u64,
 ) -> anyhow::Result<Vec<Message>> {
@@ -524,7 +708,7 @@ async fn find_round_message(
 			.messages(&ctx, GetMessages::default().before(last).limit(100))
 			.await?;
 
-		last = msgs.first().expect("No more messages").id;
+		last = msgs.last().expect("No more messages").id;
 		let myself = ctx.cache.current_user().id;
 
 		let mut battles = msgs
@@ -541,13 +725,13 @@ async fn find_round_message(
 						.name("round")
 						.is_some_and(|m| m.as_str() == round_nr.to_string())
 				{
-					return None;
+					captures
+						.name("battle")
+						.and_then(|c| c.as_str().parse::<u64>().ok())
+						.map(|n| (m, n))
+				} else {
+					None
 				}
-
-				captures
-					.name("battle")
-					.and_then(|c| c.as_str().parse::<u64>().ok())
-					.map(|n| (m, n))
 			})
 			.collect_vec();
 
@@ -576,7 +760,8 @@ fn reduce_winners<'a>(
 		return winners.into();
 	}
 
-	let final_amount = (winners.len() as f64).log2().floor().powf(2.0) as usize;
+	let reduced_exponent = (winners.len() as f64).log2().floor() as usize;
+	let final_amount = 2_usize.pow(reduced_exponent as u32);
 
 	if final_amount == winners.len() {
 		return winners.into();
@@ -605,7 +790,7 @@ fn get_winner_ord(
 	let b = &battle.b;
 
 	if b.is_none() {
-		return Ordering::Greater;
+		return Ordering::Less;
 	}
 
 	let b = b.as_ref().unwrap();
@@ -618,7 +803,7 @@ fn get_winner<'a>(
 	previous_round: &Round,
 	tournament_data: &TournamentData,
 ) -> &'a Entry {
-	if get_winner_ord(battle, previous_round, tournament_data) == Ordering::Greater {
+	if get_winner_ord(battle, previous_round, tournament_data) == Ordering::Less {
 		&battle.a
 	} else {
 		battle.b.as_ref().unwrap()
@@ -632,29 +817,29 @@ fn get_best_entry<'a>(
 	tournament_data: &TournamentData,
 ) -> Ordering {
 	if a.votes > b.votes {
-		Ordering::Greater
-	} else if b.votes > a.votes {
 		Ordering::Less
+	} else if b.votes > a.votes {
+		Ordering::Greater
 	} else if tournament_data.entries[a.entry as usize].pins
 		> tournament_data.entries[b.entry as usize].pins
 	{
-		Ordering::Greater
+		Ordering::Less
 	} else if tournament_data.entries[b.entry as usize].pins
 		> tournament_data.entries[a.entry as usize].pins
 	{
-		Ordering::Less
+		Ordering::Greater
 	} else if previous_round.totals[&a.entry.to_string()]
 		> previous_round.totals[&b.entry.to_string()]
 	{
-		Ordering::Greater
+		Ordering::Less
 	} else if previous_round.totals[&b.entry.to_string()]
 		> previous_round.totals[&a.entry.to_string()]
 	{
-		Ordering::Less
-	} else if a.entry < b.entry {
 		Ordering::Greater
-	} else {
+	} else if a.entry < b.entry {
 		Ordering::Less
+	} else {
+		Ordering::Greater
 	}
 }
 
