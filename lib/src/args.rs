@@ -5,7 +5,7 @@ use clap::{Args, Parser, Subcommand};
 #[command(propagate_version = true)]
 pub struct SirgovanArgs {
 	#[command(subcommand)]
-	pub commands: Option<Commands>,
+	pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -17,11 +17,11 @@ pub enum Commands {
 #[derive(Args)]
 pub struct TournamentArgs {
 	#[command(subcommand)]
-	pub commands: Option<TournamentCommands>,
+	pub command: TournamentCommand,
 }
 
 #[derive(Subcommand)]
-pub enum TournamentCommands {
+pub enum TournamentCommand {
 	/// Start creating a tournament
 	///
 	/// Stores all the message metadata, creates the file skeletons.
@@ -61,7 +61,7 @@ pub enum TournamentCommands {
 #[derive(Args)]
 pub struct TournamentCreate {
 	/// ID of the channel to get the messages from
-	pub channel_id: u64,
+	pub pin_channel: u64,
 
 	/// ID of the channel where the tournament is held
 	pub tournament_channel: u64,
