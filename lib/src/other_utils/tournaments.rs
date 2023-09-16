@@ -44,13 +44,6 @@ struct Entry {
 	votes: u64,
 }
 
-impl Entry {
-	fn reset(mut self) -> Self {
-		self.votes = 0;
-		self
-	}
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 struct Battle {
 	a: Entry,
@@ -65,8 +58,6 @@ struct Round {
 
 struct DismantledEmbed {
 	color: Color,
-	author_name: String,
-	author_avatar: String,
 
 	message: MessageId,
 	channel: ChannelId,
@@ -577,7 +568,27 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 				tournament_channel.delete_messages(&ctx, batch).await?;
 			}
 		}
-		TournamentCommand::Finish(args) => {}
+		TournamentCommand::Finish(args) => {
+			let tournament_name = &args.tournament_name;
+			let tournament_data: TournamentData =
+				toml::from_str(&fs::read_to_string(tournament_data(tournament_name))?)?;
+			let round: Round = toml::from_str(&fs::read_to_string(round_data(
+				tournament_name,
+				args.round,
+			))?)?;
+
+			if round.battles.len() != 1 {
+				bail!(
+					"To declare a winner need at least and at most 1 battle, found {}",
+					round.battles.len()
+				);
+			}
+
+			let winner = &tournament_data.entries
+				[get_winner(&round.battles[0], &round, &tournament_data).entry as usize];
+
+			println!("Winner is {}", winner.title);
+		}
 	}
 
 	Ok(())
@@ -660,10 +671,6 @@ fn dismantle_embed(message: &Message) -> anyhow::Result<DismantledEmbed> {
 
 	let color = embed.colour.unwrap_or(Color::new(0xC0FFEE));
 
-	let author = embed.author.as_ref().unwrap();
-	let author_name = author.name.clone();
-	let author_avatar = author.icon_url.as_ref().unwrap().clone();
-
 	let footer_text = embed.footer.as_ref().unwrap().text.clone();
 	let footer_groups = FOOTER_PIN.captures(&footer_text);
 
@@ -696,8 +703,6 @@ fn dismantle_embed(message: &Message) -> anyhow::Result<DismantledEmbed> {
 
 	Ok(DismantledEmbed {
 		color,
-		author_name,
-		author_avatar,
 		message: MessageId::new(original_msg),
 		channel: ChannelId::new(original_channel),
 		content: content.clone(),
