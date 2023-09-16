@@ -407,6 +407,13 @@ macro_rules! error_map {
 }
 
 #[macro_export]
+macro_rules! error_chain {
+  ($($tt:tt)*) => {
+    |e| $crate::util::error::create_error!(as_error, $($tt)*).with_source(e.into_err())
+  };
+}
+
+#[macro_export]
 macro_rules! error_lazy {
   ($($tt:tt)*) => {
     || $crate::util::error::create_error!(as_error, $($tt)*)
@@ -460,6 +467,7 @@ pub(crate) use debug;
 pub(crate) use debug_lazy;
 pub(crate) use debug_map;
 pub(crate) use error;
+pub(crate) use error_chain;
 pub(crate) use error_lazy;
 pub(crate) use error_map;
 pub(crate) use fmt_or_str_or_none;

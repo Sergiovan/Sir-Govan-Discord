@@ -70,7 +70,9 @@ impl Commander {
 
 	pub async fn parse(&self, ctx: &Context, msg: &Message, bot: &Bot) -> GovanResult {
 		if !msg.content.starts_with('!') {
-			return Err(govanerror::debug!(log = "No such command"));
+			return Err(govanerror::debug!(
+				// log = "No such command"
+			));
 		}
 
 		let content = msg.content.clone();

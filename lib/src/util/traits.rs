@@ -176,6 +176,13 @@ pub trait RoleExt {
 	async fn reset_icon(&mut self, ctx: &Context) -> GovanResult;
 }
 
+// Rolling my own Icon editor because Serenity library doesn't do it right
+#[derive(serde::Serialize, Default)]
+struct IconHelper {
+	icon: Option<String>,
+	unicode_emoji: Option<String>,
+}
+
 #[async_trait]
 impl RoleExt for Role {
 	async fn set_icon(&mut self, ctx: &Context, url: &str) -> GovanResult {
@@ -201,35 +208,37 @@ impl RoleExt for Role {
 			}
 		};
 
-		// I do it like this because `.icon` is async so I can't use it inside an `.edit_role` lambda
-		let mut edit_role = serenity::builder::EditRole::from_role(self);
+		let edit_role = IconHelper {
+			icon: Some(CreateAttachment::bytes(bytes, "file.png").to_base64()),
+			unicode_emoji: None,
+		};
 
-		edit_role = edit_role
-			.unicode_emoji("")
-			.icon(&CreateAttachment::bytes(bytes, "file.png"));
+		ctx.http
+			.edit_role(self.guild_id, self.id, &edit_role, None)
+			.await?;
 
-		Ok(self.edit(&ctx, edit_role).await?)
+		Ok(())
 	}
 
 	async fn set_unicode_icon(&mut self, ctx: &Context, emoji: &str) -> GovanResult {
-		let mut edit_role = serenity::builder::EditRole::from_role(self);
+		let edit_role = IconHelper {
+			icon: None,
+			unicode_emoji: Some(emoji.into()),
+		};
 
-		edit_role = edit_role
-			.unicode_emoji(emoji)
-			.icon(&CreateAttachment::bytes(vec![], ""));
+		ctx.http
+			.edit_role(self.guild_id, self.id, &edit_role, None)
+			.await?;
 
-		Ok(self.edit(&ctx, edit_role).await?)
+		Ok(())
 	}
 
 	async fn reset_icon(&mut self, ctx: &Context) -> GovanResult {
-		// I do it like this because there's no other way lmfao
-		let mut edit_role = serenity::builder::EditRole::from_role(self);
+		ctx.http
+			.edit_role(self.guild_id, self.id, &IconHelper::default(), None)
+			.await?;
 
-		edit_role = edit_role
-			.unicode_emoji("")
-			.icon(&CreateAttachment::bytes(vec![], ""));
-
-		Ok(self.edit(&ctx, edit_role).await?)
+		Ok(())
 	}
 }
 

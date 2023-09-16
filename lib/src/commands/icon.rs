@@ -46,21 +46,41 @@ async fn icon<'a>(
 		let emoji_id = icon;
 		let icon = util::url_from_discord_emoji(icon, false);
 
-		role.set_icon(ctx, &icon).await?;
+		role.set_icon(ctx, &icon)
+			.await
+			.map_err(govanerror::error_chain!(
+				log fmt = ("Failed to set icon to discord emoji {} for role {}", icon, role.name),
+				user = "Icon too powerful"
+			))?;
 
 		msg.reply_report(ctx, &format!("Icon set. Enjoy your <:emoji:{}>", emoji_id))
 			.await;
 	} else if let Some(Argument::Emoji(EmojiType::Unicode(icon))) = arg {
-		role.set_unicode_icon(ctx, &icon).await?;
+		role.set_unicode_icon(ctx, &icon)
+			.await
+			.map_err(govanerror::error_chain!(
+				log fmt = ("Failed to set icon to emoji {} for role {}", icon, role.name),
+				user = "Icon too weak"
+			))?;
 
 		msg.reply_report(ctx, &format!("Icon set. Enjoy your {}", icon))
 			.await
 	} else if let Some(Argument::String(icon)) = arg {
-		role.set_icon(ctx, icon).await?;
+		role.set_icon(ctx, icon)
+			.await
+			.map_err(govanerror::error_chain!(
+				log fmt = ("Failed to set icon to url {} for role {}", icon, role.name),
+				user = "I cannot do with that unfortunately"
+			))?;
 
 		msg.reply_report(ctx, "Icon set. Enjoy").await;
 	} else if arg.is_none() {
-		role.reset_icon(ctx).await?;
+		role.reset_icon(ctx)
+			.await
+			.map_err(govanerror::error_chain!(
+				log fmt = ("Failed to clear icon of role {}", role.name),
+				user = "The void is too powerful"
+			))?;
 
 		msg.reply_report(ctx, "Icon reset. Woo").await;
 	}
