@@ -214,6 +214,16 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 		TournamentCommand::PostRound(args) => {
 			let tournament_name = &args.tournament_name;
 
+			let round_data_path = round_data(tournament_name, args.round);
+
+			if round_data_path.exists() {
+				bail!(
+					"Round file {} for tournament {} already exists",
+					round_data_path.display(),
+					tournament_name
+				);
+			}
+
 			let tournament_data: TournamentData =
 				toml::from_str(&fs::read_to_string(tournament_data(tournament_name))?)?;
 
@@ -320,7 +330,7 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 			for (i, msg_create) in msg_creates.into_iter().enumerate() {
 				msgs.push(
 					tournament_channel
-						.send_message(&ctx, msg_create.content(format!("Matchup #{}", i + 1)))
+						.send_message(&ctx, msg_create.content(format!("Match #{}", i + 1)))
 						.await?,
 				);
 			}
@@ -361,12 +371,92 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 				)
 				.await?;
 
-			fs::write(
-				round_data(tournament_name, args.round),
-				toml::to_string(&current_round)?,
-			)?;
+			fs::write(round_data_path, toml::to_string(&current_round)?)?;
 		}
-		TournamentCommand::VerifyRound(args) => {}
+		TournamentCommand::VerifyRound(args) => {
+			let tournament_name = &args.tournament_name;
+			let tournament_data: TournamentData =
+				toml::from_str(&fs::read_to_string(tournament_data(tournament_name))?)?;
+
+			let tournament_channel = tournament_data
+				.post_channel
+				.to_channel(&ctx)
+				.await?
+				.guild()
+				.ok_or(anyhow!(
+					"{} is not a guild channel",
+					tournament_data.post_channel
+				))?;
+
+			let to_check =
+				find_round_message(ctx, &tournament_channel, tournament_name, args.round).await?;
+
+			let total_len = to_check.len() * 2;
+			let mut missing = 0;
+			let mut fixed = 0;
+
+			for msg in to_check.into_iter() {
+				let fix = |emoji: String| async {
+					if let Err(e) = msg.react(&ctx, ReactionType::Unicode(emoji)).await {
+						println!(
+							"Error while {} reacting to {}: {:?}",
+							A_EMOJI,
+							msg.link(),
+							e
+						);
+						false
+					} else {
+						true
+					}
+				};
+
+				let Some((a_reactions, b_reactions)) = msg
+					.reactions
+					.iter()
+					.filter(|r| {
+						r.reaction_type.unicode_eq(A_EMOJI) || r.reaction_type.unicode_eq(B_EMOJI)
+					})
+					.next_tuple()
+				else {
+					println!("Message {} is is missing reactions", msg.link());
+					missing += 2;
+
+					if args.fix {
+						if fix(A_EMOJI.to_string()).await {
+							fixed += 1;
+						}
+
+						if fix(B_EMOJI.to_string()).await {
+							fixed += 1;
+						}
+					}
+
+					continue;
+				};
+
+				if !a_reactions.me {
+					missing += 1;
+					println!("I did not {} react to message {}", A_EMOJI, msg.link());
+
+					if args.fix && fix(A_EMOJI.to_string()).await {
+						fixed += 1;
+					}
+				}
+				if !b_reactions.me {
+					missing += 1;
+					println!("I did not {} react to message {}", B_EMOJI, msg.link());
+
+					if args.fix && fix(B_EMOJI.to_string()).await {
+						fixed += 1;
+					}
+				}
+			}
+
+			println!("Missed {}/{} reactions", missing, total_len);
+			if args.fix {
+				println!("Fixed {}/{} reactions", fixed, missing);
+			}
+		}
 		TournamentCommand::FinishRound(args) => {}
 		TournamentCommand::CleanRound(args) => {
 			let tournament_name = &args.tournament_name;

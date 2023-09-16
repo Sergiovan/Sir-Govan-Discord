@@ -105,6 +105,10 @@ pub struct TournamentVerifyRound {
 
 	/// Number of the round to verify
 	pub round: u64,
+
+	/// If missing reactions should be re-added
+	#[arg(long)]
+	pub fix: bool,
 }
 
 #[derive(Args)]
