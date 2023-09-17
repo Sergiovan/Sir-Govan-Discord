@@ -67,8 +67,10 @@ impl Bot {
 
 			let id = member.user.id;
 			if id == msg.author.id {
-				member.add_role(&ctx, role.id).await?;
-			} else {
+				if !member.roles.contains(&role.id) {
+					member.add_role(&ctx, role.id).await?;
+				}
+			} else if member.roles.contains(&role.id) {
 				member.remove_role(&ctx, role.id).await?;
 			}
 		}
