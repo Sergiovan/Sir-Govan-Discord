@@ -2,7 +2,7 @@ use super::logger;
 use crate::prelude::*;
 use async_trait::async_trait;
 
-use serenity::builder::CreateAttachment;
+use serenity::builder::{CreateAttachment, EditRole};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 
@@ -176,13 +176,6 @@ pub trait RoleExt {
 	async fn reset_icon(&mut self, ctx: &Context) -> GovanResult;
 }
 
-// Rolling my own Icon editor because Serenity library doesn't do it right
-#[derive(serde::Serialize, Default)]
-struct IconHelper {
-	icon: Option<String>,
-	unicode_emoji: Option<String>,
-}
-
 #[async_trait]
 impl RoleExt for Role {
 	async fn set_icon(&mut self, ctx: &Context, url: &str) -> GovanResult {
@@ -208,37 +201,27 @@ impl RoleExt for Role {
 			}
 		};
 
-		let edit_role = IconHelper {
-			icon: Some(CreateAttachment::bytes(bytes, "file.png").to_base64()),
-			unicode_emoji: None,
-		};
-
-		ctx.http
-			.edit_role(self.guild_id, self.id, &edit_role, None)
-			.await?;
-
-		Ok(())
+		Ok(self
+			.edit(
+				&ctx,
+				EditRole::from_role(self).icon(Some(&CreateAttachment::bytes(bytes, "role.png"))),
+			)
+			.await?)
 	}
 
 	async fn set_unicode_icon(&mut self, ctx: &Context, emoji: &str) -> GovanResult {
-		let edit_role = IconHelper {
-			icon: None,
-			unicode_emoji: Some(emoji.into()),
-		};
-
-		ctx.http
-			.edit_role(self.guild_id, self.id, &edit_role, None)
-			.await?;
-
-		Ok(())
+		Ok(self
+			.edit(
+				&ctx,
+				EditRole::from_role(self).unicode_emoji(Some(emoji.into())),
+			)
+			.await?)
 	}
 
 	async fn reset_icon(&mut self, ctx: &Context) -> GovanResult {
-		ctx.http
-			.edit_role(self.guild_id, self.id, &IconHelper::default(), None)
-			.await?;
-
-		Ok(())
+		Ok(self
+			.edit(&ctx, EditRole::from_role(self).icon(None))
+			.await?)
 	}
 }
 

@@ -67,14 +67,16 @@ impl Bot {
 
 			let id = member.user.id;
 			if id == msg.author.id {
-				member.add_role(&ctx, role.id).await?;
-			} else {
+				if !member.roles.contains(&role.id) {
+					member.add_role(&ctx, role.id).await?;
+				}
+			} else if member.roles.contains(&role.id) {
 				member.remove_role(&ctx, role.id).await?;
 			}
 		}
 
 		let new_role_name = self.data().await.random_no_context();
-		role.edit(&ctx, EditRole::default().name(&new_role_name))
+		role.edit(&ctx, EditRole::default().name(&new_role_name).icon(None))
 			.await?;
 
 		Ok(())
