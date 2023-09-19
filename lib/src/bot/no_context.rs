@@ -76,7 +76,7 @@ impl Bot {
 		}
 
 		let new_role_name = self.data().await.random_no_context();
-		role.edit(&ctx, EditRole::default().name(&new_role_name).icon(None))
+		role.edit(&ctx, EditRole::default().name(&new_role_name))
 			.await?;
 
 		Ok(())
