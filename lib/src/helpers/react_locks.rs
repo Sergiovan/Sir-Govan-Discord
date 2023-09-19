@@ -152,7 +152,7 @@ impl ReactSafety {
 			}
 		});
 
-		futures::future::join_all(vec.into_iter()).await;
+		util::collect_async(vec.into_iter()).await;
 	}
 
 	pub async fn terminate(&self, http: &impl CacheHttp) {
@@ -160,6 +160,6 @@ impl ReactSafety {
 
 		let timers = std::mem::take(&mut *self.tasks.write().await);
 
-		futures::future::join_all(timers.into_iter().flatten().map(|t| t.resolve(&http))).await;
+		util::collect_async(timers.into_iter().flatten().map(|t| t.resolve(&http))).await;
 	}
 }

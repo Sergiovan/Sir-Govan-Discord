@@ -58,7 +58,7 @@ impl Bot {
 
 		let ids = converter.take()?;
 		let futures = ids.into_iter().map(|e| stringify_content(ctx, e));
-		let replacements = futures::future::join_all(futures).await;
+		let replacements = util::collect_async(futures).await;
 
 		let replacements = replacements.into_iter().collect::<Vec<_>>();
 		converter.transform(|s| html_escape::encode_safe(&s).to_string());

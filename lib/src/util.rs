@@ -56,3 +56,15 @@ pub fn replace_all(
 	new.push_str(&haystack[last_match..]);
 	new
 }
+
+pub async fn collect_async<T, F: std::future::Future<Output = T>, I: Iterator<Item = F>>(
+	items: I,
+) -> Vec<T> {
+	let mut res = vec![];
+
+	for future in items {
+		res.push(future.await);
+	}
+
+	res
+}

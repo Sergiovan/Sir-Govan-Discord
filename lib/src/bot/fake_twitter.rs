@@ -70,7 +70,7 @@ async fn content_from_msgs(msgs: &[Message], ctx: &Context, filter: &str) -> Gov
 
 	let ids = converter.take()?;
 	let futures = ids.into_iter().map(|e| stringify_content(ctx, e));
-	let replacements = futures::future::join_all(futures).await;
+	let replacements = util::collect_async(futures).await;
 
 	let replacements = replacements.into_iter().collect::<Vec<_>>();
 	converter.transform(|s| html_encode(&s).to_string());
@@ -401,7 +401,7 @@ impl Bot {
 
 		if with_context {
 			tweet_data.more_tweets.extend(
-				futures::future::join_all(context.into_iter().skip(1).map(|msgs| async {
+				util::collect_async(context.into_iter().skip(1).map(|msgs| async {
 					let id = msgs.first().map(|msg| msg.id.get()).unwrap_or(0);
 					self.tweet_extra_data_from_message(ctx, msgs, verified_role, msg.timestamp)
 						.await
