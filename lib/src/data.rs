@@ -35,6 +35,7 @@ impl From<servers::Channels> for Channels {
 #[derive(Debug)]
 pub struct Server {
 	pub id: u64,
+	pub main: bool,
 	pub beta: bool,
 	pub nickname: Option<String>,
 	pub pin_amount: usize,
@@ -70,6 +71,7 @@ impl From<servers::Server> for Server {
 	fn from(value: servers::Server) -> Self {
 		Server {
 			id: value.id,
+			main: value.main,
 			beta: value.beta,
 			nickname: value.nickname,
 

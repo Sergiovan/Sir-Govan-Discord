@@ -96,7 +96,9 @@ impl Bot {
 				));
 			}
 
-			log(ctx, msg).await;
+			if server.main {
+				log(ctx, msg).await;
+			}
 
 			if msg.is_own(ctx) {
 				return Err(govanerror::debug!(

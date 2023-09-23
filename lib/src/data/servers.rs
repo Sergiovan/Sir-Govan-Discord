@@ -76,6 +76,8 @@ pub struct Channels {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
 	pub id: u64,
+	#[serde(default)]
+	pub main: bool,
 	pub beta: bool,
 	pub nickname: Option<String>,
 	pub pin_amount: usize,

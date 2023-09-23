@@ -38,20 +38,21 @@ impl Bot {
 
 		let reactor = add_reaction.user(&ctx).await?;
 
-		let author = if reactor.id == ctx.cache.current_user().id {
-			"I".to_string()
-		} else {
-			reactor.name.to_string()
-		};
+		if server.main {
+			let author = if reactor.id == ctx.cache.current_user().id {
+				"I".to_string()
+			} else {
+				reactor.name.to_string()
+			};
 
-		logger::info_fmt!(
-			"{} reacted on {} @ {}: {}",
-			author.cyan(),
-			add_reaction.message_id,
-			this_channel.name,
-			add_reaction.emoji.to_string()
-		);
-
+			logger::info_fmt!(
+				"{} reacted on {} @ {}: {}",
+				author.cyan(),
+				add_reaction.message_id,
+				this_channel.name,
+				add_reaction.emoji.to_string()
+			);
+		}
 		if reactor.id == ctx.cache.current_user().id {
 			return Err(govanerror::debug!(log = "No dispatching reactions on self"));
 		}
