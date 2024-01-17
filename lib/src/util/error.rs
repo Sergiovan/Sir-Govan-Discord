@@ -31,7 +31,12 @@ pub type GovanResult<T = ()> = std::result::Result<T, GovanError>;
 pub struct GovanError(GovanErrorImpl);
 
 impl GovanError {
-	pub fn as_debug<A>(to_log: Option<A>, to_user: UserMsgType) -> Self
+	pub fn as_debug<A>(
+		to_log: Option<A>,
+		to_user: UserMsgType,
+		file: &'static str,
+		line: u32,
+	) -> Self
 	where
 		A: Into<String>,
 	{
@@ -40,10 +45,17 @@ impl GovanError {
 			to_log.map(A::into),
 			to_user,
 			None,
+			file,
+			line,
 		))
 	}
 
-	pub fn as_warning<A>(to_log: Option<A>, to_user: UserMsgType) -> Self
+	pub fn as_warning<A>(
+		to_log: Option<A>,
+		to_user: UserMsgType,
+		file: &'static str,
+		line: u32,
+	) -> Self
 	where
 		A: Into<String>,
 	{
@@ -52,10 +64,17 @@ impl GovanError {
 			to_log.map(A::into),
 			to_user,
 			None,
+			file,
+			line,
 		))
 	}
 
-	pub fn as_error<A>(to_log: Option<A>, to_user: UserMsgType) -> Self
+	pub fn as_error<A>(
+		to_log: Option<A>,
+		to_user: UserMsgType,
+		file: &'static str,
+		line: u32,
+	) -> Self
 	where
 		A: Into<String>,
 	{
@@ -64,6 +83,8 @@ impl GovanError {
 			to_log.map(A::into),
 			to_user,
 			None,
+			file,
+			line,
 		))
 	}
 
@@ -157,6 +178,8 @@ macro_rules! into_govan {
             to_log: None,
             to_user: $user,
             source: Some(anyhow::Error::from(value)),
+						file: file!(),
+						line: line!(),
           })
         }
       }
@@ -186,6 +209,8 @@ struct GovanErrorImpl {
 	to_user: UserMsgType,
 	#[source]
 	source: Option<anyhow::Error>,
+	file: &'static str,
+	line: u32,
 }
 
 impl GovanErrorImpl {
@@ -194,12 +219,16 @@ impl GovanErrorImpl {
 		to_log: Option<String>,
 		to_user: UserMsgType,
 		source: Option<anyhow::Error>,
+		file: &'static str,
+		line: u32,
 	) -> Self {
 		GovanErrorImpl {
 			log_type,
 			to_log,
 			to_user,
 			source,
+			file,
+			line,
 		}
 	}
 
@@ -208,6 +237,8 @@ impl GovanErrorImpl {
 		log_type: Option<LogType>,
 		to_log: Option<A>,
 		to_user: UserMsgType,
+		file: &'static str,
+		line: u32,
 	) -> Self
 	where
 		A: Into<String>,
@@ -221,6 +252,8 @@ impl GovanErrorImpl {
 				to_user
 			},
 			Some(self.into()),
+			file,
+			line,
 		)
 	}
 
@@ -286,27 +319,60 @@ impl GovanErrorImpl {
 
 	fn log(self) {
 		if self.to_log.is_some() {
+			let file = self.file;
+			let line = self.line;
 			match self.log_type {
 				LogType::Debug => {
 					if self.source.is_some() {
 						let error_msg = self.source.as_ref().unwrap().to_string();
 						if error_msg.is_empty() {
-							logger::debug_fmt!("{}", self)
+							logger::debug_fmt!("{} @ {}:{}", self, file, line)
 						} else {
-							logger::debug_fmt!("{}: {}", self, self.source.as_ref().unwrap())
+							logger::debug_fmt!(
+								"{} @ {}:{}: {}",
+								self,
+								file,
+								line,
+								self.source.as_ref().unwrap()
+							)
 						}
 					} else {
 						logger::debug_fmt!("{}", self)
 					}
 				}
-				LogType::Warning => logger::warning_fmt!("{:?}", anyhow::Error::from(self)),
-				LogType::Error => logger::error_fmt!("{:?}", anyhow::Error::from(self)),
+				LogType::Warning => {
+					logger::warning_fmt!("{:?} @ {}:{}", anyhow::Error::from(self), file, line)
+				}
+				LogType::Error => {
+					logger::error_fmt!("{:?} @ {}:{}", anyhow::Error::from(self), file, line)
+				}
 			}
 		} else if self.source.is_some() {
 			match self.log_type {
-				LogType::Debug => logger::debug_fmt!("{}", self.source.unwrap()),
-				LogType::Warning => logger::warning_fmt!("{:?}", self.source.unwrap()),
-				LogType::Error => logger::error_fmt!("{:?}", self.source.unwrap()),
+				LogType::Debug => {
+					logger::debug_fmt!(
+						"Debug @ {}:{}: {}",
+						self.source.unwrap(),
+						self.file,
+						self.line
+					)
+				}
+				LogType::Warning => {
+					logger::warning_fmt!(
+						"Warning @ {}:{}: {:?}",
+						self.source.unwrap(),
+						self.file,
+						self.line
+					)
+				}
+				LogType::Error => {
+					logger::error_fmt!(
+						"Error @ {}:{}: {:?}",
+						self.source.unwrap(),
+						self.file,
+						self.line
+					)
+				}
 			}
 		} else {
 			// Nothing to log...
@@ -321,6 +387,8 @@ impl Default for GovanErrorImpl {
 			to_log: None,
 			to_user: UserMsgType::None,
 			source: None,
+			file: "",
+			line: 0,
 		}
 	}
 }
@@ -376,18 +444,21 @@ macro_rules! create_error {
 		$crate::util::error::GovanError::$iden(
 			Option::<String>::None,
 			$crate::util::error::UserMsgType::None,
+			file!(), line!()
 		)
 	};
   ($iden:ident, user $(fmt = $userfmt:tt)?$(= $user:expr)?) => {
     $crate::util::error::GovanError::$iden(
 			Option::<String>::None,
-			$crate::util::error::user_fmt_or_str_or_none!(($($userfmt)?) or $($user)?)
+			$crate::util::error::user_fmt_or_str_or_none!(($($userfmt)?) or $($user)?),
+			file!(), line!()
 		)
   };
   ($iden:ident, log $(fmt = $logfmt:tt)?$( = $log:expr)? $(, user $(fmt = $userfmt:tt)?$(= $user:expr)?)?) => {
 		$crate::util::error::GovanError::$iden(
 			$crate::util::error::fmt_or_str_or_none!(($($logfmt)?) or $($log)?),
-			$crate::util::error::user_fmt_or_str_or_none!($(($($userfmt)?) or $($user)?)?)
+			$crate::util::error::user_fmt_or_str_or_none!($(($($userfmt)?) or $($user)?)?),
+			file!(), line!()
 		)
 	};
 }
