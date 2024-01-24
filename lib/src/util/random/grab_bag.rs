@@ -75,10 +75,7 @@ struct GrabBagInner<T> {
 
 impl<T> GrabBagInner<T> {
 	fn total_chance(&self) -> Ratio<ChanceType> {
-		self.tiers
-			.last()
-			.map(|x| x.rarity)
-			.unwrap_or(Ratio::default())
+		self.tiers.last().map(|x| x.rarity).unwrap_or_default()
 	}
 
 	fn picking_ratio() -> Ratio<ChanceType> {

@@ -11,7 +11,7 @@ impl Bot {
 	pub fn can_remove_context(&self, ctx: &Context, msg: &Message, server: &Server) -> bool {
 		server.no_context.as_ref().is_some_and(|nc| {
 			nc.channel != 0
-				&& ctx.cache.guild_channel(nc.channel).is_some_and(|c| {
+				&& ctx.cache.channel(nc.channel).is_some_and(|c| {
 					c.guild_id == server.id
 						&& c.permissions_for_user(ctx, ctx.cache.current_user().id)
 							.is_ok_and(|p| p.send_messages())
@@ -41,7 +41,8 @@ impl Bot {
 		let mut role = ctx
 			.cache
 			.role(channel.guild_id, no_context.role)
-			.ok_or_else(misconfigured_error)?;
+			.ok_or_else(misconfigured_error)?
+			.clone();
 
 		let mut b = CreateMessage::default();
 		for attachment in msg.attachments.iter() {
@@ -63,7 +64,7 @@ impl Bot {
 		let members = members.collect::<Vec<_>>().await;
 
 		for member in members.into_iter() {
-			let mut member = member?;
+			let member = member?;
 
 			let id = member.user.id;
 			if id == msg.author.id {

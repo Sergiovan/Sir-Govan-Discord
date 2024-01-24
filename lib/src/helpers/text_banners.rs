@@ -334,8 +334,8 @@ pub async fn create_image(
 
 		let mut paint = fill_style.clone();
 
-		let paint = if blur.is_some() {
-			paint.set_image_filter(blur.unwrap())
+		let paint = if let Some(blur) = blur {
+			paint.set_image_filter(blur)
 		} else {
 			&mut paint
 		};
@@ -583,10 +583,6 @@ async fn create_caption_data(
 	.await;
 
 	let (_, metrics) = font.metrics();
-	let line_amount = res.len();
-
-	let mut line_heights: Vec<f32> = vec![];
-	line_heights.reserve(line_amount);
 
 	let mut max_height = 0_f32;
 	let mut total_height = 0_f32;
@@ -610,8 +606,7 @@ async fn create_caption_data(
 							let mut widths = vec![0_f32; glyphs.len()];
 							font.get_widths(&glyphs, widths.as_mut_slice());
 
-							let mut cumulative_widths = vec![];
-							cumulative_widths.reserve(text.len());
+							let mut cumulative_widths = Vec::with_capacity(text.len());
 
 							let mut cumulative: f32 = letter_spacing;
 							for width in widths.iter() {

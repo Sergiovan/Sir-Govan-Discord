@@ -255,7 +255,7 @@ impl<'a> Arguments<'a> {
 	pub fn channel(&mut self, ctx: &Context, guild_id: u64) -> Option<GuildChannel> {
 		let ch = self.channel_id()?;
 		ctx.cache
-			.guild_channel(ch)
+			.channel(ch)
 			.filter(|x| x.guild_id == guild_id)
 			.map(|g| g.to_owned())
 	}
@@ -269,7 +269,11 @@ impl<'a> Arguments<'a> {
 		}
 	}
 
-	pub fn user(&mut self, ctx: &Context, guild_id: u64) -> Option<Member> {
+	pub fn user<'b>(
+		&'a mut self,
+		ctx: &'b Context,
+		guild_id: u64,
+	) -> Option<serenity::cache::MemberRef<'b>> {
 		let user = self.user_id()?;
 		ctx.cache.member(guild_id, user)
 	}
@@ -283,7 +287,11 @@ impl<'a> Arguments<'a> {
 		}
 	}
 
-	pub fn role(&mut self, ctx: &Context, guild_id: u64) -> Option<Role> {
+	pub fn role<'b>(
+		&'a mut self,
+		ctx: &'b Context,
+		guild_id: u64,
+	) -> Option<serenity::cache::GuildRoleRef<'b>> {
 		let role = self.role_id()?;
 		ctx.cache.role(guild_id, role)
 	}

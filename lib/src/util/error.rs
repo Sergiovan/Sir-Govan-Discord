@@ -310,8 +310,8 @@ impl GovanErrorImpl {
 
 		let res = send(to_send).await;
 
-		if res.is_err() {
-			res.unwrap_err().log();
+		if let Err(res) = res {
+			res.log();
 		}
 
 		self

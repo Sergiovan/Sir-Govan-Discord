@@ -10,8 +10,8 @@ pub struct Handlebar<'a> {
 }
 
 impl<'a> Handlebar<'a> {
-	const ALWAYS_SUNNY: &str = "always_sunny";
-	const FAKE_TWITTER: &str = "fake_twitter";
+	const ALWAYS_SUNNY: &'static str = "always_sunny";
+	const FAKE_TWITTER: &'static str = "fake_twitter";
 
 	pub fn new() -> GovanResult<Handlebar<'a>> {
 		use crate::data::config;

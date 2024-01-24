@@ -81,7 +81,7 @@ impl Bot {
 		} else {
 			let server = bot_data
 				.servers
-				.get(&msg.guild_id.unwrap_or(GuildId::default()).get())
+				.get(&msg.guild_id.unwrap_or_default().get())
 				.ok_or_else(govanerror::debug_lazy!(
 					// log fmt = ("Cannot listen in on guild {:?}", msg.guild_id)
 				))?;

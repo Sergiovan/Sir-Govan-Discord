@@ -93,11 +93,7 @@ impl TournamentDataEntry {
 
 		let with_pins = |pins| TournamentDataEntry {
 			title: "".to_string(),
-			comment: format!(
-				" {} {} ",
-				embed.content,
-				embed.image.unwrap_or(String::new())
-			),
+			comment: format!(" {} {} ", embed.content, embed.image.unwrap_or_default()),
 			ignore: false,
 
 			pin_channel: msg.channel_id,
@@ -793,7 +789,9 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 			let to_delete = to_delete.into_iter().map(|c| c.collect_vec()).collect_vec();
 
 			for batch in to_delete {
-				tournament_channel.delete_messages(&ctx, batch).await?;
+				tournament_channel
+					.delete_messages(&ctx, batch.as_slice())
+					.await?;
 			}
 		}
 		TournamentCommand::Finish(args) => {
