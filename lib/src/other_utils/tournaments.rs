@@ -29,7 +29,7 @@ fn round_data_path(tournament_name: &str, round_nr: u64) -> PathBuf {
 	tournament_dir_path(tournament_name).join(format!("round_{}.toml", round_nr))
 }
 
-fn shuffle<T>(vec: &mut Vec<T>) {
+fn shuffle<T>(vec: &mut [T]) {
 	for i in (1..(vec.len())).rev() {
 		let j = random::from_range(0..=i);
 		vec.swap(i, j);

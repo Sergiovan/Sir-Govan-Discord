@@ -26,10 +26,7 @@ async fn quit<'a>(
 
 	let param = words.string();
 
-	if param.is_none() {
-		msg.reply_report(ctx, "Bye!").await;
-		bot.shutdown().await;
-	} else if param.is_some_and(|p| p == "beta") && bot.data().await.beta {
+	if param.is_none() || (param.is_some_and(|p| p == "beta") && bot.data().await.beta) {
 		msg.reply_report(ctx, "Bye!").await;
 		bot.shutdown().await;
 	} else {
