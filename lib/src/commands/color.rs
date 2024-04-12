@@ -41,7 +41,7 @@ async fn color<'a>(
 		Some(s) => {
 			let color = if s.to_lowercase() == "random" {
 				// Random color
-				rand::thread_rng().gen_range(0x000000..0xFFFFFF)
+				rand::thread_rng().gen_range(0x000001..0xFFFFFF)
 			} else {
 				let numbers = s.trim_start_matches('#');
 				let hash = u32::from_str_radix(numbers, 16).map_err(govanerror::debug_map!(
@@ -56,7 +56,12 @@ async fn color<'a>(
 					));
 				}
 
-				hash
+				// No default color allowed! This breaks too many things
+				if hash == 0 {
+					0x1
+				} else {
+					hash
+				}
 			};
 
 			top_role
