@@ -224,7 +224,7 @@ impl Bot {
 		ctx: &Context,
 		messages: Vec<Message>,
 		verified_role: Option<u64>,
-		original_timestamp: Timestamp,
+		reaction_time: Timestamp,
 	) -> GovanResult<TweetMoreData> {
 		let attachment = messages.iter().find_map(|msg| msg.any_image());
 
@@ -236,7 +236,7 @@ impl Bot {
 		.await?;
 
 		let first = messages.first().unwrap();
-		let time_diff = *first.timestamp - *original_timestamp;
+		let time_diff = *reaction_time - *first.timestamp;
 
 		let time_str = {
 			if time_diff.whole_hours() >= 24 {
@@ -317,6 +317,7 @@ impl Bot {
 		with_context: bool,
 		verified_role: Option<u64>,
 	) -> GovanResult {
+		let now = Timestamp::now();
 		let screenshotter = self.screenshotter().await?;
 
 		let channel = msg
@@ -403,7 +404,7 @@ impl Bot {
 			tweet_data.more_tweets.extend(
 				util::collect_async(context.into_iter().skip(1).map(|msgs| async {
 					let id = msgs.first().map(|msg| msg.id.get()).unwrap_or(0);
-					self.tweet_extra_data_from_message(ctx, msgs, verified_role, msg.timestamp)
+					self.tweet_extra_data_from_message(ctx, msgs, verified_role, now)
 						.await
 						.ok_or_log(&format!("Error creating data from message {}", id))
 				}))
