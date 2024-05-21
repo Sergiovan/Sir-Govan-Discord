@@ -238,9 +238,6 @@ enum LineElement {
 const Y_SCALE: f32 = 1.5_f32;
 const FONT_SIZE: f32 = 92_f32;
 
-#[derive(thiserror::Error, Debug)]
-enum TextBannerError {}
-
 pub async fn create_image(
 	text: &str,
 	preset: &Preset,
