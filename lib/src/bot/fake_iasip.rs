@@ -30,7 +30,7 @@ impl Bot {
 				),
 				ContentOriginal::Role(id) => format!(
 					"@{}",
-					id.to_role_cached(ctx)
+					util::role_from_id(id, ctx)
 						.map_or("@Unknown Role".to_string(), |role| role.name)
 				),
 				ContentOriginal::Emoji(id) => format!(
@@ -110,7 +110,7 @@ impl Bot {
 		};
 
 		let video = {
-			let tmpdir = tempdir::TempDir::new("video")?;
+			let tmpdir = tempfile::TempDir::with_prefix("video")?;
 
 			let episode_image = tmpdir.path().join("episode.png");
 			let title_image = tmpdir.path().join("title.png");

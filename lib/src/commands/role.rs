@@ -44,12 +44,12 @@ async fn role<'a>(
 		));
 	}
 
-	let role_name = RoleId::new(no_context.role)
-		.to_role_cached(ctx)
-		.ok_or_else(govanerror::error_lazy!(
+	let role_name = util::role_from_id(RoleId::new(no_context.role), ctx).ok_or_else(
+		govanerror::error_lazy!(
 			log fmt = ("Role {} was not cached properly", no_context.role),
 			user = "Discord is being silly again. Try again later"
-		))?;
+		),
+	)?;
 
 	let (number, out_of) = bot_data.no_context_index(&role_name.name);
 

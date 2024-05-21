@@ -4,6 +4,8 @@ pub mod random;
 pub mod traits;
 
 use regex::{Captures, Regex};
+use serenity::model::prelude::*;
+use serenity::prelude::*;
 
 pub fn filename_from_unicode_emoji(emoji: &str) -> String {
 	let first = emoji.as_bytes().first();
@@ -67,4 +69,10 @@ pub async fn collect_async<T, F: std::future::Future<Output = T>, I: Iterator<It
 	}
 
 	res
+}
+
+pub fn role_from_id(id: RoleId, ctx: &Context) -> Option<Role> {
+	// TODO Figure this shit out, it's insanely annoying
+	#[allow(deprecated)] // Asinine to_role_cached implementation
+	id.to_role_cached(&ctx.cache)
 }

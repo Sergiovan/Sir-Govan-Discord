@@ -5,6 +5,7 @@ use crate::bot::Bot;
 
 use crate::helpers::handlebars::{TweetData, TweetMoreData};
 
+use chrono::DateTime;
 use itertools::Itertools;
 use num_rational::Ratio;
 use serenity::builder::{CreateAllowedMentions, CreateAttachment, CreateMessage, GetMessages};
@@ -13,6 +14,9 @@ use serenity::prelude::*;
 
 use lazy_static::lazy_static;
 use regex::Regex;
+
+use chrono::Datelike;
+use chrono::Timelike;
 
 async fn content_from_msgs(msgs: &[Message], ctx: &Context, filter: &str) -> GovanResult<String> {
 	use html_escape::encode_quoted_attribute as html_encode;
@@ -45,8 +49,7 @@ async fn content_from_msgs(msgs: &[Message], ctx: &Context, filter: &str) -> Gov
 			)),
 			ContentOriginal::Role(id) => linkify(format!(
 				"@{}",
-				id.to_role_cached(ctx)
-					.map_or("@Unknown Role".to_string(), |role| role.name)
+				util::role_from_id(id, ctx).map_or("@Unknown Role".to_string(), |role| role.name)
 			)),
 			ContentOriginal::Emoji(id) => format!(
 				r#"<img class="emoji" src="{}">"#,
@@ -239,21 +242,26 @@ impl Bot {
 		let time_diff = *reaction_time - *first.timestamp;
 
 		let time_str = {
-			if time_diff.whole_hours() >= 24 {
+			if time_diff.num_hours() >= 24 {
 				format!(
 					"{} {} {}",
 					first.timestamp.day(),
-					first.timestamp.month() as u32,
+					first.timestamp.month(),
 					first.timestamp.year()
 				)
-			} else if time_diff.whole_hours() > 0 {
-				format!("{}h", time_diff.whole_hours())
-			} else if time_diff.whole_minutes() > 0 {
-				format!("{}m", time_diff.whole_minutes())
-			} else if time_diff.whole_seconds() > 0 {
-				format!("{}s", time_diff.whole_seconds())
+			} else if time_diff.num_hours() > 0 {
+				format!("{}h", time_diff.num_hours())
+			} else if time_diff.num_minutes() > 0 {
+				format!("{}m", time_diff.num_minutes())
+			} else if time_diff.num_seconds() > 0 {
+				format!("{}s", time_diff.num_seconds())
 			} else {
-				format!("{}ns", time_diff.whole_nanoseconds())
+				format!(
+					"{}ns",
+					time_diff
+						.num_nanoseconds()
+						.expect("Somehow we've been running for 100 years")
+				)
 			}
 		};
 
@@ -351,7 +359,7 @@ impl Bot {
 		let mut author = UserId::new(1);
 		let mut group = 0;
 		let mut last_timestamp =
-			chrono::NaiveDateTime::from_timestamp_opt(msg.timestamp.unix_timestamp(), 0).unwrap();
+			DateTime::from_timestamp(msg.timestamp.unix_timestamp(), 0).unwrap();
 		let context = messages
 			.into_iter()
 			.rev()
@@ -361,8 +369,7 @@ impl Bot {
 			})
 			.group_by(move |msg| {
 				let timestamp =
-					chrono::NaiveDateTime::from_timestamp_opt(msg.timestamp.unix_timestamp(), 0)
-						.unwrap();
+					DateTime::from_timestamp(msg.timestamp.unix_timestamp(), 0).unwrap();
 				if msg.author.id != author
 					|| timestamp - last_timestamp > *MAX_TIME_DIFF
 					|| msg.referenced_message.is_some()

@@ -2,7 +2,7 @@ use std::env;
 
 #[tokio::main]
 async fn main() {
-	dotenv::dotenv().expect("Failed to load .env file");
+	dotenvy::dotenv().expect("Failed to load .env file");
 
 	// console_subscriber::init();
 	tracing_subscriber::fmt::init();
