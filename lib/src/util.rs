@@ -73,6 +73,6 @@ pub async fn collect_async<T, F: std::future::Future<Output = T>, I: Iterator<It
 
 pub fn role_from_id(id: RoleId, ctx: &Context) -> Option<Role> {
 	// TODO Figure this shit out, it's insanely annoying
-	#[allow(deprecated)] // Asinine to_role_cached implementation
+	#[allow(deprecated)] // Asinine to_role_cached implementation with no alternatives
 	id.to_role_cached(&ctx.cache)
 }

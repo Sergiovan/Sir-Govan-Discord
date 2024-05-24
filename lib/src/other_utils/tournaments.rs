@@ -563,7 +563,7 @@ async fn run_command(ctx: &Context, args: &TournamentArgs) -> anyhow::Result<()>
 				.send_message(
 					&ctx,
 					CreateMessage::new().content(format!(
-					"This is the end of the entries for round __#{}__ of the **{}** tournbament.\n\
+					"This is the end of the entries for round __#{}__ of the **{}** tournament.\n\
 					 To go back to the start of the round hitch a ride on {}",
 					args.round,
 					tournament_name,
