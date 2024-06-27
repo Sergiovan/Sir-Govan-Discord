@@ -32,12 +32,16 @@ itertools = "0.11.0"
 async-trait = "0.1.73"
 static_assertions = "1.1.0"
 html-escape = "0.2.13"
-fantoccini = "0.19.3"
+# fantoccini = "0.19.3"
 serde_json = "1.0.105"
 either = "1.9.0"
 url = "2.4.1"
 clap = { version = "4.4.2", features = ["derive"] }
 tempfile = "3.10.1"
+
+[dependencies.fantoccini]
+git = "https://github.com/jonhoo/fantoccini"
+tag = "v0.20.0-rc.7"
 
 [dependencies.openssl]
 version = "*"
@@ -48,7 +52,10 @@ version = "1.32.0"
 features = ["macros", "signal", "rt-multi-thread", "process"]
 
 [dependencies.serenity]
-version = "0.12"
+# version = "0.12"
+git = "https://github.com/serenity-rs/serenity"
+rev = "9ad74d41209380591a3458afbc9e21ba1cec2132"
+
 default-features = false
 features = [
   "cache",

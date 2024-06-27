@@ -11,9 +11,10 @@ impl Bot {
 		msg.guild_cached(ctx).await?;
 
 		let bot_data = self.data().await;
+		let mine = msg.author.id == ctx.cache.as_ref().current_user().id;
 
 		async fn log(ctx: &Context, msg: &Message) {
-			let mine = msg.is_own(ctx);
+			let mine = msg.author.id == ctx.cache.as_ref().current_user().id;
 
 			let author = if mine {
 				"me".to_string()
@@ -67,10 +68,10 @@ impl Bot {
 			);
 		}
 
-		if msg.is_private() {
+		if msg.guild_id.is_none() {
 			log(ctx, msg).await;
 
-			if msg.is_own(ctx) {
+			if mine {
 				return Err(govanerror::debug!(
 					// log = "Cannot listen to own messages"
 				));
@@ -100,7 +101,7 @@ impl Bot {
 				log(ctx, msg).await;
 			}
 
-			if msg.is_own(ctx) {
+			if mine {
 				return Err(govanerror::debug!(
 					// log = "Cannot listen to own messages"
 				));

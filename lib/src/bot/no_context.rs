@@ -3,6 +3,7 @@ use crate::prelude::*;
 use serenity::builder::{CreateAttachment, CreateMessage, EditRole};
 use serenity::model::prelude::*;
 use serenity::prelude::*;
+use std::ops::Deref;
 
 use crate::bot::Bot;
 use crate::data::Server;
@@ -10,14 +11,17 @@ use crate::data::Server;
 impl Bot {
 	pub fn can_remove_context(&self, ctx: &Context, msg: &Message, server: &Server) -> bool {
 		server.no_context.as_ref().is_some_and(|nc| {
-			nc.channel != 0
-				&& ctx.cache.channel(nc.channel).is_some_and(|c| {
-					c.guild_id == server.id
-						&& c.permissions_for_user(ctx, ctx.cache.current_user().id)
-							.is_ok_and(|p| p.send_messages())
-				}) && nc.role != 0
-				&& ctx.cache.role(server.id, nc.role).is_some()
-		}) && msg.content.len() <= 280
+			ctx.cache.guild(server.id).is_some_and(|g| {
+				nc.channel != 0
+					&& g.channels
+						.get(&ChannelId::new(nc.channel))
+						.is_some_and(|c| {
+							c.guild_id == server.id
+								&& c.permissions_for_user(ctx, ctx.cache.current_user().id)
+									.is_ok_and(|p| p.send_messages())
+						}) && nc.role != 0 && g.roles.contains_key(&RoleId::new(nc.role))
+			}) && msg.content.len() <= 280
+		})
 	}
 
 	pub async fn remove_context(
@@ -38,9 +42,15 @@ impl Bot {
 			.guild()
 			.ok_or_else(misconfigured_error)?;
 
+		let role_id = RoleId::new(no_context.role);
+
 		let mut role = ctx
 			.cache
-			.role(channel.guild_id, no_context.role)
+			.guild(channel.guild_id)
+			.ok_or_else(misconfigured_error)?
+			.deref()
+			.roles
+			.get(&role_id)
 			.ok_or_else(misconfigured_error)?
 			.clone();
 

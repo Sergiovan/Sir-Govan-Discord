@@ -232,7 +232,7 @@ impl Battle {
 
 			let content = CONTENT_TELEPORT.replace(&dismantled_embed.content, "");
 
-			let original_message_url = original_message.link_ensured(&ctx).await;
+			let original_message_url = original_message.link();
 
 			let mut embed = CreateEmbed::default();
 

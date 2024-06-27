@@ -254,8 +254,10 @@ impl<'a> Arguments<'a> {
 
 	pub fn channel(&mut self, ctx: &Context, guild_id: u64) -> Option<GuildChannel> {
 		let ch = self.channel_id()?;
-		ctx.cache
-			.channel(ch)
+		let guild = ctx.cache.guild(guild_id)?;
+		guild
+			.channels
+			.get(&ChannelId::new(ch))
 			.filter(|x| x.guild_id == guild_id)
 			.map(|g| g.to_owned())
 	}
@@ -273,9 +275,10 @@ impl<'a> Arguments<'a> {
 		&'a mut self,
 		ctx: &'b Context,
 		guild_id: u64,
-	) -> Option<serenity::cache::MemberRef<'b>> {
+	) -> Option<serenity::all::Member> {
 		let user = self.user_id()?;
-		ctx.cache.member(guild_id, user)
+		let guild = &ctx.cache.guild(guild_id)?;
+		guild.members.get(&UserId::new(user)).cloned()
 	}
 
 	pub fn role_id(&mut self) -> Option<u64> {
@@ -287,13 +290,10 @@ impl<'a> Arguments<'a> {
 		}
 	}
 
-	pub fn role<'b>(
-		&'a mut self,
-		ctx: &'b Context,
-		guild_id: u64,
-	) -> Option<serenity::cache::GuildRoleRef<'b>> {
+	pub fn role<'b>(&'a mut self, ctx: &'b Context, guild_id: u64) -> Option<serenity::all::Role> {
 		let role = self.role_id()?;
-		ctx.cache.role(guild_id, role)
+		let guild = ctx.cache.guild(guild_id)?;
+		guild.roles.get(&RoleId::new(role)).cloned()
 	}
 
 	pub fn emoji(&mut self) -> Option<EmojiType> {

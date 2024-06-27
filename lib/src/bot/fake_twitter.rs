@@ -15,9 +15,6 @@ use serenity::prelude::*;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use chrono::Datelike;
-use chrono::Timelike;
-
 async fn content_from_msgs(msgs: &[Message], ctx: &Context, filter: &str) -> GovanResult<String> {
 	use html_escape::encode_quoted_attribute as html_encode;
 
@@ -242,26 +239,21 @@ impl Bot {
 		let time_diff = *reaction_time - *first.timestamp;
 
 		let time_str = {
-			if time_diff.num_hours() >= 24 {
+			if time_diff.whole_hours() >= 24 {
 				format!(
 					"{} {} {}",
 					first.timestamp.day(),
 					first.timestamp.month(),
 					first.timestamp.year()
 				)
-			} else if time_diff.num_hours() > 0 {
-				format!("{}h", time_diff.num_hours())
-			} else if time_diff.num_minutes() > 0 {
-				format!("{}m", time_diff.num_minutes())
-			} else if time_diff.num_seconds() > 0 {
-				format!("{}s", time_diff.num_seconds())
+			} else if time_diff.whole_hours() > 0 {
+				format!("{}h", time_diff.whole_hours())
+			} else if time_diff.whole_minutes() > 0 {
+				format!("{}m", time_diff.whole_minutes())
+			} else if time_diff.whole_seconds() > 0 {
+				format!("{}s", time_diff.whole_seconds())
 			} else {
-				format!(
-					"{}ns",
-					time_diff
-						.num_nanoseconds()
-						.expect("Somehow we've been running for 100 years")
-				)
+				format!("{}ns", time_diff.whole_nanoseconds())
 			}
 		};
 

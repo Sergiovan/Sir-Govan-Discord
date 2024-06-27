@@ -298,7 +298,7 @@ impl Bot {
 				emoji_override,
 			} => {
 				// No pinning your own messages, bot
-				if msg.is_own(ctx) {
+				if msg.author.id == ctx.cache.current_user().id {
 					return Err(govanerror::debug!(log = "Won't pin myself"));
 				}
 
