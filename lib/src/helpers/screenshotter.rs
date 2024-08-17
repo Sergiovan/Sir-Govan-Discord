@@ -1,6 +1,7 @@
-use fantoccini::wd::Capabilities;
+use crate::prelude::*;
 
-use crate::prelude::GovanResult;
+use fantoccini::wd::Capabilities;
+use tokio::sync::Mutex;
 
 const ARGS: &[&str] = &[
 	"--autoplay-policy=user-gesture-required",
@@ -43,7 +44,7 @@ const ARGS: &[&str] = &[
 ];
 
 pub struct Screenshotter {
-	client: fantoccini::Client,
+	client: Mutex<fantoccini::Client>,
 	handlebars: super::handlebars::Handlebar<'static>,
 }
 
@@ -52,7 +53,7 @@ impl Screenshotter {
 		let handlebars = super::handlebars::Handlebar::new()?;
 
 		Ok(Screenshotter {
-			client: Self::new_connection().await?,
+			client: Mutex::new(Self::new_connection().await?),
 			handlebars,
 		})
 	}
@@ -76,8 +77,8 @@ impl Screenshotter {
 			.await?)
 	}
 
-	pub async fn reconnect(&mut self) -> GovanResult<()> {
-		self.client = Self::new_connection().await?;
+	pub async fn reconnect(&self) -> GovanResult<()> {
+		*self.client.lock().await = Self::new_connection().await?;
 
 		Ok(())
 	}
@@ -91,12 +92,34 @@ impl Screenshotter {
 	) -> GovanResult<Vec<u8>> {
 		let html = openssl::base64::encode_block(html.as_bytes());
 
-		self.client
-			.goto(&format!("data:text/html;base64,{}", html))
-			.await?;
-
-		let elem = self
+		let res = self
 			.client
+			.lock()
+			.await
+			.goto(&format!("data:text/html;base64,{}", html))
+			.await;
+
+		if let Err(e) = &res {
+			match e {
+				fantoccini::error::CmdError::NotW3C(_) => {
+					// Try one more time
+					self.reconnect().await?;
+					self.client
+						.lock()
+						.await
+						.goto(&format!("data:text/html;base64,{}", html))
+						.await
+						.map_err(govanerror::error_map!(
+							log = "Fantoccini retry did not work out",
+							user = "Twitter is still broken..."
+						))?;
+				}
+				_ => res?,
+			}
+		}
+
+		let client = self.client.lock().await;
+		let elem = client
 			.wait()
 			.for_element(fantoccini::Locator::Css(capture))
 			.await?;
@@ -110,7 +133,7 @@ impl Screenshotter {
 		let min_height = height.unwrap_or(0_f64);
 		const MAX_HEIGHT: f64 = 1080_f64 + HEADER_SIZE; // To account for top bar
 
-		self.client
+		client
 			.set_window_rect(
 				0,
 				0,
