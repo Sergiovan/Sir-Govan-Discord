@@ -320,9 +320,9 @@ const TOURNAMENT_DIR: &str = "res/tournaments";
 const TOURNAMENT_FILE: &str = "tournament.toml";
 
 const A_EMOJI: &str = "🅰️";
-const A_URL: &str = "https://twemoji.maxcdn.com/v/latest/72x72/1f170.png";
+const A_URL: &str = "https://cdn.jsdelivr.net/gh/jdecked/twemoji/assets/72x72/1f170.png";
 const B_EMOJI: &str = "🅱️";
-const B_URL: &str = "https://twemoji.maxcdn.com/v/latest/72x72/1f171.png";
+const B_URL: &str = "https://cdn.jsdelivr.net/gh/jdecked/twemoji/assets/72x72/1f171.png";
 
 lazy_static! {
 	pub static ref FOOTER_PIN: Regex = Regex::new(r"(\d+) - (\d+)").unwrap();

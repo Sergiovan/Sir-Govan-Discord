@@ -26,7 +26,7 @@ pub fn filename_from_unicode_emoji(emoji: &str) -> String {
 
 pub fn url_from_unicode_emoji(emoji: &str) -> String {
 	format!(
-		"https://twemoji.maxcdn.com/v/latest/72x72/{}",
+		"https://cdn.jsdelivr.net/gh/jdecked/twemoji/assets/72x72/{}",
 		filename_from_unicode_emoji(emoji)
 	)
 }

@@ -29,7 +29,7 @@ impl Bot {
 			));
 		}
 
-		const FALLBACK: &str = "https://twemoji.maxcdn.com/v/latest/72x72/2049.png";
+		const FALLBACK: &str = "https://cdn.jsdelivr.net/gh/jdecked/twemoji/assets/72x72/2049.png";
 
 		let pin_data = PinData {
 			icon_url: if let Some(emoji) = override_icon {
