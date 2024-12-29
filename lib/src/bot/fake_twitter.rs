@@ -5,7 +5,7 @@ use crate::bot::Bot;
 
 use crate::helpers::handlebars::{TweetData, TweetMoreData};
 
-use chrono::DateTime;
+use chrono::{DateTime, Datelike, Timelike};
 use itertools::Itertools;
 use num_rational::Ratio;
 use serenity::builder::{CreateAllowedMentions, CreateAttachment, CreateMessage, GetMessages};
@@ -239,21 +239,21 @@ impl Bot {
 		let time_diff = *reaction_time - *first.timestamp;
 
 		let time_str = {
-			if time_diff.whole_hours() >= 24 {
+			if time_diff.num_hours() >= 24 {
 				format!(
 					"{} {} {}",
 					first.timestamp.day(),
 					first.timestamp.month(),
 					first.timestamp.year()
 				)
-			} else if time_diff.whole_hours() > 0 {
-				format!("{}h", time_diff.whole_hours())
-			} else if time_diff.whole_minutes() > 0 {
-				format!("{}m", time_diff.whole_minutes())
-			} else if time_diff.whole_seconds() > 0 {
-				format!("{}s", time_diff.whole_seconds())
+			} else if time_diff.num_hours() > 0 {
+				format!("{}h", time_diff.num_hours())
+			} else if time_diff.num_minutes() > 0 {
+				format!("{}m", time_diff.num_minutes())
+			} else if time_diff.num_seconds() > 0 {
+				format!("{}s", time_diff.num_seconds())
 			} else {
-				format!("{}ns", time_diff.whole_nanoseconds())
+				format!("{}ns", time_diff.num_nanoseconds().unwrap_or(1))
 			}
 		};
 

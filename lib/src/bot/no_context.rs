@@ -9,17 +9,22 @@ use crate::bot::Bot;
 use crate::data::Server;
 
 impl Bot {
-	pub fn can_remove_context(&self, ctx: &Context, msg: &Message, server: &Server) -> bool {
+	pub fn can_remove_context(
+		&self,
+		ctx: &Context,
+		msg: &Message,
+		server: &Server,
+		me: &Member,
+	) -> bool {
 		server.no_context.as_ref().is_some_and(|nc| {
 			ctx.cache.guild(server.id).is_some_and(|g| {
 				nc.channel != 0
 					&& g.channels
 						.get(&ChannelId::new(nc.channel))
 						.is_some_and(|c| {
-							c.guild_id == server.id
-								&& c.permissions_for_user(ctx, ctx.cache.current_user().id)
-									.is_ok_and(|p| p.send_messages())
-						}) && nc.role != 0 && g.roles.contains_key(&RoleId::new(nc.role))
+							c.guild_id == server.id && g.user_permissions_in(c, me).send_messages()
+						}) && nc.role != 0
+					&& g.roles.contains_key(&RoleId::new(nc.role))
 			}) && msg.content.len() <= 280
 		})
 	}

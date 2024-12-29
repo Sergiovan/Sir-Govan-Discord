@@ -34,7 +34,7 @@ async fn color<'a>(
 		None => {
 			msg.reply_report(
 				ctx,
-				&format!("Your current color is #{:06X}", top_role.colour.0),
+				format!("Your current color is #{:06X}", top_role.colour.0),
 			)
 			.await;
 		}
@@ -68,7 +68,7 @@ async fn color<'a>(
 				.edit(&ctx, EditRole::default().colour(color as u64))
 				.await?;
 
-			msg.reply_report(ctx, &format!("Done. Your new color is #{:06X}", color))
+			msg.reply_report(ctx, format!("Done. Your new color is #{:06X}", color))
 				.await;
 		}
 	}

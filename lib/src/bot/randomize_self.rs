@@ -80,7 +80,7 @@ impl Bot {
 
 				ActivityData::streaming(
 					random::pick_or(
-						&vec![
+						&[
 							strings.status_playing.pick(),
 							strings.status_listening.pick(),
 							strings.status_watching.pick(),

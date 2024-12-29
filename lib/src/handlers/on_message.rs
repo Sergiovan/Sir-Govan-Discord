@@ -80,12 +80,20 @@ impl Bot {
 			drop(bot_data); // Unlock data. This isn't great...
 			self.commander.parse(ctx, msg, self).await?;
 		} else {
-			let server = bot_data
-				.servers
-				.get(&msg.guild_id.unwrap_or_default().get())
+			let guild = msg
+				.guild(&ctx.cache)
 				.ok_or_else(govanerror::debug_lazy!(
-					// log fmt = ("Cannot listen in on guild {:?}", msg.guild_id)
-				))?;
+					log fmt = ("Cannot fetch guild from {:?}", msg.guild_id)
+				))?
+				.clone();
+
+			let server =
+				bot_data
+					.servers
+					.get(&guild.id.get())
+					.ok_or_else(govanerror::debug_lazy!(
+						// log fmt = ("Cannot listen in on guild {:?}", msg.guild_id)
+					))?;
 
 			if server
 				.channels
@@ -108,8 +116,9 @@ impl Bot {
 			}
 
 			// From here on we're for sure allowed to listen into messages
+			let me = guild.current_user_member(&ctx).await?;
 
-			if self.can_remove_context(ctx, msg, server) && util::random::one_in(100) {
+			if self.can_remove_context(ctx, msg, server, &me) && util::random::one_in(100) {
 				if let Err(e) = self.remove_context(ctx, msg, server).await {
 					e.log(); // No propagation, we keep gooooing
 				};

@@ -72,7 +72,7 @@ async fn refresh<'a>(
 	} else {
 		msg.reply_report(
 			ctx,
-			&format!("Problems found while refreshing: {}", problems.join(", ")),
+			format!("Problems found while refreshing: {}", problems.join(", ")),
 		)
 		.await;
 	}

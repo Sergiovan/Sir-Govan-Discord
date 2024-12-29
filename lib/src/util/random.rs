@@ -24,6 +24,6 @@ pub fn pick<T, L: AsRef<[T]>>(elems: &L) -> Option<&<[T] as rand::prelude::Slice
 	elems.as_ref().choose(&mut rand::thread_rng())
 }
 
-pub fn pick_or<'a, T>(elems: &'a Vec<T>, default: &'a T) -> &'a T {
+pub fn pick_or<'a, T>(elems: &'a [T], default: &'a T) -> &'a T {
 	elems.choose(&mut rand::thread_rng()).unwrap_or(default)
 }

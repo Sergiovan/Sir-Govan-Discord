@@ -20,7 +20,20 @@ impl Bot {
 		dest: GuildChannel,
 		override_icon: Option<EmojiType>,
 	) -> GovanResult {
-		let perms = dest.permissions_for_user(ctx, ctx.cache.current_user().id)?;
+		let guild = dest
+			.guild(&ctx)
+			.ok_or_else(govanerror::debug_lazy!(
+				log = "Command used outside of guild",
+				user = "You need to be in a guild, silly!"
+			))?
+			.clone();
+
+		let me = guild
+			.current_user_member(&ctx)
+			.await
+			.map_err(govanerror::error_map!())?;
+
+		let perms = guild.user_permissions_in(&dest, &me);
 
 		if !perms.send_messages() {
 			return Err(govanerror::error!(
@@ -28,6 +41,8 @@ impl Bot {
 				user = "< This guy's creator is a foolish human"
 			));
 		}
+
+		// msg
 
 		const FALLBACK: &str = "https://cdn.jsdelivr.net/gh/jdecked/twemoji/assets/72x72/2049.png";
 

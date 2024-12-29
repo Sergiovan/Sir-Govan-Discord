@@ -2,6 +2,11 @@
 
 THIS_DIRECTORY=`realpath $(dirname "$0")`
 
+# Remember to systemctl start docker
+# If that doesn't work, remember to reboot :)
+# Also remember to put your user in the docker group, otherwise
+# running as sudo is required and uhhhh... please don't do that
+
 # Assuming docker and buildx installed
 
 export DOCKER_CLI_EXPERIMENTAL=enabled

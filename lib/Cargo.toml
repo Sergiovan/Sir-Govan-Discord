@@ -48,9 +48,7 @@ version = "1.32.0"
 features = ["macros", "signal", "rt-multi-thread", "process"]
 
 [dependencies.serenity]
-# version = "0.12"
-git = "https://github.com/serenity-rs/serenity"
-rev = "9ad74d41209380591a3458afbc9e21ba1cec2132"
+version = "0.12.3"
 
 default-features = false
 features = [

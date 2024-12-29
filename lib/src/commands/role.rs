@@ -56,15 +56,12 @@ async fn role<'a>(
 	if let Some(number) = number {
 		msg.reply_report(
 			ctx,
-			&format!("{}/{}: {}", number + 1, out_of, role_name.name),
+			format!("{}/{}: {}", number + 1, out_of, role_name.name),
 		)
 		.await;
 	} else {
-		msg.reply_report(
-			ctx,
-			&format!("NaN: {}\nThis role is shiny!", role_name.name),
-		)
-		.await;
+		msg.reply_report(ctx, format!("NaN: {}\nThis role is shiny!", role_name.name))
+			.await;
 	}
 
 	Ok(())

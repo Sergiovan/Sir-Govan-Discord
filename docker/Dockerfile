@@ -2,7 +2,7 @@ FROM ghcr.io/cross-rs/aarch64-unknown-linux-gnu:edge
 SHELL ["/bin/bash", "-c"]
 
 # Install dependencies
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN dpkg --add-architecture arm64 && \
     apt-get update && \

@@ -12,10 +12,14 @@ pub fn filename_from_unicode_emoji(emoji: &str) -> String {
 	if first.is_some_and(|c| c.is_ascii_digit()) {
 		format!("{:x}-20e3.png", first.unwrap())
 	} else {
+		let emoji = if emoji.as_bytes().len() == 2 {
+			emoji.trim_end_matches('\u{FE0F}')
+		} else {
+			emoji
+		};
 		format!(
 			"{}.png",
 			emoji
-				.trim_end_matches('\u{FE0F}')
 				.chars()
 				.map(|c| format!("{:x}", c as u32))
 				.collect::<Vec<_>>()

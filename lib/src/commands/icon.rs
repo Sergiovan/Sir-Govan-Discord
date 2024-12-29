@@ -53,7 +53,7 @@ async fn icon<'a>(
 				user = "Icon too powerful"
 			))?;
 
-		msg.reply_report(ctx, &format!("Icon set. Enjoy your <:emoji:{}>", emoji_id))
+		msg.reply_report(ctx, format!("Icon set. Enjoy your <:emoji:{}>", emoji_id))
 			.await;
 	} else if let Some(Argument::Emoji(EmojiType::Unicode(icon))) = arg {
 		role.set_unicode_icon(ctx, &icon)
@@ -63,7 +63,7 @@ async fn icon<'a>(
 				user = "Icon too weak"
 			))?;
 
-		msg.reply_report(ctx, &format!("Icon set. Enjoy your {}", icon))
+		msg.reply_report(ctx, format!("Icon set. Enjoy your {}", icon))
 			.await
 	} else if let Some(Argument::String(icon)) = arg {
 		role.set_icon(ctx, icon)

@@ -270,7 +270,7 @@ impl<'a> StringSearch<'a> {
 	}
 }
 
-impl<'a> Iterator for StringSearch<'a> {
+impl Iterator for StringSearch<'_> {
 	type Item = char;
 
 	fn next(&mut self) -> Option<Self::Item> {
