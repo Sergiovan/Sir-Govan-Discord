@@ -139,6 +139,9 @@ pub trait MessageExt {
 	);
 
 	fn any_image(&self) -> Option<String>;
+	fn is_forwarded(&self) -> bool;
+
+	async fn this_or_forwarded(self, ctx: &Context) -> GovanResult<Message>;
 }
 
 #[async_trait]
@@ -164,6 +167,49 @@ impl MessageExt for Message {
 					.and_then(|e| e.image.as_ref().map(|i| i.url.clone()))
 			})
 			.or_else(|| self.sticker_items.first().and_then(|s| s.image_url()))
+	}
+
+	fn is_forwarded(&self) -> bool {
+		self.message_reference
+			.as_ref()
+			.is_some_and(|r| r.kind == MessageReferenceKind::Forward)
+	}
+
+	async fn this_or_forwarded(self, ctx: &Context) -> GovanResult<Message> {
+		// TODO Fix this when Serenity implements Message forwarding/Message::message_snapshots
+		// https://github.com/serenity-rs/serenity/issues/2995
+		if self.is_forwarded() {
+			if let Some(m) = self.referenced_message {
+				Ok(*m)
+			} else {
+				let msg_ref = self.message_reference.unwrap(); // Must be true...
+				let g = ctx
+					.cache
+					.guild(msg_ref.guild_id.ok_or_else(govanerror::error_lazy!(
+						log fmt = ("Message {} is forwarded but has no reference to a guild", self.id.get())
+					))?)
+					.ok_or_else(govanerror::error_lazy!(
+						log fmt = ("Message {} is forwarded but I don't have the guild {} in my cache", self.id.get(), msg_ref.guild_id.unwrap())
+					))?
+					.clone();
+
+				let c = g.channels.get(&msg_ref.channel_id).ok_or_else(govanerror::error_lazy!(
+					log fmt = ("Message {} is forwarded I cannot find the channel {} in the proper guild", self.id.get(), msg_ref.channel_id)
+				))?;
+
+				c.message(
+					&ctx,
+					msg_ref.message_id.ok_or_else(govanerror::error_lazy!(
+						log fmt = ("Message {} is forwarded but has no reference to a referenced message", self.id.get())
+					))?,
+				)
+				.await.map_err(govanerror::error_map!(
+					log fmt = ("Message {} is forwarded but I cannot find the message it references ({})", self.id.get(), msg_ref.message_id.unwrap())
+				))
+			}
+		} else {
+			Ok(self)
+		}
 	}
 }
 

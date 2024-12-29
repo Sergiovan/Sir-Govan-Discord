@@ -28,12 +28,10 @@ impl Bot {
 			))?
 			.clone();
 
-		let me = guild
-			.current_user_member(&ctx)
-			.await
-			.map_err(govanerror::error_map!())?;
+		let me_user = ctx.cache.current_user().clone();
+		let me_mber = guild.member(&ctx, me_user.id).await?;
 
-		let perms = guild.user_permissions_in(&dest, &me);
+		let perms = guild.user_permissions_in(&dest, &me_mber);
 
 		if !perms.send_messages() {
 			return Err(govanerror::error!(
@@ -42,7 +40,13 @@ impl Bot {
 			));
 		}
 
-		// msg
+		let msg = match msg.clone().this_or_forwarded(ctx).await {
+			Ok(m) => m,
+			Err(g) => {
+				g.log();
+				msg
+			}
+		};
 
 		const FALLBACK: &str = "https://cdn.jsdelivr.net/gh/jdecked/twemoji/assets/72x72/2049.png";
 

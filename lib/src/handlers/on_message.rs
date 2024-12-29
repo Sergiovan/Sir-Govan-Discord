@@ -37,6 +37,47 @@ impl Bot {
 				Err(_) => "unknown-channel".to_string(),
 			};
 
+			let (msg, forwarded) = if msg.is_forwarded() {
+				match msg.clone().this_or_forwarded(ctx).await {
+					Ok(m) => {
+						let g = match m.guild(&ctx.cache) {
+							Some(g) => g.name.clone(),
+							None => {
+								format!(
+									"<#{}>",
+									m.guild_id.map(|i| i.get().to_string()).unwrap_or(
+										msg.message_reference
+											.as_ref()
+											.unwrap()
+											.guild_id
+											.map(|i| i.get().to_string())
+											.unwrap_or("unknown".to_string())
+									)
+								)
+							}
+						};
+
+						let c = match m.channel(&ctx).await {
+							Ok(c) => match c {
+								Channel::Guild(channel) => format!("#{}", channel.name),
+								Channel::Private(channel) => {
+									format!("##{}", channel.recipient.name)
+								}
+								_ => String::new(),
+							},
+							_ => String::new(),
+						};
+
+						logger::debug(&format!("{:?}", m));
+
+						(m, format!(" [Forwarded from {}{}]", g, c))
+					}
+					Err(_) => (msg.clone(), " [Forwarded]".to_string()),
+				}
+			} else {
+				(msg.clone(), String::new())
+			};
+
 			let content = msg.content_safe(ctx) + " ";
 
 			let attachments = if !msg.attachments.is_empty() {
@@ -58,9 +99,10 @@ impl Bot {
 			};
 
 			logger::info_fmt!(
-				"{} @ {}: {}{}{}{}",
+				"{} @ {}{}: {}{}{}{}",
 				author.cyan(),
 				channel.cyan(),
+				forwarded.purple(),
 				content,
 				attachments.yellow(),
 				embeds.yellow(),
@@ -116,9 +158,11 @@ impl Bot {
 			}
 
 			// From here on we're for sure allowed to listen into messages
-			let me = guild.current_user_member(&ctx).await?;
+			// let me = guild.current_user_member(&ctx).await?; // This shit causes endpoint error???
+			let me_user = ctx.cache.current_user().clone();
+			let me_mber = guild.member(&ctx, me_user.id).await?;
 
-			if self.can_remove_context(ctx, msg, server, &me) && util::random::one_in(100) {
+			if self.can_remove_context(ctx, msg, server, &me_mber) && util::random::one_in(100) {
 				if let Err(e) = self.remove_context(ctx, msg, server).await {
 					e.log(); // No propagation, we keep gooooing
 				};
