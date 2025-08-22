@@ -1,0 +1,119 @@
+startTimes = [:]
+
+void setBuildStatus(String message, String context, String state) {
+  if (state == "pending") {
+    startTimes[context] = new Date()
+  } else {
+    TimeDuration duration = TimeCategory.minus(new Date(), startTimes[context])
+    def prelude = state == 'success' ? 'Successful in' : 'Failing after'
+    message = "${prelude} ${duration}"
+  }
+  
+  // add a Github access token as a global 'secret text' credential on Jenkins with the id 'github-commit-status-token'
+  withCredentials([string(credentialsId: 'forgejo-jenkins-token', variable: 'TOKEN')]) {
+  // 'set -x' for debugging. Don't worry the access token won't be actually logged
+  // Also, the sh command actually executed is not properly logged, it will be further escaped when written to the log   
+    String header_auth = '\"Authorization: token $TOKEN\"'
+    
+    sh label: "Setting status '$context' for $GIT_COMMIT to '$state'", script: """
+        set -x
+        curl \"https://git.sergiovan.me/api/v1/repos/sergiovan/Sir-Govan-Discord/statuses/$GIT_COMMIT\" \
+            -X POST \
+            -H $header_auth \
+            -H 'accept: application/json' \
+            -H 'Content-Type: application/json' \
+            -d \"{\\\"description\\\": \\\"$message\\\", \\\"state\\\": \\\"$state\\\", \\\"context\\\": \\\"$context\\\", \\\"target_url\\\": \\\"$BUILD_URL\\\"}\"
+    """
+  } 
+}
+
+def buildContext = "build";
+def checkContext = "clippy";
+def fmtContext = "formatting";
+
+pipeline {
+  agent any
+
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '5'))
+  }
+
+  triggers {
+    GenericTrigger(
+      tokenCredentialId: 'forgejo-sirgovan-webhook-token'
+    )
+  }
+
+  stages {
+    stage('Set up') {
+      sh label: 'Clean workspace', script: 'git clean -fdx'
+    }
+    
+    parallel {
+      stage('Build') {
+        steps {
+          script {
+            setBuildStatus("Compiling", buildContext, "pending")
+            try {
+              sh label: 'Build project', script: 'cargo build --verbose --release'
+              setBuildStatus("", buildContext, "success")
+            } catch (e) {
+              setBuildStatus("", buildContext, "failure")
+              throw e
+            }
+            sh label: "Compress executable for storage", script: "tar -cvzf sirgovan_x86_64-linux.tar.gz target/release/sirgovan"
+            archiveArtifacts artifacts: "sirgovan_x86_64-linux.tar.gz", onlyIfSuccessful: true
+          }
+        }
+      }
+
+      stage('Clippy check') {
+        steps {
+          script {
+            setBuildStatus("Clippy check", checkContext, "pending")
+            try {
+              sh label: 'Run clippy', script: 'cargo clippy --all-targets --all-features --verbose -- -D warnings'
+              setBuildStatus("", buildContext, "success")
+            } catch (e) {
+              setBuildStatus("", buildContext, "failure")
+              throw e
+            }
+          }
+        }
+      }
+
+      stage('Format check') {
+        steps {
+          script {
+            setBuildStatus("Format check", checkContext, "pending")
+            try {
+              sh label: 'Check formatting', script: 'cargo fmt --all -- --check'
+              setBuildStatus("", buildContext, "success")
+            } catch (e) {
+              setBuildStatus("", buildContext, "failure")
+              throw e
+            }
+          }
+        }
+      }
+    }
+
+    stage('Deploy') {
+      input {
+        message "Deploy?"
+        submitter "sergiovan"
+      }
+      steps {
+        script {
+          def is_docker_active = sh returnStatus: true, label: 'Check docker status', script: 'systemctl is-active docker --quiet'
+          if (is_docker_active != 0) {
+            unstable('Docker was not active')
+          }
+          sh label: 'Build in container', script: 'set +x; bash scripts/build-rpi-release.sh'
+          sh label: 'Install', script: 'set +x; bash scripts/install-rpi-release.sh'
+        }
+      }
+    }
+
+  }
+}
